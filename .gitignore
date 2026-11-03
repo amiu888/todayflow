@@ -1,0 +1,19 @@
+# Swift / SwiftPM
+.build/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+DerivedData/
+Packages/*.build/
+
+# macOS
+.DS_Store
+
+# App container / local data
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Local secrets
+config.env
+*.local
