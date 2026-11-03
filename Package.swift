@@ -28,9 +28,11 @@ let package = Package(
     ],
     products: [
         .library(name: "TodayFlowCore", targets: ["TodayFlowCore"]),
+        .library(name: "TodayFlowPersistence", targets: ["TodayFlowPersistence"]),
     ],
     dependencies: [
-        // GRDB.swift is added when TodayFlowPersistence lands (driver.md §6).
+        // driver.md §6: SQLite via GRDB (WAL, FTS5, versioned migrations).
+        .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
     ],
     targets: [
         .target(
@@ -41,9 +43,28 @@ let package = Package(
                 .enableUpcomingFeature("StrictConcurrency"),
             ]
         ),
+        .target(
+            name: "TodayFlowPersistence",
+            dependencies: [
+                "TodayFlowCore",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
         .testTarget(
             name: "TodayFlowCoreTests",
             dependencies: ["TodayFlowCore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        .testTarget(
+            name: "TodayFlowPersistenceTests",
+            dependencies: ["TodayFlowPersistence"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
