@@ -32,6 +32,8 @@ let package = Package(
         .library(name: "TodayFlowRecognition", targets: ["TodayFlowRecognition"]),
         .library(name: "TodayFlowDesign", targets: ["TodayFlowDesign"]),
         .library(name: "TodayFlowFeatures", targets: ["TodayFlowFeatures"]),
+        .library(name: "TodayFlowMac", targets: ["TodayFlowMac"]),
+        .executable(name: "TodayFlowApp", targets: ["TodayFlowApp"]),
     ],
     dependencies: [
         // driver.md §6: SQLite via GRDB (WAL, FTS5, versioned migrations).
@@ -116,6 +118,44 @@ let package = Package(
         .testTarget(
             name: "TodayFlowPersistenceTests",
             dependencies: ["TodayFlowPersistence"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        .target(
+            name: "TodayFlowMac",
+            dependencies: [
+                "TodayFlowCore",
+                "TodayFlowPersistence",
+                "TodayFlowRecognition",
+                "TodayFlowDesign",
+                "TodayFlowFeatures",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        .executableTarget(
+            name: "TodayFlowApp",
+            dependencies: ["TodayFlowMac"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        .testTarget(
+            name: "TodayFlowMacTests",
+            dependencies: [
+                "TodayFlowMac",
+                "TodayFlowCore",
+                "TodayFlowPersistence",
+                "TodayFlowRecognition",
+                "TodayFlowDesign",
+                "TodayFlowFeatures",
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
