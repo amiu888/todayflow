@@ -27,6 +27,7 @@ private struct Fixture {
     let repository = InMemoryWorkItemRepository()
     let linkRepository = InMemoryLinkRepository()
     let attachmentRepository = InMemoryAttachmentRepository()
+    let settingRepository = InMemorySettingRepository()
     let calendar = WorkCalendar(calendar: testCalendar)
     let now = testNow
     let vm: TodayViewModel
@@ -36,6 +37,7 @@ private struct Fixture {
             repository: repository,
             linkRepository: linkRepository,
             attachmentRepository: attachmentRepository,
+            settingRepository: settingRepository,
             calendar: calendar,
             clock: { testNow },
             onOpenTask: onOpenTask
@@ -350,6 +352,146 @@ func sortDue_ordersByDueDateThenPriority() async {
 
     f.vm.sort = .due
     #expect(f.vm.visibleRows.map(\.title) == ["EarlyUrgent", "EarlyNormal", "LateHigh"])
+}
+
+// MARK: - Sort persistence, selection, manual order (FR-11, FR-12)
+
+@Test @MainActor
+func setSort_persistsChoice() async {
+    let f = Fixture()
+    await f.vm.setSort(.priority)
+
+    #expect(f.vm.sort == .priority)
+    #expect(await f.settingRepository.value(for: SettingKeys.todaySort) == "priority")
+}
+
+@Test @MainActor
+func load_restoresPersistedSort() async {
+    let f = Fixture()
+    await f.settingRepository.seed("due", for: SettingKeys.todaySort)
+    await f.vm.load()
+
+    #expect(f.vm.sort == .due)
+}
+
+@Test @MainActor
+func load_ignoresUnknownPersistedSort() async {
+    let f = Fixture()
+    await f.settingRepository.seed("bogus", for: SettingKeys.todaySort)
+    await f.vm.load()
+
+    #expect(f.vm.sort == .manual)
+}
+
+@Test @MainActor
+func select_togglesSelection() async {
+    let f = Fixture()
+    let alpha = f.item("Alpha", displayOrder: "a0")
+    await f.seed(alpha)
+
+    f.vm.select(alpha.id)
+    #expect(f.vm.selectedId == alpha.id)
+
+    f.vm.select(alpha.id)
+    #expect(f.vm.selectedId == nil)
+}
+
+@Test @MainActor
+func moveDown_swapsWithNextAndSwitchesToManual() async {
+    let f = Fixture()
+    let a = f.item("A", priority: .urgent, displayOrder: "a0")
+    let b = f.item("B", priority: .high, displayOrder: "a1")
+    let c = f.item("C", priority: .normal, displayOrder: "a2")
+    await f.seed(a)
+    await f.seed(b)
+    await f.seed(c)
+    await f.vm.load()
+    await f.vm.setSort(.priority) // a manual move implies Display order
+
+    await f.vm.moveDown(a.id)
+
+    #expect(f.vm.visibleRows.map(\.title) == ["B", "A", "C"])
+    #expect(f.vm.sort == .manual)
+    #expect(await f.settingRepository.value(for: SettingKeys.todaySort) == "manual")
+    let moved = await f.repository.item(a.id)
+    #expect(FractionalIndex.isLessThan(b.displayOrder, moved!.displayOrder))
+}
+
+@Test @MainActor
+func moveUp_swapsWithPrevious() async {
+    let f = Fixture()
+    let a = f.item("A", displayOrder: "a0")
+    let b = f.item("B", displayOrder: "a1")
+    let c = f.item("C", displayOrder: "a2")
+    await f.seed(a)
+    await f.seed(b)
+    await f.seed(c)
+    await f.vm.load()
+
+    await f.vm.moveUp(c.id)
+
+    #expect(f.vm.visibleRows.map(\.title) == ["A", "C", "B"])
+}
+
+@Test @MainActor
+func moveUp_atTopEdge_isNoOp() async {
+    let f = Fixture()
+    let a = f.item("A", displayOrder: "a0")
+    await f.seed(a)
+    await f.vm.load()
+
+    await f.vm.moveUp(a.id)
+
+    #expect(f.vm.visibleRows.map(\.title) == ["A"])
+    #expect((await f.repository.item(a.id))?.displayOrder == "a0")
+}
+
+@Test @MainActor
+func dragMove_beforeTarget_placesRowAboveIt() async {
+    let f = Fixture()
+    let a = f.item("A", displayOrder: "a0")
+    let b = f.item("B", displayOrder: "a1")
+    let c = f.item("C", displayOrder: "a2")
+    await f.seed(a)
+    await f.seed(b)
+    await f.seed(c)
+    await f.vm.load()
+
+    await f.vm.move(c.id, targetId: a.id, before: true)
+
+    #expect(f.vm.visibleRows.map(\.title) == ["C", "A", "B"])
+}
+
+@Test @MainActor
+func dragMove_afterTarget_placesRowBelowIt() async {
+    let f = Fixture()
+    let a = f.item("A", displayOrder: "a0")
+    let b = f.item("B", displayOrder: "a1")
+    let c = f.item("C", displayOrder: "a2")
+    await f.seed(a)
+    await f.seed(b)
+    await f.seed(c)
+    await f.vm.load()
+
+    await f.vm.move(a.id, targetId: c.id, before: false)
+
+    #expect(f.vm.visibleRows.map(\.title) == ["B", "C", "A"])
+}
+
+@Test @MainActor
+func dragMove_keepsParent() async {
+    let f = Fixture()
+    let project = f.item("Project", kind: .project, displayOrder: "a0")
+    let a = f.item("A", displayOrder: "a1", parentId: project.id)
+    let b = f.item("B", displayOrder: "a2")
+    await f.seed(project)
+    await f.seed(a)
+    await f.seed(b)
+    await f.vm.load()
+
+    await f.vm.move(a.id, targetId: b.id, before: false)
+
+    #expect((await f.repository.item(a.id))?.parentId == project.id)
 }
 
 // MARK: - Chain, parent color, attachments

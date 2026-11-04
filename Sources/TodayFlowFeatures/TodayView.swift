@@ -26,6 +26,7 @@ public struct TodayView: View {
         repository: any WorkItemRepository,
         linkRepository: any LinkRepository,
         attachmentRepository: any AttachmentRepository,
+        settingRepository: (any SettingRepository)? = nil,
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil
@@ -34,6 +35,7 @@ public struct TodayView: View {
             repository: repository,
             linkRepository: linkRepository,
             attachmentRepository: attachmentRepository,
+            settingRepository: settingRepository,
             calendar: calendar,
             deviceId: deviceId,
             onOpenTask: onOpenTask
@@ -62,7 +64,7 @@ public struct TodayView: View {
                 },
                 onSortChange: { sort in
                     Task { @MainActor in
-                        model.sort = sort
+                        await model.setSort(sort)
                     }
                 },
                 onSearch: {
@@ -90,7 +92,32 @@ public struct TodayView: View {
             minWidth: DesignTokens.Window.panelMinimum.width,
             minHeight: DesignTokens.Window.panelMinimum.height
         )
+        .background { keyboardShortcuts }
         .task { await model.observe() }
+    }
+
+    // MARK: - Keyboard (driver.md FR-12)
+
+    /// ⌥↑ / ⌥↓ move the selected row (FR-12). Zero-sized buttons register the
+    /// shortcuts for the window without taking any layout space.
+    @MainActor
+    private var keyboardShortcuts: some View {
+        Group {
+            Button("Move up") {
+                guard let id = model.selectedId else { return }
+                Task { @MainActor in await model.moveUp(id) }
+            }
+            .keyboardShortcut(.upArrow, modifiers: [.option])
+
+            Button("Move down") {
+                guard let id = model.selectedId else { return }
+                Task { @MainActor in await model.moveDown(id) }
+            }
+            .keyboardShortcut(.downArrow, modifiers: [.option])
+        }
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
     }
 
     // MARK: - Search
@@ -181,7 +208,18 @@ public struct TodayView: View {
                     await model.quickAction(id, action)
                 }
             },
-            motion: motion
+            motion: motion,
+            isSelected: model.selectedId == row.id,
+            onSelect: { id in
+                Task { @MainActor in
+                    model.select(id)
+                }
+            },
+            onMove: { draggedId, targetId, before in
+                Task { @MainActor in
+                    await model.move(draggedId, targetId: targetId, before: before)
+                }
+            }
         )
     }
 

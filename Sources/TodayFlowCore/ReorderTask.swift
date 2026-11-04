@@ -21,30 +21,49 @@ public struct ReorderTask: Sendable {
 
     /// Move `id` to sit between `beforeId` (upper bound) and `afterId` (lower bound) —
     /// either may be `nil` for a list end — and, if `newParentId` is given, reparent it.
+    ///
+    /// - `toTopLevel` moves the item to the top-level list (parent `nil`), overriding
+    ///   `newParentId`. Every kind may stand alone, so no kind validation is needed.
+    /// - `newDisplayOrder` sets an explicit fractional-index key, skipping the neighbor
+    ///   midpoint computation. The Today list reorders a flat, cross-parent sequence,
+    ///   so it computes the key itself (from the visible rows' keys) and passes it here;
+    ///   the item keeps its current parent unless `toTopLevel` is set.
     @discardableResult
     public func execute(
         _ id: UUIDv7,
         beforeId: UUIDv7? = nil,
         afterId: UUIDv7? = nil,
         newParentId: UUIDv7? = nil,
+        toTopLevel: Bool = false,
+        newDisplayOrder: String? = nil,
         at: Date = .now
     ) async throws -> WorkItem {
         guard var item = await repository.item(id) else { throw Error.notFound }
 
-        let newParent = newParentId ?? item.parentId
-        if let newParentId {
+        let newParent: UUIDv7?
+        if toTopLevel {
+            newParent = nil
+        } else if let newParentId {
             guard let parent = await repository.item(newParentId) else {
                 throw Error.invalidParent(kind: item.kind, parentKind: nil)
             }
             guard item.kind.allowedParentKinds.contains(parent.kind) else {
                 throw Error.invalidParent(kind: item.kind, parentKind: parent.kind)
             }
+            newParent = newParentId
+        } else {
+            newParent = item.parentId
         }
 
         let siblings = await repository.children(of: newParent)
-        let beforeKey = beforeId.flatMap { bid in siblings.first { $0.id == bid }?.displayOrder }
-        let afterKey = afterId.flatMap { aid in siblings.first { $0.id == aid }?.displayOrder }
-        let displayOrder = FractionalIndex.midpoint(afterKey, beforeKey)
+        let displayOrder: String
+        if let newDisplayOrder {
+            displayOrder = newDisplayOrder
+        } else {
+            let beforeKey = beforeId.flatMap { bid in siblings.first { $0.id == bid }?.displayOrder }
+            let afterKey = afterId.flatMap { aid in siblings.first { $0.id == aid }?.displayOrder }
+            displayOrder = FractionalIndex.midpoint(afterKey, beforeKey)
+        }
 
         item.parentId = newParent
         item.displayOrder = displayOrder

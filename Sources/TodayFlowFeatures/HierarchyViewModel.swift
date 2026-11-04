@@ -63,6 +63,8 @@ public final class HierarchyViewModel {
     public private(set) var nodes: [HierarchyNode] = []
     /// The ids of the expanded containers (a collapsed container hides its children).
     public private(set) var expanded: Set<UUIDv7> = []
+    /// The row selected by a single tap (drives ⌥↑/⌥↓, FR-12).
+    public var selectedId: UUIDv7?
     public private(set) var isLoading = false
     public private(set) var isSaving = false
     public private(set) var lastError: String?
@@ -273,6 +275,28 @@ public final class HierarchyViewModel {
         )
     }
 
+    /// Moves `itemId` out of its parent to the top-level list (FR-16
+    /// refinement, the "Move to top level" context-menu item). The item is
+    /// appended after the current last top-level item; every kind may stand
+    /// alone, so no kind validation is needed. A no-op if the item is already
+    /// at the top level.
+    public func moveToTopLevel(_ itemId: UUIDv7) async {
+        guard let item = node(with: itemId)?.item, item.parentId != nil else { return }
+        let topLevel = await repository.children(of: nil)
+        let last = topLevel.last { $0.id != itemId }
+        await withSaving {
+            try await ReorderTask(
+                repository: self.repository,
+                deviceId: self.deviceId
+            ).execute(
+                itemId,
+                afterId: last?.id,
+                toTopLevel: true,
+                at: self.clock()
+            )
+        }
+    }
+
     /// Reorders `itemId` between two explicit sibling bounds: it ends up after
     /// `afterId` (lower bound) and before `beforeId` (upper bound); a nil bound
     /// is the end of the sibling list.
@@ -325,6 +349,12 @@ public final class HierarchyViewModel {
         } else {
             expanded.insert(id)
         }
+    }
+
+    /// Selects a row; tapping the selected row again clears the selection
+    /// (FR-12: the selection drives ⌥↑/⌥↓).
+    public func select(_ id: UUIDv7?) {
+        selectedId = (selectedId == id) ? nil : id
     }
 
     // MARK: - Tree queries

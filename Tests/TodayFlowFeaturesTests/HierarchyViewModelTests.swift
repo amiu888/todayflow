@@ -282,6 +282,52 @@ func moveDown_swapsWithNextSibling() async {
 }
 
 @Test @MainActor
+func moveToTopLevel_detachesAndAppendsAfterLastTopLevel() async {
+    let f = Fixture()
+    let epic = WorkItem(kind: .epic, title: "E", displayOrder: "a")
+    let other = WorkItem(kind: .epic, title: "O", displayOrder: "b")
+    let project = WorkItem(kind: .project, title: "P", parentId: epic.id, displayOrder: "c")
+    for item in [epic, other, project] {
+        await f.repository.seed(item)
+    }
+    await f.vm.refresh()
+
+    await f.vm.moveToTopLevel(project.id)
+
+    #expect(f.vm.lastError == nil)
+    #expect((await f.repository.item(project.id))?.parentId == nil)
+    #expect((await f.repository.children(of: nil)).map(\.title) == ["E", "O", "P"])
+    #expect(f.vm.nodes.map(\.item.title) == ["E", "O", "P"])
+}
+
+@Test @MainActor
+func moveToTopLevel_isNoOpAtTopLevel() async {
+    let f = Fixture()
+    let epic = WorkItem(kind: .epic, title: "E", displayOrder: "a")
+    await f.repository.seed(epic)
+    await f.vm.refresh()
+
+    await f.vm.moveToTopLevel(epic.id)
+
+    #expect((await f.repository.item(epic.id))?.displayOrder == "a")
+    #expect(f.vm.lastError == nil)
+}
+
+@Test @MainActor
+func hierarchySelect_togglesSelection() async {
+    let f = Fixture()
+    let epic = WorkItem(kind: .epic, title: "E", displayOrder: "a")
+    await f.repository.seed(epic)
+    await f.vm.refresh()
+
+    f.vm.select(epic.id)
+    #expect(f.vm.selectedId == epic.id)
+
+    f.vm.select(epic.id)
+    #expect(f.vm.selectedId == nil)
+}
+
+@Test @MainActor
 func delete_unparentsChildren() async {
     let f = Fixture()
     let project = WorkItem(kind: .project, title: "P", displayOrder: "a")

@@ -1,20 +1,6 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import TodayFlowCore
 import TodayFlowDesign
-
-/// The payload carried by a hierarchy drag (driver.md FR-16 reparenting).
-///
-/// Encoded as JSON data; a drop that cannot decode (e.g. a file dragged in
-/// from Finder) is rejected by `dropDestination`. A dedicated exported UTType
-/// is a 6-Mac refinement once the app target can declare one in Info.plist.
-struct HierarchyDragPayload: Codable, Transferable {
-    let itemId: UUIDv7
-
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .data)
-    }
-}
 
 /// The hierarchy window (driver.md FR-16, MVP gate line 515): the full
 /// epics → projects → tasks → subtasks tree with progress roll-up,
@@ -64,7 +50,31 @@ public struct HierarchyView: View {
             }
         }
         .frame(width: DesignTokens.Window.hierarchy.width, height: DesignTokens.Window.hierarchy.height)
+        .background { keyboardShortcuts }
         .task { await model.refresh() }
+    }
+
+    // MARK: - Keyboard (driver.md FR-12)
+
+    /// ⌥↑ / ⌥↓ move the selected row among its siblings.
+    @MainActor
+    private var keyboardShortcuts: some View {
+        Group {
+            Button("Move up") {
+                guard let id = model.selectedId else { return }
+                Task { @MainActor in await model.moveUp(id) }
+            }
+            .keyboardShortcut(.upArrow, modifiers: [.option])
+
+            Button("Move down") {
+                guard let id = model.selectedId else { return }
+                Task { @MainActor in await model.moveDown(id) }
+            }
+            .keyboardShortcut(.downArrow, modifiers: [.option])
+        }
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
     }
 
     private var tree: some View {
@@ -148,17 +158,29 @@ private struct HierarchyRowView: View {
         }
         .frame(height: DesignTokens.Spacing.rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            if model.selectedId == row.node.id {
+                RoundedRectangle(
+                    cornerRadius: DesignTokens.Spacing.cornerRadius,
+                    style: .continuous
+                )
+                .fill(Color.accentColor.opacity(0.15))
+            }
+        }
         .contentShape(Rectangle())
+        .onTapGesture {
+            model.select(row.node.id)
+        }
         .onTapGesture(count: 2) {
             model.onOpenDetail?(row.node.id)
         }
-        .draggable(HierarchyDragPayload(itemId: row.node.id)) {
+        .draggable(WorkItemDragPayload(itemId: row.node.id)) {
             Text(row.node.item.title)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
-        .dropDestination(for: HierarchyDragPayload.self) { payloads, _ in
+        .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
             guard let payload = payloads.first else { return false }
             Task { @MainActor in
                 await model.reparent(payload.itemId, toParent: row.node.id)
@@ -195,13 +217,18 @@ private struct HierarchyRowView: View {
                 }
             }
 
-            // FR-12: ⌥↑/⌥↓ keyboard reordering is a 6-Mac refinement — the
-            // context menu offers the same moves for v1.
+            // FR-12: the same moves are available on ⌥↑/⌥↓ for the selection.
             Button("Move up") {
                 Task { @MainActor in await model.moveUp(row.node.id) }
             }
             Button("Move down") {
                 Task { @MainActor in await model.moveDown(row.node.id) }
+            }
+
+            if row.node.item.parentId != nil {
+                Button("Move to top level") {
+                    Task { @MainActor in await model.moveToTopLevel(row.node.id) }
+                }
             }
 
             if row.node.item.kind == .task || row.node.item.kind == .subtask {
@@ -210,8 +237,6 @@ private struct HierarchyRowView: View {
                 }
             }
 
-            // No "move to top level" item: `ReorderTask` cannot express it
-            // (`newParentId: nil` keeps the current parent).
             if row.node.children.isEmpty {
                 Button("Delete", role: .destructive) {
                     Task { @MainActor in await model.delete(row.node.id) }

@@ -8,16 +8,29 @@ public struct TaskRowView: View {
     public let onQuickAction: @Sendable (UUIDv7, TaskRowQuickAction) -> Void
     public let motion: Motion
 
+    /// Whether this row is the selected one (single tap; drives ⌥↑/⌥↓, FR-12).
+    public let isSelected: Bool
+    /// Single tap: select / deselect (FR-12).
+    public let onSelect: @Sendable (UUIDv7) -> Void
+    /// Drop of a dragged row: `(draggedId, targetId, insertBefore)`, FR-12.
+    public let onMove: @Sendable (UUIDv7, UUIDv7, Bool) -> Void
+
     public init(
         model: TaskRowModel,
         onToggle: @escaping @Sendable (UUIDv7) -> Void,
         onQuickAction: @escaping @Sendable (UUIDv7, TaskRowQuickAction) -> Void,
-        motion: Motion = Motion(preference: .full)
+        motion: Motion = Motion(preference: .full),
+        isSelected: Bool = false,
+        onSelect: @escaping @Sendable (UUIDv7) -> Void = { _ in },
+        onMove: @escaping @Sendable (UUIDv7, UUIDv7, Bool) -> Void = { _, _, _ in }
     ) {
         self.model = model
         self.onToggle = onToggle
         self.onQuickAction = onQuickAction
         self.motion = motion
+        self.isSelected = isSelected
+        self.onSelect = onSelect
+        self.onMove = onMove
     }
 
     @Environment(\.colorScheme) private var colorScheme
@@ -29,12 +42,35 @@ public struct TaskRowView: View {
 
         row(dueTime: dueTime)
             .frame(height: DesignTokens.Spacing.rowHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                if isSelected {
+                    RoundedRectangle(
+                        cornerRadius: DesignTokens.Spacing.cornerRadius,
+                        style: .continuous
+                    )
+                    .fill(Color.accentColor.opacity(0.15))
+                }
+            }
             .contentShape(Rectangle())
+            .onTapGesture { onSelect(model.id) }
             .onHover { isHovering = $0 }
             .overlay(alignment: .trailing) {
                 if isHovering {
                     quickActions
                 }
+            }
+            // Drag to reorder (FR-12). The FR-30 drop popover (a choice of
+            // "move / reparent / complete") is a later refinement; today a
+            // drop is always a reorder relative to the target row.
+            .draggable(WorkItemDragPayload(itemId: model.id))
+            .dropDestination(for: WorkItemDragPayload.self) { payloads, location in
+                guard let payload = payloads.first, payload.itemId != model.id else {
+                    return false
+                }
+                let isBefore = location.y < DesignTokens.Spacing.rowHeight / 2
+                onMove(payload.itemId, model.id, isBefore)
+                return true
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityLabel(dueTime: dueTime))

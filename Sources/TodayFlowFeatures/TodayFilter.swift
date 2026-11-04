@@ -18,18 +18,22 @@ public enum TodayFilter: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// The Today list's sort order (driver.md §4: Sort▾ menu).
+///
+/// Case order is the menu order (FR-11: "Display order (default), Priority then
+/// due date, Due date then priority"). The raw values are stable — they are what
+/// gets persisted via `SettingKeys.todaySort`.
 public enum TodaySort: String, CaseIterable, Identifiable, Sendable {
-    case due
-    case priority
     case manual
+    case priority
+    case due
 
     public var id: String { rawValue }
 
     public var label: String {
         switch self {
-        case .due: return "Due"
-        case .priority: return "Priority"
-        case .manual: return "Manual"
+        case .manual: return "Display order"
+        case .priority: return "Priority then due date"
+        case .due: return "Due date then priority"
         }
     }
 }

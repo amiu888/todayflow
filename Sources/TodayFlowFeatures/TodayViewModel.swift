@@ -74,6 +74,9 @@ public final class TodayViewModel {
     public var sort: TodaySort = .manual
     public var searchText: String = ""
 
+    /// The row selected by a single tap (drives ⌥↑/⌥↓ reordering, FR-12).
+    public var selectedId: UUIDv7?
+
     public private(set) var isLoading: Bool = false
     public private(set) var lastError: String?
 
@@ -82,6 +85,9 @@ public final class TodayViewModel {
     @ObservationIgnored private var repository: any WorkItemRepository
     @ObservationIgnored private var linkRepository: any LinkRepository
     @ObservationIgnored private var attachmentRepository: any AttachmentRepository
+    /// Optional, so the view model works without a settings store (the choice
+    /// simply is not persisted — FR-11).
+    @ObservationIgnored private var settingRepository: (any SettingRepository)?
     @ObservationIgnored private var calendar: WorkCalendar
     @ObservationIgnored private var deviceId: String
     @ObservationIgnored private var clock: @Sendable () -> Date
@@ -91,6 +97,7 @@ public final class TodayViewModel {
         repository: any WorkItemRepository,
         linkRepository: any LinkRepository,
         attachmentRepository: any AttachmentRepository,
+        settingRepository: (any SettingRepository)? = nil,
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         clock: @escaping @Sendable () -> Date = { .now },
@@ -99,6 +106,7 @@ public final class TodayViewModel {
         self.repository = repository
         self.linkRepository = linkRepository
         self.attachmentRepository = attachmentRepository
+        self.settingRepository = settingRepository
         self.calendar = calendar
         self.deviceId = deviceId
         self.clock = clock
@@ -113,6 +121,14 @@ public final class TodayViewModel {
         isLoading = true
         defer { isLoading = false }
         lastError = nil
+
+        // Restore the persisted sort choice (FR-11: "Choice is persisted")
+        // before the rows are derived.
+        if let settingRepository,
+           let raw = await settingRepository.value(for: SettingKeys.todaySort),
+           let saved = TodaySort(rawValue: raw) {
+            sort = saved
+        }
 
         let now = clock()
         let day = calendar.calendar.startOfDay(for: now)
@@ -330,6 +346,106 @@ public final class TodayViewModel {
         do {
             try await SetStatus(repository: repository, deviceId: deviceId)
                 .execute(id, to: target, at: clock())
+            if selectedId == id { selectedId = nil } // the row left its section
+            await load()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    // MARK: Sort + selection (driver.md FR-11, FR-12)
+
+    /// Changes the sort and persists the choice (FR-11: "Choice is persisted").
+    public func setSort(_ new: TodaySort) async {
+        guard new != sort else { return }
+        sort = new
+        if let settingRepository {
+            try? await settingRepository.set(new.rawValue, for: SettingKeys.todaySort)
+        }
+    }
+
+    /// Selects a row; tapping the selected row again clears the selection.
+    public func select(_ id: UUIDv7?) {
+        selectedId = (selectedId == id) ? nil : id
+    }
+
+    // MARK: Manual reordering (driver.md FR-12)
+    //
+    // The Today list is a flat, cross-parent sequence, so the ViewModel
+    // computes the new fractional-index key itself — from what the user sees
+    // in `visibleRows` — and hands it to `ReorderTask` via `newDisplayOrder`,
+    // which keeps each item's parent.
+    //
+    // A manual move implies the display order: if a non-manual sort is active,
+    // it is switched off (and persisted) first, so the result is visible.
+
+    /// Moves the selected row up / down by one in the visible sequence
+    /// (⌥↑ / ⌥↓).
+    public func moveUp(_ id: UUIDv7) async {
+        await move(id, direction: .up)
+    }
+
+    public func moveDown(_ id: UUIDv7) async {
+        await move(id, direction: .down)
+    }
+
+    /// Moves `id` to sit just before / after `targetId` in the visible
+    /// sequence (drag & drop).
+    public func move(_ id: UUIDv7, targetId: UUIDv7, before: Bool) async {
+        guard id != targetId,
+              let targetIndex = visibleRows.firstIndex(where: { $0.id == targetId }),
+              let targetKey = displayKey(of: targetId)
+        else { return }
+        let boundId = before
+            ? (targetIndex > 0 ? visibleRows[targetIndex - 1].id : nil)
+            : (targetIndex < visibleRows.count - 1 ? visibleRows[targetIndex + 1].id : nil)
+        let boundKey = boundId.flatMap { displayKey(of: $0) }
+        let newKey = before
+            ? FractionalIndex.midpoint(boundKey, targetKey)
+            : FractionalIndex.midpoint(targetKey, boundKey)
+        await applyManualMove(id, newKey: newKey)
+    }
+
+    private enum MoveDirection {
+        case up
+        case down
+    }
+
+    private func move(_ id: UUIDv7, direction: MoveDirection) async {
+        let rows = visibleRows
+        guard let index = rows.firstIndex(where: { $0.id == id }) else { return }
+
+        // Insert *outside* the neighbour: moving up places the item between the
+        // row above the neighbour (or the top) and the neighbour itself;
+        // moving down between the neighbour and the row below it (or the end).
+        let neighborIndex = direction == .up ? index - 1 : index + 1
+        guard (0..<rows.count).contains(neighborIndex) else { return } // at an edge
+        guard let neighborKey = displayKey(of: rows[neighborIndex].id) else { return }
+
+        let newKey: String
+        switch direction {
+        case .up:
+            let boundKey = index >= 2 ? displayKey(of: rows[index - 2].id) : nil
+            newKey = FractionalIndex.midpoint(boundKey, neighborKey)
+        case .down:
+            let boundKey = index + 2 < rows.count ? displayKey(of: rows[index + 2].id) : nil
+            newKey = FractionalIndex.midpoint(neighborKey, boundKey)
+        }
+        await applyManualMove(id, newKey: newKey)
+    }
+
+    /// The display-order key of a visible row (its underlying item).
+    private func displayKey(of id: UUIDv7) -> String? {
+        knownItems[id]?.displayOrder
+    }
+
+    private func applyManualMove(_ id: UUIDv7, newKey: String) async {
+        if sort != .manual {
+            await setSort(.manual)
+        }
+        do {
+            try await ReorderTask(repository: repository, deviceId: deviceId)
+                .execute(id, newDisplayOrder: newKey, at: clock())
             await load()
         } catch {
             lastError = error.localizedDescription
