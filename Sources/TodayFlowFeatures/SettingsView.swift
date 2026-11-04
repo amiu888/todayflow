@@ -11,10 +11,14 @@ public struct SettingsView: View {
         self.model = model
     }
 
-    /// For hosts that only know the repository (used by the 6-Mac app layer).
+    /// For hosts that only know the repositories (used by the 6-Mac app layer).
     @MainActor
-    public init(repository: any SettingRepository, calendar: Calendar = .current) {
-        model = SettingsViewModel(repository: repository, calendar: calendar)
+    public init(
+        repository: any SettingRepository,
+        keychain: any KeychainStore,
+        calendar: Calendar = .current
+    ) {
+        model = SettingsViewModel(repository: repository, keychain: keychain, calendar: calendar)
     }
 
     @MainActor
@@ -150,7 +154,8 @@ private struct SettingsPreviewHost: View {
         }
         .task {
             let repository = InMemorySettingRepository()
-            let model = SettingsViewModel(repository: repository)
+            let keychain = InMemoryKeychainStore()
+            let model = SettingsViewModel(repository: repository, keychain: keychain)
             await model.load()
             self.model = model
         }

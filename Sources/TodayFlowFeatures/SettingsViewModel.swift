@@ -8,6 +8,10 @@ import TodayFlowCore
 /// business hours (`WorkCalendarSettings`, driver.md line 49) and the AI
 /// endpoint (`AIEndpointSettings`, driver.md §8). The view edits the observed
 /// copies; `save()` persists both.
+///
+/// The AI API key is the one exception: it lives in the `KeychainStore`
+/// (driver.md line 411 / NFR-10: API keys in Keychain), never in the
+/// settings store.
 @MainActor
 @Observable
 public final class SettingsViewModel {
@@ -37,6 +41,7 @@ public final class SettingsViewModel {
     // MARK: Dependencies
 
     @ObservationIgnored private let repository: any SettingRepository
+    @ObservationIgnored private let keychain: any KeychainStore
     @ObservationIgnored private let calendar: Calendar
 
     /// True while `load()`/`resetToDefaults()` are applying stored values —
@@ -45,9 +50,11 @@ public final class SettingsViewModel {
 
     public init(
         repository: any SettingRepository,
+        keychain: any KeychainStore,
         calendar: Calendar = .current
     ) {
         self.repository = repository
+        self.keychain = keychain
         self.calendar = calendar
     }
 
@@ -76,21 +83,47 @@ public final class SettingsViewModel {
 
         calendarSettings = Self.calendarSettings(from: await repository.value(for: SettingKeys.workCalendar))
         aiSettings = Self.aiSettings(from: await repository.value(for: SettingKeys.aiEndpoint))
+        await applyKeychainKey()
     }
 
-    /// Persists both groups.
+    /// Reconciles the in-memory API key with the Keychain (driver.md line
+    /// 411 / NFR-10). The Keychain wins if it holds a key; a non-empty key
+    /// still in the stored JSON (a pre-6.3 store) is migrated to the Keychain
+    /// on first load. If the Keychain is unavailable, the stored value is
+    /// kept in memory (it is still in the settings store, so nothing is lost)
+    /// and the migration retries on the next load.
+    private func applyKeychainKey() async {
+        let storedKey = aiSettings.apiKey
+        if let keychainKey = await keychain.read(KeychainKeys.aiAPIKey), !keychainKey.isEmpty {
+            aiSettings.apiKey = keychainKey
+        } else if !storedKey.isEmpty {
+            _ = try? await keychain.write(storedKey, for: KeychainKeys.aiAPIKey)
+        }
+    }
+
+    /// Persists both groups. The API key goes to the Keychain first (an
+    /// empty key deletes the entry); the settings store keeps a redacted
+    /// copy. If the Keychain write fails, the store is left untouched and
+    /// `lastError` is set.
     public func save() async {
         guard !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
         lastError = nil
         do {
+            if aiSettings.apiKey.isEmpty {
+                try await keychain.delete(KeychainKeys.aiAPIKey)
+            } else {
+                try await keychain.write(aiSettings.apiKey, for: KeychainKeys.aiAPIKey)
+            }
+            var stored = aiSettings
+            stored.apiKey = ""
             try await repository.set(
                 try Self.encode(calendarSettings),
                 for: SettingKeys.workCalendar
             )
             try await repository.set(
-                try Self.encode(aiSettings),
+                try Self.encode(stored),
                 for: SettingKeys.aiEndpoint
             )
         } catch {

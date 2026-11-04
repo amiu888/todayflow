@@ -16,6 +16,7 @@ struct StatusItemControllerTests {
             links: InMemoryLinkRepository(),
             attachments: InMemoryAttachmentRepository(),
             settings: InMemorySettingRepository(),
+            keychain: InMemoryKeychainStore(),
             pipeline: .standard
         )
         let windowManager = WindowManager(environment: environment)

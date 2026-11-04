@@ -12,12 +12,15 @@ private let testCalendar: Calendar = {
 @MainActor
 private struct Fixture {
     let repository: InMemorySettingRepository
+    let keychain: InMemoryKeychainStore
     let vm: SettingsViewModel
 
     init() {
         let repository = InMemorySettingRepository()
+        let keychain = InMemoryKeychainStore()
         self.repository = repository
-        vm = SettingsViewModel(repository: repository, calendar: testCalendar)
+        self.keychain = keychain
+        vm = SettingsViewModel(repository: repository, keychain: keychain, calendar: testCalendar)
     }
 }
 
@@ -30,6 +33,17 @@ private struct FailingSettingRepository: SettingRepository {
     func value(for key: String) async -> String? { nil }
     func set(_ valueJson: String, for key: String) async throws { throw Failure() }
     func remove(_ key: String) async throws {}
+}
+
+/// A `KeychainStore` whose mutations fail — for error-path tests.
+private struct FailingKeychainStore: KeychainStore {
+    struct Failure: Error, LocalizedError {
+        var errorDescription: String? { "the keychain is unavailable" }
+    }
+
+    func read(_ key: String) async -> String? { nil }
+    func write(_ value: String, for key: String) async throws { throw Failure() }
+    func delete(_ key: String) async throws { throw Failure() }
 }
 
 /// Encodes a settings value the same way the view model does.
@@ -95,6 +109,7 @@ struct SettingsViewModelTests {
         var ai = AIEndpointSettings()
         ai.enabled = true
         ai.model = "gpt-4o-mini"
+        ai.apiKey = "sk-test-123"
         f.vm.aiSettings = ai
 
         await f.vm.save()
@@ -106,13 +121,23 @@ struct SettingsViewModelTests {
             Issue.record("both groups must be persisted")
             return
         }
+
         #expect(try decodeJSON(WorkCalendarSettings.self, from: storedCalendar) == f.vm.calendarSettings)
-        #expect(try decodeJSON(AIEndpointSettings.self, from: storedAI) == f.vm.aiSettings)
+        // The stored copy is redacted; the key lives in the Keychain.
+        var redacted = f.vm.aiSettings
+        redacted.apiKey = ""
+        #expect(try decodeJSON(AIEndpointSettings.self, from: storedAI) == redacted)
+        let keychainKey = await f.keychain.read(KeychainKeys.aiAPIKey)
+        #expect(keychainKey == "sk-test-123")
     }
 
     @Test @MainActor
     func save_failure_reportsLastError() async {
-        let vm = SettingsViewModel(repository: FailingSettingRepository(), calendar: testCalendar)
+        let vm = SettingsViewModel(
+            repository: FailingSettingRepository(),
+            keychain: InMemoryKeychainStore(),
+            calendar: testCalendar
+        )
         await vm.save()
 
         #expect(vm.lastError != nil)
@@ -190,6 +215,80 @@ struct SettingsViewModelTests {
         await f.vm.load()
 
         #expect(f.vm.aiSettings.baseURL == "http://proxy.internal/v1")
+    }
+
+    // MARK: API key in the Keychain (driver.md line 411, NFR-10)
+
+    @Test @MainActor
+    func load_readsKeyFromKeychain() async throws {
+        let f = Fixture()
+        // A pre-6.3 store with a key, and a Keychain holding a different (newer) key.
+        var stored = AIEndpointSettings()
+        stored.apiKey = "sk-stale"
+        try await f.repository.set(try encodeJSON(stored), for: SettingKeys.aiEndpoint)
+        await f.keychain.seed("sk-current", for: KeychainKeys.aiAPIKey)
+
+        await f.vm.load()
+
+        #expect(f.vm.aiSettings.apiKey == "sk-current")
+    }
+
+    @Test @MainActor
+    func load_migratesStoredKeyToKeychain() async throws {
+        let f = Fixture()
+        var stored = AIEndpointSettings()
+        stored.apiKey = "sk-stored"
+        try await f.repository.set(try encodeJSON(stored), for: SettingKeys.aiEndpoint)
+
+        await f.vm.load()
+
+        #expect(f.vm.aiSettings.apiKey == "sk-stored")
+        #expect(await f.keychain.read(KeychainKeys.aiAPIKey) == "sk-stored")
+    }
+
+    @Test @MainActor
+    func save_emptyKey_deletesKeychainEntry() async throws {
+        let f = Fixture()
+        await f.keychain.seed("sk-obsolete", for: KeychainKeys.aiAPIKey)
+
+        await f.vm.save()
+
+        #expect(f.vm.lastError == nil)
+        #expect(await f.keychain.read(KeychainKeys.aiAPIKey) == nil)
+    }
+
+    @Test @MainActor
+    func resetToDefaults_wipesKeychain() async throws {
+        let f = Fixture()
+        var ai = AIEndpointSettings()
+        ai.enabled = true
+        ai.apiKey = "sk-live"
+        f.vm.aiSettings = ai
+        await f.vm.save()
+        #expect(await f.keychain.read(KeychainKeys.aiAPIKey) == "sk-live")
+
+        await f.vm.resetToDefaults()
+
+        #expect(f.vm.aiSettings == AIEndpointSettings())
+        #expect(await f.keychain.read(KeychainKeys.aiAPIKey) == nil)
+    }
+
+    @Test @MainActor
+    func save_keychainFailure_reportsLastErrorAndKeepsStoreUntouched() async throws {
+        let repository = InMemorySettingRepository()
+        let vm = SettingsViewModel(
+            repository: repository,
+            keychain: FailingKeychainStore(),
+            calendar: testCalendar
+        )
+        var ai = AIEndpointSettings()
+        ai.apiKey = "sk-test"
+        vm.aiSettings = ai
+
+        await vm.save()
+
+        #expect(vm.lastError != nil)
+        #expect(await repository.value(for: SettingKeys.aiEndpoint) == nil)
     }
 
     // MARK: workCalendar

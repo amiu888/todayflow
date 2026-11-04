@@ -14,6 +14,7 @@ private func makeEnvironment() -> AppEnvironment {
         links: InMemoryLinkRepository(),
         attachments: InMemoryAttachmentRepository(),
         settings: InMemorySettingRepository(),
+        keychain: InMemoryKeychainStore(),
         pipeline: .standard
     )
 }

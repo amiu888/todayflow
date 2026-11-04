@@ -85,8 +85,11 @@ public struct AIEndpointSettings: Codable, Hashable, Sendable {
     public var baseURL: String = Provider.ollama.defaultBaseURL
     /// Optional for local servers.
     ///
-    /// 5e stores it in the settings store like every other value; the 6-Mac
-    /// app layer moves it to the Keychain per driver.md §8.
+    /// The one AI setting that does not live in the settings store: the 6-Mac
+    /// app layer keeps it in the `KeychainStore` (driver.md line 411 /
+    /// NFR-10: API keys in Keychain). The stored JSON copy is redacted (`""`)
+    /// on save; a non-empty value still in a pre-6.3 store is migrated to the
+    /// Keychain on load.
     public var apiKey: String = ""
     /// Free text; the "Fetch models" button (feature 7) lists the endpoint's models.
     public var model: String = "llama3.1:8b"

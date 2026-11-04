@@ -125,6 +125,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         case .settings:
             SettingsView(
                 repository: environment.settings,
+                keychain: environment.keychain,
                 calendar: environment.workCalendar.calendar
             )
         case .slimBar:

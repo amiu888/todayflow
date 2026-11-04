@@ -10,6 +10,7 @@ private struct Fixture {
     let links = InMemoryLinkRepository()
     let attachments = InMemoryAttachmentRepository()
     let settings = InMemorySettingRepository()
+    let keychain = InMemoryKeychainStore()
     let environment: AppEnvironment
 
     init(workCalendar: WorkCalendar = .standard) {
@@ -18,6 +19,7 @@ private struct Fixture {
             links: links,
             attachments: attachments,
             settings: settings,
+            keychain: keychain,
             pipeline: .standard,
             workCalendar: workCalendar
         )
@@ -87,5 +89,6 @@ struct AppEnvironmentTests {
             calendar: environment.workCalendar
         ).execute(.init(kind: .task, title: "First task"))
         #expect((await environment.workItems.item(item.id))?.title == "First task")
+        #expect(environment.keychain is SecurityKeychainStore)
     }
 }

@@ -144,7 +144,14 @@ struct TodaySummaryModelTests {
         var refreshCount = 0
         f.model.onRefreshed = { _ in refreshCount += 1 }
         f.model.startPolling(every: 0.05)
-        try await Task.sleep(for: .seconds(0.3))
+        // Wait for the condition with a deadline instead of a fixed sleep:
+        // under full-suite load (the Keychain tests hammer the system
+        // Keychain in the same process) a fixed window can starve the
+        // polling task and flake.
+        let deadline = ContinuousClock.now + .seconds(5)
+        while refreshCount < 2, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         f.model.stopPolling()
         #expect(refreshCount >= 2)
     }

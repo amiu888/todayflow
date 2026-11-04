@@ -13,6 +13,7 @@ public final class AppEnvironment {
     public let links: any LinkRepository
     public let attachments: any AttachmentRepository
     public let settings: any SettingRepository
+    public let keychain: any KeychainStore
     public let pipeline: RecognitionPipeline
 
     /// The user's working-hours model (driver.md line 49). Refreshed from the
@@ -24,6 +25,7 @@ public final class AppEnvironment {
         links: any LinkRepository,
         attachments: any AttachmentRepository,
         settings: any SettingRepository,
+        keychain: any KeychainStore,
         pipeline: RecognitionPipeline,
         workCalendar: WorkCalendar = .standard
     ) {
@@ -31,6 +33,7 @@ public final class AppEnvironment {
         self.links = links
         self.attachments = attachments
         self.settings = settings
+        self.keychain = keychain
         self.pipeline = pipeline
         self.workCalendar = workCalendar
     }
@@ -45,6 +48,7 @@ public final class AppEnvironment {
             links: GRDBLinkRepository(queue: queue),
             attachments: GRDBAttachmentRepository(queue: queue),
             settings: GRDBSettingRepository(queue: queue),
+            keychain: SecurityKeychainStore(),
             pipeline: .standard
         )
     }
