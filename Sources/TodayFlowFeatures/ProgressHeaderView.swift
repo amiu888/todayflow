@@ -1,0 +1,83 @@
+import SwiftUI
+import Foundation
+import TodayFlowCore
+import TodayFlowDesign
+
+public struct ProgressHeaderView: View {
+    public let progress: TodayQuery.Progress
+    public let motion: Motion
+
+    public init(progress: TodayQuery.Progress,
+                motion: Motion = Motion(preference: .full)) {
+        self.progress = progress
+        self.motion = motion
+    }
+
+    public var body: some View {
+        HStack(spacing: 12) {
+            ProgressRingView(
+                model: ProgressRingModel(done: progress.done, total: progress.total),
+                tint: ringTint,
+                motion: motion
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(progress.done) / \(progress.total) done")
+                    .foregroundStyle(.primary)
+
+                if progress.isCleared {
+                    Text("Day cleared")
+                        .foregroundStyle(Color(hex: "#0ca30c"))
+                } else {
+                    Text("\(progress.remaining) left · " + TimeLeft.format(progress.secondsUntilEOB))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if progress.overdue > 0 {
+                overdueBadge
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voiceLabel)
+    }
+
+    private var ringTint: Color {
+        if progress.isCleared {
+            return Color(hex: "#0ca30c")
+        } else if progress.overdue > 0 {
+            return Color(hex: "#d03b3b")
+        } else {
+            return .accentColor
+        }
+    }
+
+    private var overdueBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color(hex: "#fab219"))
+
+            Text("\(progress.overdue)")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color(hex: "#fab219"))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Color(hex: "#fab219").opacity(0.18)))
+    }
+
+    private var voiceLabel: String {
+        var label = "\(progress.done) of \(progress.total) tasks done, \(progress.remaining) left, \(TimeLeft.format(progress.secondsUntilEOB)) until end of business"
+
+        if progress.overdue > 0 {
+            label += ", \(progress.overdue) overdue"
+        }
+
+        if progress.isCleared {
+            label += ", day cleared"
+        }
+
+        return label
+    }
+}
