@@ -150,6 +150,23 @@ struct GRDBWorkItemRepositoryTests {
         #expect(await db.workItems.children(of: nil).map(\.title) == ["Parent", "Top"])
     }
 
+    @Test("allItems returns every live item in display order, excluding soft-deleted")
+    func allItems() async throws {
+        let db = try TestDB.inMemory()
+        let epic = WorkItem(kind: .epic, title: "Epic", displayOrder: "a")
+        let task = WorkItem(title: "Task", parentId: epic.id, displayOrder: "b")
+        let gone = WorkItem(
+            title: "Gone",
+            displayOrder: "c",
+            deletedAt: Date.whole(year: 2026, month: 1, day: 5, hour: 12)
+        )
+        for item in [epic, task, gone] {
+            try await db.workItems.save(item)
+        }
+
+        #expect(await db.workItems.allItems().map(\.title) == ["Epic", "Task"])
+    }
+
     @Test("search matches title and description case-insensitively, with literal wildcards")
     func search() async throws {
         let db = try TestDB.inMemory()

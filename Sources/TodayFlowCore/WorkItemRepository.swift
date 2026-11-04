@@ -24,6 +24,10 @@ public protocol WorkItemRepository: Sendable {
     /// Live children of `parentId`, in display order. `nil` means top-level items.
     func children(of parentId: UUIDv7?) async -> [WorkItem]
 
+    /// Every live (non-deleted) item, in display order — the hierarchy tree's
+    /// source (driver.md FR-16).
+    func allItems() async -> [WorkItem]
+
     /// Insert or update an item (upsert by `id`).
     func save(_ item: WorkItem) async throws
 

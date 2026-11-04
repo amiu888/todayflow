@@ -49,6 +49,12 @@ public actor InMemoryWorkItemRepository: WorkItemRepository {
             .sorted { FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder) }
     }
 
+    public func allItems() async -> [WorkItem] {
+        items.values
+            .filter { !$0.isDeleted }
+            .sorted { FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder) }
+    }
+
     public func save(_ item: WorkItem) async throws {
         items[item.id] = item
         await notifyObservers()
@@ -108,8 +114,8 @@ public actor InMemoryWorkItemRepository: WorkItemRepository {
 
     // MARK: Test helpers
 
-    /// All items, including soft-deleted ones.
-    public var allItems: [WorkItem] { Array(items.values) }
+    /// All items, including soft-deleted ones (test/preview fixture helper).
+    public var allItemsIncludingDeleted: [WorkItem] { Array(items.values) }
 
     /// Insert without notifying observers (for seeding fixtures).
     public func seed(_ item: WorkItem) {

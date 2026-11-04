@@ -93,6 +93,20 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
         return items ?? []
     }
 
+    public func allItems() async -> [WorkItem] {
+        let items = try? await queue.read { db in
+            try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT * FROM work_item
+                    WHERE deleted_at IS NULL
+                    ORDER BY display_order
+                    """
+            ).map { WorkItemRecord(row: $0).model }
+        }
+        return items ?? []
+    }
+
     public func search(_ query: String) async -> [WorkItem] {
         let needle = query.lowercased()
         guard !needle.isEmpty else { return [] }

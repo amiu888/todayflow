@@ -235,7 +235,7 @@ func save_withEmptyTitle_failsCleanly() async {
 
     #expect(f.vm.savedItem == nil)
     #expect(f.vm.lastError != nil)
-    #expect(await f.repository.allItems.isEmpty)
+    #expect(await f.repository.allItemsIncludingDeleted.isEmpty)
     #expect(saved.ids.isEmpty)
 }
 

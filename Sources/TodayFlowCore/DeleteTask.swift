@@ -4,9 +4,15 @@ import Foundation
 /// (driver.md §11 FR-32: "Removing a task from the middle of a chain reconnects its
 /// predecessor to its successor").
 ///
-/// Soft-deletes the item (its children are preserved, driver.md §2) and merges the
-/// `.blocks` chain: for each predecessor → item → successor, a direct predecessor →
-/// successor link is created, then every link touching the item is removed.
+/// Soft-deletes the item and merges the `.blocks` chain: for each predecessor →
+/// item → successor, a direct predecessor → successor link is created, then every
+/// link touching the item is removed.
+///
+/// Children are **never deleted by default** (driver.md §2: "Deleting a parent
+/// never deletes children by default; children become unparented") — after the
+/// soft-delete, each direct child is re-parented to the top level. Passing
+/// `withChildren: true` takes the explicit "delete with children" option: every
+/// descendant is soft-deleted along with the item, and their links are removed.
 public struct DeleteTask: Sendable {
     public enum Error: Swift.Error, Equatable {
         case notFound
@@ -27,7 +33,11 @@ public struct DeleteTask: Sendable {
     }
 
     @discardableResult
-    public func execute(_ id: UUIDv7, at: Date = .now) async throws -> WorkItem {
+    public func execute(
+        _ id: UUIDv7,
+        withChildren: Bool = false,
+        at: Date = .now
+    ) async throws -> WorkItem {
         guard let item = await itemRepository.item(id) else { throw Error.notFound }
 
         let allLinks = await linkRepository.allLinks()
@@ -41,12 +51,44 @@ public struct DeleteTask: Sendable {
                 try await linkRepository.save(merged)
             }
         }
-        // Remove every link that touches the deleted item.
-        for link in allLinks where link.fromId == id || link.toId == id {
+
+        // The explicit "delete with children" option (driver.md §2): every
+        // descendant is soft-deleted with the item, links and all.
+        let doomed: Set<UUIDv7> = withChildren
+            ? await allDescendantIds(of: id)
+            : []
+        for link in allLinks where link.fromId == id || link.toId == id
+            || doomed.contains(link.fromId) || doomed.contains(link.toId) {
             try await linkRepository.delete(link.id)
+        }
+        for descendantId in doomed {
+            try await itemRepository.softDelete(descendantId, at: at)
         }
 
         try await itemRepository.softDelete(id, at: at)
+
+        // The default: children survive, unparented (driver.md §2).
+        if !withChildren {
+            for var child in await itemRepository.children(of: id) {
+                child.parentId = nil
+                child = child.touching(at)
+                try await itemRepository.save(child)
+            }
+        }
         return item
+    }
+
+    /// Every live descendant of `id` (direct children, their children, …) via
+    /// breadth-first traversal.
+    private func allDescendantIds(of id: UUIDv7) async -> Set<UUIDv7> {
+        var found = Set<UUIDv7>()
+        var frontier = [id]
+        while let current = frontier.popLast() {
+            for child in await itemRepository.children(of: current) {
+                guard found.insert(child.id).inserted else { continue }
+                frontier.append(child.id)
+            }
+        }
+        return found
     }
 }

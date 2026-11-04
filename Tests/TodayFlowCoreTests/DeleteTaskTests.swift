@@ -30,7 +30,9 @@ struct DeleteTaskTests {
         #expect(!links.contains { $0.fromId == b.id || $0.toId == b.id })
     }
 
-    @Test func softDeletesButPreservesChildren() async throws {
+    @Test func softDeletesButPreservesChildrenUnparented() async throws {
+        // driver.md §2: deleting a parent never deletes children by default;
+        // they become unparented.
         let (uc, repo, _) = makeUseCase()
         let project = WorkItem(kind: .project, title: "P")
         let task = WorkItem(kind: .task, title: "T", parentId: project.id)
@@ -40,7 +42,35 @@ struct DeleteTaskTests {
         _ = try await uc.execute(project.id)
 
         #expect(await repo.item(project.id) == nil)
-        #expect(await repo.item(task.id) != nil) // children are preserved
+        let child = await repo.item(task.id)
+        #expect(child != nil) // children are preserved
+        #expect(child?.parentId == nil) // … but unparented
+    }
+
+    @Test func deleteWithChildrenRemovesDescendants() async throws {
+        // The explicit "delete with children" option: the whole subtree goes.
+        let (uc, repo, linkRepo) = makeUseCase()
+        let epic = WorkItem(kind: .epic, title: "E")
+        let project = WorkItem(kind: .project, title: "P", parentId: epic.id)
+        let task = WorkItem(kind: .task, title: "T", parentId: project.id)
+        let subtask = WorkItem(kind: .subtask, title: "S", parentId: task.id)
+        let keep = WorkItem(kind: .task, title: "Keep")
+        await repo.seed(epic)
+        await repo.seed(project)
+        await repo.seed(task)
+        await repo.seed(subtask)
+        await repo.seed(keep)
+        try await linkRepo.save(ItemLink(fromId: task.id, toId: keep.id)) // T → Keep
+
+        _ = try await uc.execute(epic.id, withChildren: true)
+
+        #expect(await repo.item(epic.id) == nil)
+        #expect(await repo.item(project.id) == nil)
+        #expect(await repo.item(task.id) == nil)
+        #expect(await repo.item(subtask.id) == nil)
+        #expect(await repo.item(keep.id) != nil) // a sibling of the subtree survives
+        let links = await linkRepo.allLinks()
+        #expect(!links.contains { $0.fromId == task.id || $0.toId == task.id })
     }
 
     @Test func deletingStartOfChainJustRemovesItsLink() async throws {
