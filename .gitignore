@@ -17,3 +17,6 @@ Packages/*.build/
 # Local secrets
 config.env
 *.local
+
+# Orchestrator state (worker ledger, local briefs)
+.claude/

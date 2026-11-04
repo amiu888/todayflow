@@ -7,7 +7,7 @@ import Foundation
 /// overdue, and time left until end of business).
 public struct TodayQuery: Sendable {
     /// Progress header values (driver.md FR-13).
-    public struct Progress {
+    public struct Progress: Sendable {
         public var done: Int
         public var total: Int
         public var remaining: Int
@@ -21,7 +21,7 @@ public struct TodayQuery: Sendable {
         public var isCleared: Bool { total > 0 && remaining == 0 }
     }
 
-    public struct Result {
+    public struct Result: Sendable {
         /// Open items past their `endAt`, in display order (pinned at the top).
         public var overdue: [WorkItem]
         /// Open items not yet past due, in display order.
@@ -60,4 +60,21 @@ public struct TodayQuery: Sendable {
         )
         return Result(overdue: overdue, open: onTime, doneToday: doneToday, progress: progress)
     }
+}
+
+public extension TodayQuery.Result {
+    /// An empty, not-yet-loaded state (the Today view model's initial value).
+    static let empty = TodayQuery.Result(
+        overdue: [],
+        open: [],
+        doneToday: [],
+        progress: TodayQuery.Progress(
+            done: 0,
+            total: 0,
+            remaining: 0,
+            overdue: 0,
+            fraction: 0,
+            secondsUntilEOB: 0
+        )
+    )
 }

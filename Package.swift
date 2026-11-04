@@ -31,6 +31,7 @@ let package = Package(
         .library(name: "TodayFlowPersistence", targets: ["TodayFlowPersistence"]),
         .library(name: "TodayFlowRecognition", targets: ["TodayFlowRecognition"]),
         .library(name: "TodayFlowDesign", targets: ["TodayFlowDesign"]),
+        .library(name: "TodayFlowFeatures", targets: ["TodayFlowFeatures"]),
     ],
     dependencies: [
         // driver.md §6: SQLite via GRDB (WAL, FTS5, versioned migrations).
@@ -67,6 +68,22 @@ let package = Package(
         .target(
             name: "TodayFlowDesign",
             dependencies: ["TodayFlowCore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        .target(
+            name: "TodayFlowFeatures",
+            dependencies: ["TodayFlowCore", "TodayFlowDesign"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        .testTarget(
+            name: "TodayFlowFeaturesTests",
+            dependencies: ["TodayFlowFeatures"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
