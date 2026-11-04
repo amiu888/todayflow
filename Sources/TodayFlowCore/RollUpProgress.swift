@@ -6,11 +6,17 @@ import Foundation
 /// - an epic's progress = the task-count-weighted average of its projects, which
 ///   equals total done tasks / total tasks across its projects.
 public struct RollUpProgress: Sendable {
-    public struct Result {
+    public struct Result: Hashable, Sendable {
         public var done: Int
         public var total: Int
         /// 0.0–1.0; 0 when there is nothing to roll up.
         public var fraction: Double
+
+        public init(done: Int, total: Int, fraction: Double) {
+            self.done = done
+            self.total = total
+            self.fraction = fraction
+        }
 
         public var isComplete: Bool { total > 0 && done == total }
     }
