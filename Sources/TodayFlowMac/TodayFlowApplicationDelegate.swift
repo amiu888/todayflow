@@ -3,12 +3,15 @@ import AppKit
 import Foundation
 
 /// The app's `NSApplicationDelegate` (driver.md build order 6): opens the
-/// production environment, shows the main panel, and quits when the last
-/// window closes. 6.2 flips the last part once the status item is the home.
+/// production environment, installs the menu-bar status item, and shows the
+/// main panel. The status item is the app's home (6.2), so closing every
+/// window keeps the app alive — quit comes from the status-item menu.
 @MainActor
 public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate {
     public private(set) var environment: AppEnvironment?
     public private(set) var windows: WindowManager?
+    public private(set) var statusItem: StatusItemController?
+    public private(set) var summary: TodaySummaryModel?
 
     public override init() {}
 
@@ -16,11 +19,29 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         do {
             let environment = try AppEnvironment.makeProduction()
             self.environment = environment
+            let summary = TodaySummaryModel(
+                repository: environment.workItems,
+                calendar: environment.workCalendar
+            )
+            self.summary = summary
             let windowManager = WindowManager(environment: environment)
+            windowManager.summary = summary
             self.windows = windowManager
+            let controller = StatusItemController(
+                environment: environment,
+                windowManager: windowManager,
+                summary: summary
+            )
+            self.statusItem = controller
+            summary.onRefreshed = { [weak controller] progress in
+                controller?.apply(progress: progress)
+            }
             Task {
                 await environment.loadSettings()
+                summary.updateCalendar(environment.workCalendar)
+                await summary.refresh()
                 windowManager.show(.panel)
+                summary.startPolling()
             }
         } catch {
             NSLog("TodayFlow: could not open the database — \(error)")
@@ -33,10 +54,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         }
     }
 
-    /// 6.1: closing the last window quits the app. 6.2 flips this to `false`
-    /// once the menu-bar status item becomes the app's home.
+    /// 6.2: the status item is the app's home — closing every window keeps
+    /// the app alive; quit comes from the status-item menu.
     public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        false
     }
 }
 #endif

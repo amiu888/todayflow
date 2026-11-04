@@ -8,6 +8,7 @@ struct WindowKindTests {
     @Test
     func sizesMatchDesignTokens() {
         #expect(WindowKind.panel.size == DesignTokens.Window.panel)
+        #expect(WindowKind.slimBar.size == DesignTokens.Window.slimBar)
         #expect(WindowKind.hierarchy.size == DesignTokens.Window.hierarchy)
         #expect(WindowKind.settings.size == DesignTokens.Window.settings)
         #expect(WindowKind.detail(UUIDv7.new()).size == DesignTokens.Window.detail)
@@ -16,6 +17,7 @@ struct WindowKindTests {
     @Test
     func titles() {
         #expect(WindowKind.panel.title == "Today")
+        #expect(WindowKind.slimBar.title == "Today")
         #expect(WindowKind.hierarchy.title == "Hierarchy")
         #expect(WindowKind.settings.title == "Settings")
         #expect(WindowKind.detail(UUIDv7.new()).title == "Task")

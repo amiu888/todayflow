@@ -19,6 +19,22 @@ public struct TodayQuery: Sendable {
 
         /// True when there is at least one task and none remain.
         public var isCleared: Bool { total > 0 && remaining == 0 }
+
+        public init(
+            done: Int,
+            total: Int,
+            remaining: Int,
+            overdue: Int,
+            fraction: Double,
+            secondsUntilEOB: TimeInterval
+        ) {
+            self.done = done
+            self.total = total
+            self.remaining = remaining
+            self.overdue = overdue
+            self.fraction = fraction
+            self.secondsUntilEOB = secondsUntilEOB
+        }
     }
 
     public struct Result: Sendable {

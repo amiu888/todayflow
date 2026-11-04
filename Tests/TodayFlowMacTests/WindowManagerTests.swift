@@ -69,5 +69,25 @@ struct WindowManagerTests {
         manager.show(.panel)
         #expect(manager.window(for: .panel)?.contentMinSize == DesignTokens.Window.panelMinimum)
     }
+
+    @Test @MainActor
+    func panelWindowIsFloatingPanel() {
+        let manager = WindowManager(environment: makeEnvironment())
+        manager.show(.panel)
+        let window = manager.window(for: .panel)
+        #expect(window is PanelWindow)
+        #expect((window as? PanelWindow)?.isFloatingPanel == true)
+        #expect(window?.level == .floating)
+    }
+
+    @Test @MainActor
+    func slimBarWindowUsesSlimBarSize() {
+        let manager = WindowManager(environment: makeEnvironment())
+        manager.show(.slimBar)
+        let window = manager.window(for: .slimBar)
+        #expect(window is PanelWindow)
+        #expect(window?.contentView?.frame.size == DesignTokens.Window.slimBar)
+        #expect(window?.contentMaxSize == DesignTokens.Window.slimBar)
+    }
 }
 #endif

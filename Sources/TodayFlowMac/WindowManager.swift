@@ -6,13 +6,17 @@ import TodayFlowCore
 import TodayFlowDesign
 import TodayFlowFeatures
 
-/// Owns the app's titled windows (driver.md lines 145-152). Windows are created
-/// on demand, keyed by `WindowKind`, and reused while open. 6.1 ships standard
-/// windows; 6.2 turns the panel into a floating `NSPanel` with a status item.
+/// Owns the app's windows (driver.md lines 145-152). Windows are created on
+/// demand, keyed by `WindowKind`, and reused while open. The panel and slim
+/// bar are floating `PanelWindow`s; the rest are standard titled windows.
 @MainActor
 public final class WindowManager: NSObject, NSWindowDelegate {
     private let environment: AppEnvironment
     private var windows: [WindowKind: NSWindow] = [:]
+
+    /// The shared summary model (driver.md FR-40); the delegate assigns it
+    /// after construction. The slim bar reads it in `body` so it stays live.
+    public var summary: TodaySummaryModel?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -74,15 +78,26 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     // MARK: Window construction
 
     private func makeWindow(for kind: WindowKind) -> NSWindow {
-        let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: kind.size),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
+        let window: NSWindow
+        switch kind {
+        case .panel, .slimBar:
+            let style: PanelWindow.Style = kind == .panel ? .panel : .slimBar
+            window = PanelWindow(contentRect: NSRect(origin: .zero, size: kind.size), style: style)
+        default:
+            window = NSWindow(
+                contentRect: NSRect(origin: .zero, size: kind.size),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+        }
         window.title = kind.title
         if case .panel = kind {
             window.contentMinSize = DesignTokens.Window.panelMinimum
+        }
+        if case .slimBar = kind {
+            window.contentMinSize = DesignTokens.Window.slimBar
+            window.contentMaxSize = DesignTokens.Window.slimBar
         }
         window.contentView = NSHostingView(rootView: content(for: kind))
         window.isReleasedWhenClosed = false
@@ -112,6 +127,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 repository: environment.settings,
                 calendar: environment.workCalendar.calendar
             )
+        case .slimBar:
+            if let summary {
+                SlimBarView(
+                    summary: summary,
+                    onOpen: { [weak self] in self?.show(.panel) },
+                    onDismiss: { [weak self] in self?.close(.slimBar) }
+                )
+            } else {
+                EmptyView()
+            }
         case .detail(let id):
             DetailView(
                 model: DetailViewModel(
