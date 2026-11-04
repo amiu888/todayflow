@@ -274,7 +274,7 @@ func save_withTwoObjects_createsTwoAttachments() async {
     await f.vm.save()
 
     guard let item = f.vm.savedItem else {
-        #expect(false, "save failed: \(String(describing: f.vm.lastError))")
+        Issue.record("save failed: \(String(describing: f.vm.lastError))")
         return
     }
     let attachments = await f.attachmentRepository.attachments(for: item.id)

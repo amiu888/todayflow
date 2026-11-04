@@ -395,7 +395,9 @@ public final class HierarchyViewModel {
 
     /// Runs `operation` with the saving state, then refreshes the tree.
     /// Failures are surfaced as `lastError` (the view shows a dismissible
-    /// note) rather than thrown — the tree is the source of truth.
+    /// note) rather than thrown — the tree is the source of truth. Most
+    /// callers ignore the result; `addChild` is the one that uses it.
+    @discardableResult
     private func withSaving<R>(
         _ operation: () async throws -> R
     ) async -> R? {
