@@ -13,6 +13,10 @@ public struct CreateTask: Sendable {
         public var descriptionMd: String
         public var parentId: UUIDv7?
         public var startAt: Date
+        /// Explicit end (due) time, e.g. from the capture sheet or a
+        /// natural-language date. `nil` → derived from `startAt` via the
+        /// work calendar's default end-of-business rule.
+        public var endAt: Date?
         public var priority: Priority
         public var color: String?
         public var tags: [String]
@@ -23,6 +27,7 @@ public struct CreateTask: Sendable {
             descriptionMd: String = "",
             parentId: UUIDv7? = nil,
             startAt: Date = .now,
+            endAt: Date? = nil,
             priority: Priority = .default,
             color: String? = nil,
             tags: [String] = []
@@ -32,6 +37,7 @@ public struct CreateTask: Sendable {
             self.descriptionMd = descriptionMd
             self.parentId = parentId
             self.startAt = startAt
+            self.endAt = endAt
             self.priority = priority
             self.color = color
             self.tags = tags
@@ -73,7 +79,7 @@ public struct CreateTask: Sendable {
             }
         }
 
-        let endAt = calendar.defaultEndAt(createdAt: input.startAt)
+        let endAt = input.endAt ?? calendar.defaultEndAt(createdAt: input.startAt)
         let siblings = await repository.children(of: input.parentId)
         let displayOrder = FractionalIndex.midpoint(siblings.last?.displayOrder, nil)
 

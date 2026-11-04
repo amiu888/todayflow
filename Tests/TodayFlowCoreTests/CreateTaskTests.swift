@@ -27,6 +27,15 @@ struct CreateTaskTests {
         #expect(item.endAt == TestDates.date(2026, 1, 6, hour: 17)) // Tuesday
     }
 
+    @Test func explicitEndAtIsHonored() async throws {
+        let (uc, _) = makeUseCase()
+        let start = TestDates.date(2026, 1, 5, hour: 10, minute: 42) // Monday
+        let end = TestDates.date(2026, 1, 5, hour: 13, minute: 30)
+        let item = try await uc.execute(.init(title: "Standup", startAt: start, endAt: end))
+        #expect(item.startAt == start)
+        #expect(item.endAt == end)
+    }
+
     @Test func appendsDisplayOrderAfterLastSibling() async throws {
         let (uc, _) = makeUseCase()
         let a = try await uc.execute(.init(title: "A"))
