@@ -96,34 +96,33 @@ public struct ParseNaturalLanguageDates: Sendable {
     /// relative detection, and `NSDataDetector` throws an uncatchable ObjC
     /// exception for any other (unverified) mask bits.
     ///
-    /// `nonisolated(unsafe)` on the detector and the regex caches below:
-    /// they are immutable after init and thread-safe for `matches()`, which
-    /// the compiler cannot verify for these Foundation classes.
-    nonisolated(unsafe) static let detector: NSDataDetector? =
+    /// The detector and the regex caches below are immutable after init and
+    /// thread-safe for `matches()`.
+    static let detector: NSDataDetector? =
         try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
 
     /// Time expressions: "3pm", "3 pm", "14:30", "tonight", "afternoon", …
     /// Case-insensitive: "3PM" and "Tonight" classify the same way.
-    nonisolated(unsafe) static let timeExpr = try! NSRegularExpression(
+    static let timeExpr = try! NSRegularExpression(
         pattern: "\\b(\\d{1,2}:\\d{2}|\\d{1,2}\\s?[ap]m|midnight|noon|tonight|morning|afternoon|evening)\\b",
         options: [.caseInsensitive]
     )
 
     /// Day expressions: day names, month names, today/tomorrow, ISO dates,
     /// and relative phrases ("in two days"). Case-insensitive: "Friday".
-    nonisolated(unsafe) static let dayExpr = try! NSRegularExpression(
+    static let dayExpr = try! NSRegularExpression(
         pattern: "\\b(today|tomorrow|tonight|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december|in\\s+(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+)\\s+(minutes?|hours?|days?|weeks?|months?)|\\d{4}-\\d{2}-\\d{2})\\b",
         options: [.caseInsensitive]
     )
 
     /// Relative phrases the detector misses (word numerals: "in two days").
-    nonisolated(unsafe) static let relativeExpr = try! NSRegularExpression(
+    static let relativeExpr = try! NSRegularExpression(
         pattern: "\\b(in|within)\\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an|\\d+)\\s+(minutes?|hours?|days?|weeks?|months?)\\b",
         options: [.caseInsensitive]
     )
 
     /// "midnight" / "noon" — the detector does not match either.
-    nonisolated(unsafe) static let midnightNoonExpr = try! NSRegularExpression(
+    static let midnightNoonExpr = try! NSRegularExpression(
         pattern: "\\b(midnight|noon)\\b",
         options: [.caseInsensitive]
     )

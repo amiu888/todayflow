@@ -75,7 +75,7 @@ let package = Package(
         ),
         .target(
             name: "TodayFlowFeatures",
-            dependencies: ["TodayFlowCore", "TodayFlowDesign"],
+            dependencies: ["TodayFlowCore", "TodayFlowDesign", "TodayFlowRecognition"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
