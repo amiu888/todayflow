@@ -714,7 +714,14 @@ final class TodayFlowUITests: XCTestCase {
             "The project creation confirmation did not appear"
         )
 
-        app.menuButtons["Filter by project"].firstMatch.click()
+        let projectMenu = app.menuButtons["Filter by project"].firstMatch
+        if projectMenu.waitForExistence(timeout: 3) {
+            projectMenu.click()
+        } else {
+            let projectButton = app.buttons["Filter by project"].firstMatch
+            XCTAssertTrue(projectButton.waitForExistence(timeout: 4))
+            projectButton.click()
+        }
         XCTAssertTrue(
             app.menuItems[name].waitForExistence(timeout: 4),
             "The new project did not appear in the project filter"
