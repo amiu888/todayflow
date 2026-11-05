@@ -14,6 +14,8 @@ public protocol ContactRepository: Sendable {
     func deleteGroup(_ id: UUIDv7) async throws
 
     func groupIds(for contactId: UUIDv7) async -> [UUIDv7]
+    /// One read for every contact's group memberships (avoids N+1 loads).
+    func groupMemberships() async -> [UUIDv7: [UUIDv7]]
     func setGroups(_ groupIds: [UUIDv7], for contactId: UUIDv7) async throws
     func contacts(inGroup groupId: UUIDv7) async -> [Contact]
 
@@ -25,6 +27,10 @@ public protocol ContactRepository: Sendable {
     /// Merges source contacts into `primary`: unions fields, groups, and task
     /// links, then soft-deletes the sources.
     func merge(_ sourceIds: [UUIDv7], into primary: Contact, at: Date) async throws
+
+    /// Commits an import plan in one transaction: new groups, upserted
+    /// contacts, and group assignments.
+    func applyImport(_ plan: ContactImportPlan) async throws
 }
 
 /// In-memory implementation used by tests and previews.
@@ -92,6 +98,10 @@ public actor InMemoryContactRepository: ContactRepository {
         Array(memberships[contactId] ?? []).sorted { $0.uuid.uuidString < $1.uuid.uuidString }
     }
 
+    public func groupMemberships() async -> [UUIDv7: [UUIDv7]] {
+        memberships.mapValues { Array($0) }
+    }
+
     public func setGroups(_ groupIds: [UUIDv7], for contactId: UUIDv7) async throws {
         memberships[contactId] = Set(groupIds)
     }
@@ -123,10 +133,14 @@ public actor InMemoryContactRepository: ContactRepository {
     }
 
     public func merge(_ sourceIds: [UUIDv7], into primary: Contact, at: Date) async throws {
-        var merged = primary
+        let current = items[primary.id] ?? primary
+        let sources = sourceIds.compactMap { items[$0] }
+        var merged = ContactMerger.merge(
+            [current, primary] + sources,
+            primary: current,
+            at: at
+        )
         for id in sourceIds where id != primary.id {
-            guard let source = items[id] else { continue }
-            merged = ContactMerger.merge([merged, source], primary: merged, at: at)
             memberships[primary.id, default: []].formUnion(memberships[id] ?? [])
             for task in taskLinks.keys {
                 if taskLinks[task]?.contains(id) == true {
@@ -136,6 +150,15 @@ public actor InMemoryContactRepository: ContactRepository {
             }
             try await delete(id, at: at)
         }
+        merged.updatedAt = at
         items[primary.id] = merged
+    }
+
+    public func applyImport(_ plan: ContactImportPlan) async throws {
+        for group in plan.newGroups { groupItems[group.id] = group }
+        for contact in plan.contacts { items[contact.id] = contact }
+        for (contactId, groupIds) in plan.groupAssignments {
+            memberships[contactId, default: []].formUnion(groupIds)
+        }
     }
 }

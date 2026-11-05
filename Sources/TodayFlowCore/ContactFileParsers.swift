@@ -123,13 +123,37 @@ public enum VCardParser {
         if quotedPrintable {
             text = decodeQuotedPrintable(text)
         }
-        text = text
-            .replacingOccurrences(of: "\\n", with: "\n")
-            .replacingOccurrences(of: "\\N", with: "\n")
-            .replacingOccurrences(of: "\\,", with: ",")
-            .replacingOccurrences(of: "\\;", with: ";")
-            .replacingOccurrences(of: "\\\\", with: "\\")
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return unescape(text).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// One pass, so an escaped backslash followed by `n`, `,`, or `;` is not
+    /// interpreted as the escape sequence for the following character.
+    private static func unescape(_ text: String) -> String {
+        var result = ""
+        var index = text.startIndex
+        while index < text.endIndex {
+            let char = text[index]
+            guard char == "\\" else {
+                result.append(char)
+                index = text.index(after: index)
+                continue
+            }
+            let next = text.index(after: index)
+            guard next < text.endIndex else {
+                result.append(char)
+                break
+            }
+            let escaped = text[next]
+            switch escaped {
+            case "n", "N": result.append("\n")
+            case ",": result.append(",")
+            case ";": result.append(";")
+            case "\\": result.append("\\")
+            default: result.append(escaped)
+            }
+            index = text.index(after: next)
+        }
+        return result
     }
 
     private static func decodeQuotedPrintable(_ text: String) -> String {
@@ -166,8 +190,12 @@ public enum VCardParser {
 
 /// RFC-4180 CSV reader with Outlook/Google/Apple contact header aliases.
 public enum CSVContactParser {
-    public static func parse(_ text: String, source: String = "csv") -> [ImportedContact] {
-        let rows = rows(from: text)
+    public static func parse(
+        _ text: String,
+        source: String = "csv",
+        delimiter: Character = ","
+    ) -> [ImportedContact] {
+        let rows = rows(from: text, delimiter: delimiter)
         guard let header = rows.first, !header.isEmpty else { return [] }
         let keys = header.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
         let index: (String...) -> Int? = { aliases in
@@ -232,7 +260,7 @@ public enum CSVContactParser {
 
     /// Splits CSV rows while respecting quoted commas, escaped quotes, and
     /// newlines inside quotes.
-    static func rows(from text: String) -> [[String]] {
+    static func rows(from text: String, delimiter: Character = ",") -> [[String]] {
         var rows: [[String]] = []
         var row: [String] = []
         var field = ""
@@ -257,7 +285,7 @@ public enum CSVContactParser {
                 switch char {
                 case "\"":
                     inQuotes = true
-                case ",":
+                case delimiter:
                     row.append(field)
                     field = ""
                 case "\n":

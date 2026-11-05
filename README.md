@@ -42,7 +42,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free, `swift test` passes **610 tests**, and
+Verification: `swift build` is warning-free, `swift test` passes **624 tests**, and
 the XCUITest suite has twenty-one cases against the real `.app` bundle (three drag-gesture
 cases are skipped because macOS XCUITest cannot synthesize drags). The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in

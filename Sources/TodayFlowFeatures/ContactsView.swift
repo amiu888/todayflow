@@ -312,6 +312,8 @@ private struct ContactDetailPane: View {
     let onDelete: () -> Void
     let onOpenTask: (UUIDv7) -> Void
 
+    @State private var confirmingDelete = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -339,7 +341,9 @@ private struct ContactDetailPane: View {
                     Spacer()
 
                     Button("Edit", action: onEdit)
-                    Button("Delete", role: .destructive, action: onDelete)
+                    Button("Delete", role: .destructive) {
+                        confirmingDelete = true
+                    }
                 }
 
                 if !groups.isEmpty {
@@ -418,6 +422,12 @@ private struct ContactDetailPane: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .alert("Delete contact?", isPresented: $confirmingDelete) {
+            Button("Delete", role: .destructive, action: onDelete)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the contact and its group and task links.")
         }
     }
 

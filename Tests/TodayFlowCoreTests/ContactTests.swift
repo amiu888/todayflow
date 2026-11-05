@@ -155,3 +155,83 @@ struct ContactImportTests {
         #expect(merged.notes.contains("Second"))
     }
 }
+
+@Suite("Contact parser edge cases")
+struct ContactParserEdgeCaseTests {
+    @Test func vCardNoteIsDecoded() {
+        let vcard = """
+            BEGIN:VCARD
+            N:Smith;Jane;;;
+            EMAIL:jane@acme.com
+            NOTE:Met at conference\\, follow up
+            END:VCARD
+            """
+        #expect(VCardParser.parse(vcard).first?.notes == "Met at conference, follow up")
+    }
+
+    @Test func vCardEscapedBackslashIsNotADecodedNewline() {
+        let vcard = "BEGIN:VCARD\nN:Doe;Jane;;;\nNOTE:literal \\\\n\nEMAIL:jane@acme.com\nEND:VCARD"
+        #expect(VCardParser.parse(vcard).first?.notes == "literal \\n")
+    }
+
+    @Test func csvSupportsQuotedNewlines() {
+        let csv = """
+            First Name,Notes
+            Jane,"line one
+            line two"
+            """
+        #expect(CSVContactParser.parse(csv).first?.notes == "line one\nline two")
+    }
+
+    @Test func csvSupportsTabs() {
+        let tsv = "First Name\tE-mail Address\nJane\tjane@acme.com"
+        let contact = CSVContactParser.parse(tsv, delimiter: "\t").first
+        #expect(contact?.firstName == "Jane")
+        #expect(contact?.emails == ["jane@acme.com"])
+    }
+
+    @Test func importFilterMatchesFreeText() {
+        let record = ImportedContact(
+            firstName: "Jane",
+            company: "Acme",
+            emails: ["jane@acme.com"],
+            groupNames: ["Customers"],
+            source: "csv"
+        )
+        #expect(ContactImportFilter(query: "acme").matches(record))
+        #expect(ContactImportFilter(query: "customers").matches(record))
+        #expect(!ContactImportFilter(query: "beta").matches(record))
+    }
+
+    @Test func importedContactTrimsDeduplicatesAndSortsFields() {
+        let record = ImportedContact(
+            firstName: "  Jane ",
+            emails: [" b@acme.com ", "a@acme.com", "a@acme.com"],
+            phones: [" 555 ", "555", " 666 "],
+            source: "csv"
+        )
+        let contact = record.contact(deviceId: "test", at: .now)
+        #expect(contact.firstName == "Jane")
+        #expect(contact.emails == ["a@acme.com", "b@acme.com"])
+        #expect(contact.phones == ["555", "666"])
+    }
+}
+
+@Test func importedGroupsSortAfterExistingGroups() {
+    let existing = ContactGroup(name: "Existing", sortOrder: "0002")
+    let plan = ContactImporter().plan(
+        importing: [
+            ImportedContact(
+                firstName: "Jane",
+                emails: ["jane@acme.com"],
+                groupNames: ["New group"],
+                source: "csv"
+            )
+        ],
+        existing: [],
+        existingGroups: [existing]
+    )
+    let newGroup = plan.newGroups.first
+    #expect(newGroup != nil)
+    #expect(FractionalIndex.isLessThan("0002", newGroup!.sortOrder))
+}

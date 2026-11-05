@@ -59,6 +59,8 @@ public final class ContactsImporter {
         try store.enumerateContacts(with: request) { contact, _ in
             let emails = contact.emailAddresses.map { $0.value as String }
             let phones = contact.phoneNumbers.map { $0.value.stringValue }
+            // Notes require Apple's restricted contacts-notes entitlement;
+            // omit the key rather than failing the whole fetch.
             let notes = ""
             guard !emails.isEmpty || !phones.isEmpty
                 || !contact.givenName.isEmpty || !contact.familyName.isEmpty
@@ -89,8 +91,10 @@ public final class ContactsImporter {
         switch url.pathExtension.lowercased() {
         case "vcf", "vcard", "contact":
             return VCardParser.parse(text, source: "outlook")
-        case "csv", "tsv":
+        case "csv":
             return CSVContactParser.parse(text, source: "outlook")
+        case "tsv":
+            return CSVContactParser.parse(text, source: "outlook", delimiter: "\t")
         default:
             let vcards = VCardParser.parse(text, source: "vcard")
             return vcards.isEmpty
@@ -109,6 +113,7 @@ public final class ContactsImporter {
             .commaSeparatedText,
             UTType(filenameExtension: "vcf") ?? .data,
             UTType(filenameExtension: "vcard") ?? .data,
+            .tabSeparatedText,
         ]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false

@@ -79,11 +79,9 @@ public final class ContactsViewModel {
         defer { isWorking = false }
         contacts = await repository.contacts()
         groups = await repository.groups()
-        var memberships: [UUIDv7: Set<UUIDv7>] = [:]
-        for contact in contacts {
-            memberships[contact.id] = Set(await repository.groupIds(for: contact.id))
-        }
-        contactGroupIds = memberships
+        // One query for every group membership instead of one per contact.
+        contactGroupIds = await repository.groupMemberships()
+            .mapValues { Set($0) }
         duplicates = ContactDeduplicator.duplicateGroups(in: contacts)
         if let selectedContactID, !contacts.contains(where: { $0.id == selectedContactID }) {
             self.selectedContactID = contacts.first?.id
@@ -147,7 +145,9 @@ public final class ContactsViewModel {
     public func addGroup(name: String) async {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let order = String(format: "%04d", groups.count)
+        let lastOrder = groups.map(\.sortOrder)
+            .max(by: FractionalIndex.isLessThan)
+        let order = FractionalIndex.midpoint(lastOrder, nil)
         let now = clock()
         let group = ContactGroup(
             name: trimmed,
@@ -235,20 +235,25 @@ public final class ContactsViewModel {
     }
 
     public func applyImport() async {
-        guard let plan = importPlan, !plan.contacts.isEmpty else { return }
+        guard !pendingImportRecords.isEmpty else { return }
         isImporting = true
         defer { isImporting = false }
         do {
-            for group in plan.newGroups {
-                try await repository.saveGroup(group)
-            }
-            for contact in plan.contacts {
-                try await repository.save(contact)
-            }
-            for (contactId, groupIds) in plan.groupAssignments {
-                let existing = Set(await repository.groupIds(for: contactId))
-                try await repository.setGroups(Array(existing.union(groupIds)), for: contactId)
-            }
+            // Recompute against the latest store state: the preview may be
+            // minutes old, and importing against a stale snapshot duplicates
+            // contacts or overwrites newer edits.
+            let freshContacts = await repository.contacts()
+            let freshGroups = await repository.groups()
+            let plan = ContactImporter().plan(
+                importing: pendingImportRecords,
+                existing: freshContacts,
+                existingGroups: freshGroups,
+                filter: importFilter,
+                deviceId: deviceId,
+                now: clock()
+            )
+            guard !plan.contacts.isEmpty else { return }
+            try await repository.applyImport(plan)
             clearImport()
             await load()
         } catch {

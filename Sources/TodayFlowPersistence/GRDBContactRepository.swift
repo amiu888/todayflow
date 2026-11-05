@@ -4,6 +4,10 @@ import TodayFlowCore
 
 /// GRDB-backed contacts, groups, and task links. Contacts are soft-deleted so
 /// imports and future sync can reconcile without losing history.
+///
+/// Contacts are local-only in v1, so their writes deliberately do not append
+/// `change_outbox` rows; the v2 sync schema will add contact entities before
+/// those rows would be meaningful.
 public struct GRDBContactRepository: ContactRepository {
     private let queue: DatabaseQueue
     private let deviceId: String
@@ -42,47 +46,51 @@ public struct GRDBContactRepository: ContactRepository {
 
     public func save(_ contact: Contact) async throws {
         try await queue.write { db in
-            try db.execute(
-                sql: """
-                    INSERT INTO contact (
-                      id, first_name, last_name, company, job_title,
-                      emails_json, phones_json, notes, source, external_id,
-                      created_at, updated_at, deleted_at, version, device_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                      first_name = excluded.first_name,
-                      last_name = excluded.last_name,
-                      company = excluded.company,
-                      job_title = excluded.job_title,
-                      emails_json = excluded.emails_json,
-                      phones_json = excluded.phones_json,
-                      notes = excluded.notes,
-                      source = excluded.source,
-                      external_id = excluded.external_id,
-                      updated_at = excluded.updated_at,
-                      deleted_at = excluded.deleted_at,
-                      version = excluded.version,
-                      device_id = excluded.device_id
-                    """,
-                arguments: [
-                    contact.id.uuid.uuidString,
-                    contact.firstName,
-                    contact.lastName,
-                    contact.company,
-                    contact.jobTitle,
-                    Json.arrayString(contact.emails),
-                    Json.arrayString(contact.phones),
-                    contact.notes,
-                    contact.source,
-                    contact.externalId,
-                    SqlTimestamp.encode(contact.createdAt),
-                    SqlTimestamp.encode(contact.updatedAt),
-                    contact.deletedAt.map(SqlTimestamp.encode),
-                    contact.version,
-                    contact.deviceId,
-                ]
-            )
+            try Self.save(contact, db: db)
         }
+    }
+
+    private static func save(_ contact: Contact, db: Database) throws {
+        try db.execute(
+            sql: """
+                INSERT INTO contact (
+                  id, first_name, last_name, company, job_title,
+                  emails_json, phones_json, notes, source, external_id,
+                  created_at, updated_at, deleted_at, version, device_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  first_name = excluded.first_name,
+                  last_name = excluded.last_name,
+                  company = excluded.company,
+                  job_title = excluded.job_title,
+                  emails_json = excluded.emails_json,
+                  phones_json = excluded.phones_json,
+                  notes = excluded.notes,
+                  source = excluded.source,
+                  external_id = excluded.external_id,
+                  updated_at = excluded.updated_at,
+                  deleted_at = excluded.deleted_at,
+                  version = excluded.version,
+                  device_id = excluded.device_id
+                """,
+            arguments: [
+                contact.id.uuid.uuidString,
+                contact.firstName,
+                contact.lastName,
+                contact.company,
+                contact.jobTitle,
+                Json.arrayString(contact.emails),
+                Json.arrayString(contact.phones),
+                contact.notes,
+                contact.source,
+                contact.externalId,
+                SqlTimestamp.encode(contact.createdAt),
+                SqlTimestamp.encode(contact.updatedAt),
+                contact.deletedAt.map(SqlTimestamp.encode),
+                contact.version,
+                contact.deviceId,
+            ]
+        )
     }
 
     public func delete(_ id: UUIDv7, at: Date) async throws {
@@ -118,32 +126,36 @@ public struct GRDBContactRepository: ContactRepository {
 
     public func saveGroup(_ group: ContactGroup) async throws {
         try await queue.write { db in
-            try db.execute(
-                sql: """
-                    INSERT INTO contact_group (
-                      id, name, color_hex, sort_order,
-                      created_at, updated_at, version, device_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                      name = excluded.name,
-                      color_hex = excluded.color_hex,
-                      sort_order = excluded.sort_order,
-                      updated_at = excluded.updated_at,
-                      version = excluded.version,
-                      device_id = excluded.device_id
-                    """,
-                arguments: [
-                    group.id.uuid.uuidString,
-                    group.name,
-                    group.colorHex,
-                    group.sortOrder,
-                    SqlTimestamp.encode(group.createdAt),
-                    SqlTimestamp.encode(group.updatedAt),
-                    group.version,
-                    group.deviceId,
-                ]
-            )
+            try Self.saveGroup(group, db: db)
         }
+    }
+
+    private static func saveGroup(_ group: ContactGroup, db: Database) throws {
+        try db.execute(
+            sql: """
+                INSERT INTO contact_group (
+                  id, name, color_hex, sort_order,
+                  created_at, updated_at, version, device_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  name = excluded.name,
+                  color_hex = excluded.color_hex,
+                  sort_order = excluded.sort_order,
+                  updated_at = excluded.updated_at,
+                  version = excluded.version,
+                  device_id = excluded.device_id
+                """,
+            arguments: [
+                group.id.uuid.uuidString,
+                group.name,
+                group.colorHex,
+                group.sortOrder,
+                SqlTimestamp.encode(group.createdAt),
+                SqlTimestamp.encode(group.updatedAt),
+                group.version,
+                group.deviceId,
+            ]
+        )
     }
 
     public func deleteGroup(_ id: UUIDv7) async throws {
@@ -167,6 +179,22 @@ public struct GRDBContactRepository: ContactRepository {
                 arguments: [contactId.uuid.uuidString]
             ).map(UUIDv7.init(databaseString:))
         }) ?? []
+    }
+
+    public func groupMemberships() async -> [UUIDv7: [UUIDv7]] {
+        (try? await queue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT contact_id, group_id FROM contact_group_member"
+            )
+            var result: [UUIDv7: [UUIDv7]] = [:]
+            for row in rows {
+                let contactId = UUIDv7(databaseString: row["contact_id"] as String)
+                let groupId = UUIDv7(databaseString: row["group_id"] as String)
+                result[contactId, default: []].append(groupId)
+            }
+            return result
+        }) ?? [:]
     }
 
     public func setGroups(_ groupIds: [UUIDv7], for contactId: UUIDv7) async throws {
@@ -254,46 +282,27 @@ public struct GRDBContactRepository: ContactRepository {
 
     public func merge(_ sourceIds: [UUIDv7], into primary: Contact, at: Date) async throws {
         try await queue.write { db in
-            try db.execute(
-                sql: """
-                    INSERT INTO contact (
-                      id, first_name, last_name, company, job_title,
-                      emails_json, phones_json, notes, source, external_id,
-                      created_at, updated_at, deleted_at, version, device_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                      first_name = excluded.first_name,
-                      last_name = excluded.last_name,
-                      company = excluded.company,
-                      job_title = excluded.job_title,
-                      emails_json = excluded.emails_json,
-                      phones_json = excluded.phones_json,
-                      notes = excluded.notes,
-                      source = excluded.source,
-                      external_id = excluded.external_id,
-                      updated_at = excluded.updated_at,
-                      deleted_at = excluded.deleted_at,
-                      version = excluded.version,
-                      device_id = excluded.device_id
-                    """,
-                arguments: [
-                    primary.id.uuid.uuidString,
-                    primary.firstName,
-                    primary.lastName,
-                    primary.company,
-                    primary.jobTitle,
-                    Json.arrayString(primary.emails),
-                    Json.arrayString(primary.phones),
-                    primary.notes,
-                    primary.source,
-                    primary.externalId,
-                    SqlTimestamp.encode(primary.createdAt),
-                    SqlTimestamp.encode(primary.updatedAt),
-                    primary.deletedAt.map(SqlTimestamp.encode),
-                    primary.version,
-                    primary.deviceId,
-                ]
+            let current = try Row.fetchOne(
+                db,
+                sql: "SELECT * FROM contact WHERE id = ?",
+                arguments: [primary.id.uuid.uuidString]
+            ).map { ContactRecord(row: $0).model }
+            var sources: [Contact] = []
+            for id in sourceIds where id != primary.id {
+                if let row = try Row.fetchOne(
+                    db,
+                    sql: "SELECT * FROM contact WHERE id = ?",
+                    arguments: [id.uuid.uuidString]
+                ) {
+                    sources.append(ContactRecord(row: row).model)
+                }
+            }
+            let merged = ContactMerger.merge(
+                [current, primary].compactMap { $0 } + sources,
+                primary: current ?? primary,
+                at: at
             )
+            try Self.save(merged, db: db)
 
             let sourceStrings = sourceIds
                 .filter { $0 != primary.id }
@@ -335,6 +344,28 @@ public struct GRDBContactRepository: ContactRepository {
                     """,
                 arguments: StatementArguments([stamp, stamp] + sourceStrings)
             )
+        }
+    }
+
+    public func applyImport(_ plan: ContactImportPlan) async throws {
+        try await queue.write { db in
+            for group in plan.newGroups {
+                try Self.saveGroup(group, db: db)
+            }
+            for contact in plan.contacts {
+                try Self.save(contact, db: db)
+            }
+            for (contactId, groupIds) in plan.groupAssignments {
+                for groupId in Set(groupIds) {
+                    try db.execute(
+                        sql: """
+                            INSERT OR IGNORE INTO contact_group_member (contact_id, group_id)
+                            VALUES (?, ?)
+                            """,
+                        arguments: [contactId.uuid.uuidString, groupId.uuid.uuidString]
+                    )
+                }
+            }
         }
     }
 }

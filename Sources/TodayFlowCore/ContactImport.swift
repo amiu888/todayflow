@@ -71,6 +71,8 @@ public struct ContactImporter: Sendable {
         for group in existingGroups {
             groupByName[group.name.lowercased()] = group
         }
+        var lastGroupOrder = existingGroups.map(\.sortOrder)
+            .max(by: FractionalIndex.isLessThan)
         var newGroups: [ContactGroup] = []
         var assignments: [UUIDv7: Set<UUIDv7>] = [:]
         var touched: Set<UUIDv7> = []
@@ -83,8 +85,11 @@ public struct ContactImporter: Sendable {
             guard !trimmed.isEmpty else { return nil }
             let key = trimmed.lowercased()
             if let existing = groupByName[key] { return existing.id }
+            let order = FractionalIndex.midpoint(lastGroupOrder, nil)
+            lastGroupOrder = order
             let group = ContactGroup(
                 name: trimmed,
+                sortOrder: order,
                 createdAt: now,
                 updatedAt: now,
                 deviceId: deviceId
