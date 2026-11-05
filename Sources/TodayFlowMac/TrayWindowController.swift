@@ -95,7 +95,13 @@ public final class TrayWindowController: NSObject, NSWindowDelegate {
             origin.x += delta.width
             origin.y += delta.height
             expectedOrigins[id] = origin
-            window.setFrameOrigin(origin)
+            // `display: false` keeps the content compositor out of the hot
+            // path while the panel is dragged with several trays attached.
+            window.setFrame(
+                NSRect(origin: origin, size: window.frame.size),
+                display: false,
+                animate: false
+            )
         }
     }
 
@@ -122,6 +128,7 @@ public final class TrayWindowController: NSObject, NSWindowDelegate {
         window.setContentSize(NSSize(width: 420, height: 520))
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
+        window.animationBehavior = .none
         window.delegate = self
         // Attach to the right of the main panel, then to the right of the
         // last opened tray window. If the row is full, stack below it.

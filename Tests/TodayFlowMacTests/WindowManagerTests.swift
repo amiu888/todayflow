@@ -44,6 +44,7 @@ struct WindowManagerTests {
 
         #expect(!contacts.frame.intersects(panel.frame))
         #expect(contacts.frame.minX >= panel.frame.minX)
+        #expect(!contacts.isMovableByWindowBackground)
     }
 
     @Test @MainActor

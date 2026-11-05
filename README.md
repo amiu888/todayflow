@@ -55,7 +55,7 @@ strip plans future days in place, future rows expose priority/start/reorder
 actions, per-task reminders are set from the detail window, due tasks pulse on the
 list and in a “Due soon” banner. The pin in the header docks the panel to another
 application (left by default, or right/top/bottom), and the panel follows that app’s
-front window. Tray windows tile to the right of the panel and of each other.
+front window. Tray windows tile to the right of the panel and of each other; only trays you have not moved follow the panel, while Contacts and other windows stay independent. Dragging uses title bars, so content clicks never nudge a window.
 
 Contacts are first-class: groups, duplicate review, vCard/CSV import, macOS
 Contacts sync, and many-to-many links to tasks. A task can have any number of
@@ -105,7 +105,7 @@ visible at the bottom of the task detail window.
 Distribution status:
 
 - Developer ID signing, hardened runtime, and **notarization + stapling** are done for
-  the 1.7.4 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
+  the 1.7.5 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
 - Broader XCUITest coverage (drag/drop, trays, calendar, focus) and the NFR-01…05
   performance gates remain follow-ups.
 - Live Markdown rendering and pasted-image attachments inside the detail description.

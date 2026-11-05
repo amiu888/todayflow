@@ -279,7 +279,9 @@ public final class WindowDockController {
         followTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 self?.repositionDockedPanel()
-                try? await Task.sleep(for: .milliseconds(350))
+                // 30 Hz is smooth enough for window following without
+                // enumerating the window server on every display refresh.
+                try? await Task.sleep(for: .milliseconds(33))
             }
         }
     }
@@ -291,6 +293,9 @@ public final class WindowDockController {
               let running = NSRunningApplication.runningApplications(
                 withBundleIdentifier: target.bundleId
               ).first,
+              // Do not chase another app's window while the user is working
+              // in TodayFlow's own panel.
+              NSWorkspace.shared.frontmostApplication?.bundleIdentifier == target.bundleId,
               let appFrame = Self.frontWindowFrame(for: running.processIdentifier)
         else { return }
         let screen = panel.screen?.visibleFrame
