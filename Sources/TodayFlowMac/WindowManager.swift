@@ -17,6 +17,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private let capture: CaptureWindowController
     private let dropLoader = DroppedObjectLoader()
     private let attachmentActions = AttachmentActions()
+    private let focus: FocusWindowController
     /// Snaps floating windows to screen edges and neighbouring windows.
     public let docking = WindowDockController()
 
@@ -27,6 +28,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     public init(environment: AppEnvironment) {
         self.environment = environment
         self.capture = CaptureWindowController(environment: environment)
+        self.focus = FocusWindowController(environment: environment)
         super.init()
         self.capture.onSaved = { [weak self] id in
             guard let self else { return }
@@ -116,6 +118,11 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// `application(_:open:)` file drops).
     public func receiveDrop(_ objects: [DroppedObject], splitIntoTasks: Bool = false) {
         showCapture(dropped: objects, splitIntoTasks: splitIntoTasks)
+    }
+
+    /// Opens the focused-work timer for one task.
+    public func presentFocus(_ id: UUIDv7) {
+        focus.present(itemId: id)
     }
 
     /// Minimize the Today panel; the menu-bar icon restores it.
@@ -266,6 +273,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             )
         }
         window.title = kind.title
+        window.isMovableByWindowBackground = true
         if case .panel = kind {
             window.contentMinSize = DesignTokens.Window.panelMinimum
         }
@@ -316,6 +324,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 settingRepository: environment.settings,
                 calendar: environment.workCalendar,
                 onOpenTask: { [weak self] id in self?.show(.detail(id)) },
+                onFocusTask: { [weak self] in self?.presentFocus($0) },
                 onDrop: { [weak self] providers, itemId in
                     self?.handleDrop(providers, onto: itemId) ?? false
                 },

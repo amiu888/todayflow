@@ -55,6 +55,7 @@ public final class StatusItemController: NSObject {
                 settingRepository: environment.settings,
                 calendar: environment.workCalendar,
                 onOpenTask: { [weak windowManager] id in windowManager?.show(.detail(id)) },
+                onFocusTask: { [weak windowManager] id in windowManager?.presentFocus(id) },
                 onDrop: { [weak windowManager] providers, itemId in
                     windowManager?.handleDrop(providers, onto: itemId) ?? false
                 },

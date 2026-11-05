@@ -14,6 +14,8 @@ public enum TaskRowQuickAction: Hashable, Sendable {
     /// Move one position up/down in the visible list.
     case moveUp
     case moveDown
+    /// Start a focused work session.
+    case focus
     /// Open the item in the detail view.
     case open
 }
@@ -160,6 +162,7 @@ public final class TodayViewModel {
     @ObservationIgnored private var deviceId: String
     @ObservationIgnored private var clock: @Sendable () -> Date
     @ObservationIgnored public var onOpenTask: (@MainActor (UUIDv7) -> Void)?
+    @ObservationIgnored public var onFocusTask: (@MainActor (UUIDv7) -> Void)?
 
     public init(
         repository: any WorkItemRepository,
@@ -169,7 +172,8 @@ public final class TodayViewModel {
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         clock: @escaping @Sendable () -> Date = { .now },
-        onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil
+        onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil,
+        onFocusTask: (@MainActor (UUIDv7) -> Void)? = nil
     ) {
         self.repository = repository
         self.linkRepository = linkRepository
@@ -179,6 +183,7 @@ public final class TodayViewModel {
         self.deviceId = deviceId
         self.clock = clock
         self.onOpenTask = onOpenTask
+        self.onFocusTask = onFocusTask
         self.activeDay = calendar.calendar.startOfDay(for: clock())
     }
 
@@ -845,6 +850,8 @@ public final class TodayViewModel {
             await moveUp(id)
         case .moveDown:
             await moveDown(id)
+        case .focus:
+            onFocusTask?(id)
         case .open:
             onOpenTask?(id)
         }

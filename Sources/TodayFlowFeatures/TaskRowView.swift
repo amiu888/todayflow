@@ -101,6 +101,7 @@ public struct TaskRowView: View {
             }
             .contextMenu {
                 Button("Open") { onQuickAction(model.id, .open) }
+                Button("Focus for 25 minutes") { onQuickAction(model.id, .focus) }
                 Divider()
                 Button("Move up") { onQuickAction(model.id, .moveUp) }
                 Button("Move down") { onQuickAction(model.id, .moveDown) }
@@ -345,6 +346,16 @@ public struct TaskRowView: View {
                 }
             }
             .help("Change priority")
+
+            Button {
+                quick(id, .focus)
+            } label: {
+                Image(systemName: "scope")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.primary)
+            }
+            .buttonStyle(.plain)
+            .help("Focus for 25 minutes")
 
             Button {
                 quick(id, .moveToTomorrow)

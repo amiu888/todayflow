@@ -109,6 +109,9 @@ public struct CaptureSheetView: View {
                 .stroke(DesignTokens.Palette.gradient, lineWidth: 1)
         )
         .shadow(color: DesignTokens.Palette.shadow, radius: 28, y: 12)
+        .overlay(alignment: .top) {
+            WindowDragGrabber()
+        }
         .tint(DesignTokens.Palette.accent)
     }
 

@@ -64,6 +64,7 @@ public struct DayPlanView: View {
             footer
         }
         .frame(width: 480, height: 560)
+        .overlay(alignment: .top) { WindowDragGrabber() }
         .task { await model.loadAndPlan() }
     }
 

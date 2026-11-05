@@ -42,8 +42,8 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free, `swift test` passes **538 tests**, and
-the two XCUITests pass against the real `.app` bundle. The app also makes a daily
+Verification: `swift build` is warning-free, `swift test` passes **545 tests**, and
+the three XCUITests pass against the real `.app` bundle. The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in
 `Application Support/TodayFlow/Backups/` (NFR-09).
 
@@ -52,6 +52,12 @@ sky→royal→violet accent) with a light theme from **View → Appearance**. Th
 strip plans future days in place, future rows expose priority/start/reorder
 actions, per-task reminders are set from the detail window, due tasks pulse on the
 list and in a “Due soon” banner, and floating windows dock to screen/window edges.
+
+Working trays are named staging areas for the tasks in play; drop tasks onto them
+from the list. Focus mode runs a 25-minute session on one task with pause, +5 min,
+and Done. A separate Calendar window switches between week and month planning.
+Attachments show up to three source-app icons with a hover overlay; the full list
+exports to JSON, CSV, or a real Excel `.xlsx` workbook.
 
 Design rationale and the competitive references are in
 [`docs/design/todayflow-design.md`](./docs/design/todayflow-design.md).

@@ -213,6 +213,14 @@ public struct TrayStripView: View {
         .onTapGesture {
             model.onOpenTask?(item.id)
         }
+        .contextMenu {
+            Button("Open") { model.onOpenTask?(item.id) }
+            Button("Focus for 25 minutes") { model.onFocusTask?(item.id) }
+            Divider()
+            Button("Remove from tray") {
+                Task { await model.removeFromTray(item.id, trayId: trayId) }
+            }
+        }
         .help(item.descriptionMd.isEmpty ? item.title : item.descriptionMd)
         .draggable(WorkItemDragPayload(itemId: item.id))
     }

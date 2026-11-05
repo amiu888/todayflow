@@ -59,6 +59,9 @@ all-caps. Dates are always locale-aware.
 
 The week strip is the navigation model: tap a day to plan it in place. Future
 rows carry a small “…” menu for priority, start time, move up/down, and open.
+Working trays sit between the filters and the list: named drop areas for the
+tasks currently in play. A separate Calendar window provides week and month
+boards, and Focus mode turns one task into a large timer with pause/+5/Done.
 A new capture is inserted at the **top** of today’s list so it is never hidden
 below the fold.
 

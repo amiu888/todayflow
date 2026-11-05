@@ -53,6 +53,7 @@ public struct TodayView: View {
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil,
+        onFocusTask: (@MainActor (UUIDv7) -> Void)? = nil,
         onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil,
         onOpenUpcoming: (@MainActor () -> Void)? = nil
     ) {
@@ -63,7 +64,8 @@ public struct TodayView: View {
             settingRepository: settingRepository,
             calendar: calendar,
             deviceId: deviceId,
-            onOpenTask: onOpenTask
+            onOpenTask: onOpenTask,
+            onFocusTask: onFocusTask
         )
         #if canImport(AppKit)
         self.onDrop = onDrop

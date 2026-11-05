@@ -91,6 +91,7 @@ public struct DataExport: Sendable {
     // MARK: - XLSX
 
     private func writeXLSX(items: [WorkItem], to url: URL) throws {
+        #if os(macOS)
         let fm = FileManager.default
         let root = fm.temporaryDirectory
             .appendingPathComponent("TodayFlowXLSX-\(UUID().uuidString)", isDirectory: true)
@@ -133,6 +134,9 @@ public struct DataExport: Sendable {
         guard process.terminationStatus == 0 else {
             throw ExportError.zipFailed
         }
+        #else
+        throw ExportError.useWriteForExcel
+        #endif
     }
 
     private var contentTypes: String {

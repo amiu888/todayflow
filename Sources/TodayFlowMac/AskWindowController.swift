@@ -66,6 +66,7 @@ public final class AskWindowController: NSObject, NSWindowDelegate {
             )
         )
         window.isReleasedWhenClosed = false
+        window.isMovableByWindowBackground = true
         window.delegate = self
         window.center()
         self.window = window

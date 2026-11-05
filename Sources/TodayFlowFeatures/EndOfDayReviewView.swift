@@ -45,6 +45,7 @@ public struct EndOfDayReviewView: View {
             footer
         }
         .frame(width: 440, height: 520)
+        .overlay(alignment: .top) { WindowDragGrabber() }
         .task { await model.load() }
     }
 

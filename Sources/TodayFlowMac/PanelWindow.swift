@@ -35,6 +35,7 @@ public final class PanelWindow: NSPanel {
         switch style {
         case .panel:
             titleVisibility = .visible
+            isMovableByWindowBackground = true
         case .slimBar, .capture:
             isMovableByWindowBackground = true
             // Let the SwiftUI material card define the shape instead of

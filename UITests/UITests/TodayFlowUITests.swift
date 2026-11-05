@@ -40,13 +40,11 @@ final class TodayFlowUITests: XCTestCase {
         XCTAssertTrue(capture.waitForExistence(timeout: 3))
         capture.click()
 
+        let title = app.textFields["Title"]
         XCTAssertTrue(
-            app.staticTexts["New task"].waitForExistence(timeout: 5),
+            title.waitForExistence(timeout: 5),
             "Capture Clipboard did not open the quick-add sheet"
         )
-
-        let title = app.textFields["Title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 3))
         app.typeText("UI test image")
 
         let add = app.buttons["Add task"]
@@ -59,6 +57,30 @@ final class TodayFlowUITests: XCTestCase {
         XCTAssertTrue(
             saved.waitForExistence(timeout: 8),
             "The captured image task did not appear in Today"
+        )
+    }
+
+    /// A single click on a task opens its detail window.
+    func testClickingTaskOpensDetailWindow() throws {
+        let app = launchApp()
+        app.activate()
+        app.typeKey("n", modifierFlags: .command)
+
+        let title = app.textFields["Title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        app.typeText("Detail test task")
+
+        app.buttons["Add task"].click()
+
+        let row = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS 'Detail test task'")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 8))
+        row.click()
+
+        XCTAssertTrue(
+            app.windows["Task"].waitForExistence(timeout: 5),
+            "Clicking a task did not open the detail window"
         )
     }
 
