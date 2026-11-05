@@ -71,6 +71,19 @@ public struct TaskDragSource: NSViewRepresentable {
         return view
     }
 
+    public func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: DragView,
+        context: Context
+    ) -> CGSize? {
+        // The drag view draws nothing and has no intrinsic size; without this
+        // SwiftUI lays it out at 0×0 and it never receives a mouse event.
+        guard let width = proposal.width, let height = proposal.height else {
+            return nil
+        }
+        return CGSize(width: width, height: height)
+    }
+
     public func updateNSView(_ view: DragView, context: Context) {
         view.onHover = onHover
         view.onClick = onClick
@@ -133,6 +146,7 @@ public struct TaskDragSource: NSViewRepresentable {
         }
 
         public override func mouseDown(with event: NSEvent) {
+            Diagnostics.log("drag", "mouseDown title=\(title)")
             mouseDownEvent = event
             didDrag = false
         }
@@ -144,6 +158,7 @@ public struct TaskDragSource: NSViewRepresentable {
             guard hypot(dx, dy) > 4 else { return }
 
             didDrag = true
+            Diagnostics.log("drag", "drag start title=\(title)")
             let pasteboardItem = WorkItemDragPayload.pasteboardItem(
                 for: itemId,
                 sourceTray: sourceTray
