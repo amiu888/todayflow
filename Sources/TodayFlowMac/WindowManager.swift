@@ -54,12 +54,28 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// the provider loads.
     @discardableResult
     public func handleDrop(_ providers: [NSItemProvider], onto itemId: UUIDv7? = nil) -> Bool {
-        guard !providers.isEmpty else { return false }
+        // The provider load is async and some apps withdraw their item after
+        // the drop callback returns. Snapshot the drag pasteboard synchronously
+        // first; it is the most reliable source for Finder file drags.
+        let pasteboardFallback = DroppedObjectLoader.objectsFromDragPasteboard()
+        DropDiagnostics.log(
+            "drop providers=\(providers.count) "
+                + "types=\(providers.map(\.registeredTypeIdentifiers)) "
+                + "pasteboardFallback=\(pasteboardFallback.count)"
+        )
+
+        guard !providers.isEmpty || !pasteboardFallback.isEmpty else {
+            DropDiagnostics.log("drop: no providers and no pasteboard objects")
+            return false
+        }
+
         // Read the modifier at drop time, before the async provider loads.
         let splitIntoTasks = NSEvent.modifierFlags.contains(.option)
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let objects = await self.dropLoader.load(from: providers)
+            let loaded = await self.dropLoader.load(from: providers)
+            let objects = loaded.isEmpty ? pasteboardFallback : loaded
+            DropDiagnostics.log("drop: loaded=\(loaded.count) using=\(objects.count)")
             guard !objects.isEmpty else {
                 self.presentDropError()
                 return

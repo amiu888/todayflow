@@ -214,6 +214,13 @@ public struct DroppedObjectLoader {
             || !objects(from: pasteboard).isEmpty
     }
 
+    /// Reads the live drag pasteboard. During a drop this still contains the
+    /// file URLs even when the `NSItemProvider` refuses to vend them, which is
+    /// the safest fallback for Finder/Outlook/Teams drags.
+    public static func objectsFromDragPasteboard() -> [DroppedObject] {
+        objects(from: NSPasteboard(name: .drag))
+    }
+
     /// Converts every pasteboard item, preserving the order the user selected
     /// or dragged. Files win over images and text within one item.
     public static func objects(from pasteboard: NSPasteboard) -> [DroppedObject] {
