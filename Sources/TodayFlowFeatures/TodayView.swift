@@ -688,10 +688,22 @@ public struct TodayView: View {
 
     #if canImport(AppKit)
     private var runningApps: [(bundleId: String, name: String)] {
-        NSWorkspace.shared.runningApplications
+        let visiblePIDs = Set(
+            (CGWindowListCopyWindowInfo(
+                [.optionOnScreenOnly, .excludeDesktopElements],
+                kCGNullWindowID
+            ) as? [[String: Any]] ?? [])
+            .compactMap { info -> pid_t? in
+                guard let layer = info[kCGWindowLayer as String] as? Int, layer == 0
+                else { return nil }
+                return info[kCGWindowOwnerPID as String] as? pid_t
+            }
+        )
+        return NSWorkspace.shared.runningApplications
             .filter {
                 $0.activationPolicy == .regular
                     && $0.bundleIdentifier != Bundle.main.bundleIdentifier
+                    && visiblePIDs.contains($0.processIdentifier)
             }
             .compactMap { app in
                 guard let id = app.bundleIdentifier,

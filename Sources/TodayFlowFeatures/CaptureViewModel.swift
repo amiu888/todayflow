@@ -338,7 +338,6 @@ public final class CaptureViewModel {
         let candidates = [
             object.previewText,
             source.text,
-            source.fileData.flatMap { String(data: $0, encoding: .utf8) },
         ]
         let body = candidates
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
