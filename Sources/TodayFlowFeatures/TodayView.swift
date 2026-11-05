@@ -25,6 +25,8 @@ public struct TodayView: View {
     @State private var searchText: String = ""
     @State private var isPanelDropTargeted: Bool = false
     @State private var dropTargetId: UUIDv7?
+    @State private var showsUndoBar = false
+    @State private var undoBarTask: Task<Void, Never>?
 
     public init(model: TodayViewModel) {
         self.model = model
@@ -137,6 +139,19 @@ public struct TodayView: View {
                 await model.load()
             }
         }
+        .onChange(of: model.completionUndo) { _, undo in
+            undoBarTask?.cancel()
+            guard let undo else {
+                showsUndoBar = false
+                return
+            }
+            showsUndoBar = true
+            undoBarTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled, model.completionUndo == undo else { return }
+                showsUndoBar = false
+            }
+        }
         .overlay(alignment: .bottom) { undoBar }
         .task { await model.observe() }
     }
@@ -145,7 +160,7 @@ public struct TodayView: View {
     @MainActor
     @ViewBuilder
     private var undoBar: some View {
-        if model.completionUndo != nil {
+        if showsUndoBar, model.completionUndo != nil {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Color(hex: "#0ca30c"))
@@ -153,6 +168,7 @@ public struct TodayView: View {
                     .font(.caption)
                 Spacer()
                 Button("Undo") {
+                    showsUndoBar = false
                     Task { @MainActor in await model.undoComplete() }
                 }
                 .buttonStyle(.borderless)
