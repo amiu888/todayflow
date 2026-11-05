@@ -111,6 +111,9 @@ public struct DetailView: View {
         }
         #endif
         .task { await model.load() }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.attachmentsChanged)) { _ in
+            Task { @MainActor in await model.load() }
+        }
         .onChange(of: model.subtaskSuggestions) { _, new in
             selectedSuggestions = Set(new.map(\.title))
         }
