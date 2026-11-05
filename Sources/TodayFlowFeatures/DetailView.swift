@@ -32,6 +32,8 @@ public struct DetailView: View {
     @State private var showSaved = false
     @State private var savedFeedbackTask: Task<Void, Never>?
     @State private var newTag = ""
+    @State private var showingContactPicker = false
+    @State private var contactSearch = ""
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -166,6 +168,7 @@ public struct DetailView: View {
                     summarySection
                     pillsRow(item)
                     tagsRow(item)
+                    contactsSection
                     datesRow
                     HStack(spacing: 10) {
                         if model.remindersAvailable {
@@ -268,6 +271,119 @@ public struct DetailView: View {
                         .allowsHitTesting(false)
                 }
             }
+        }
+    }
+
+    @MainActor
+    private var contactsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Contacts")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                Spacer()
+                Button {
+                    contactSearch = ""
+                    showingContactPicker = true
+                } label: {
+                    Label("Add", systemImage: "plus")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .help("Link a contact to this task")
+                .accessibilityIdentifier("task-contacts-add")
+                .popover(isPresented: $showingContactPicker, arrowEdge: .bottom) {
+                    contactPicker
+                }
+            }
+
+            if model.contacts.isEmpty {
+                Text("No contacts linked.")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+            } else {
+                ForEach(model.contacts) { contact in
+                    HStack(spacing: 8) {
+                        ZStack {
+                            Circle().fill(DesignTokens.Palette.accent.opacity(0.16))
+                            Text(contact.initials)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(DesignTokens.Palette.accent)
+                        }
+                        .frame(width: 22, height: 22)
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(contact.displayName).font(.callout)
+                            if !contact.company.isEmpty {
+                                Text(contact.company)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Button {
+                            Task { await model.removeContact(contact.id) }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove contact from task")
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private var contactPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Search contacts", text: $contactSearch)
+                .textFieldStyle(.roundedBorder)
+            if model.allContacts.isEmpty {
+                Text("No contacts yet. Open Contacts from the Today header to add some.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(contactCandidates) { contact in
+                            Button {
+                                Task { await model.addContact(contact.id) }
+                                showingContactPicker = false
+                            } label: {
+                                HStack {
+                                    Text(contact.displayName)
+                                    Spacer()
+                                    if !contact.company.isEmpty {
+                                        Text(contact.company)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .padding(.vertical, 3)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxHeight: 220)
+            }
+        }
+        .padding(12)
+        .frame(width: 280)
+    }
+
+    private var contactCandidates: [Contact] {
+        let linked = Set(model.contacts.map(\.id))
+        let query = contactSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return model.allContacts.filter { contact in
+            !linked.contains(contact.id)
+                && (query.isEmpty || contact.searchText.contains(query))
         }
     }
 

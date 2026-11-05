@@ -22,6 +22,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// One shared Today model for the panel, popover, and tray windows.
     public let todayModel: TodayViewModel
     private let trayWindows: TrayWindowController
+    /// Shared contacts window model.
+    public let contactsModel: ContactsViewModel
+    private let contactsImporter = ContactsImporter()
     /// Snaps floating windows to screen edges and neighbouring windows.
     public let docking = WindowDockController()
     /// When true, all app windows follow the user across every Space.
@@ -55,10 +58,15 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         )
         self.todayModel = model
         self.trayWindows = TrayWindowController(model: model)
+        self.contactsModel = ContactsViewModel(
+            repository: environment.contacts,
+            workItems: environment.workItems
+        )
         self.showOnAllDesktops = UserDefaults.standard.object(forKey: Self.desktopsKey) as? Bool ?? false
         super.init()
         self.todayModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
         self.todayModel.onFocusTask = { [weak self] id in self?.presentFocus(id) }
+        self.contactsModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
         self.trayWindows.panelFrame = { [weak self] in self?.windows[.panel]?.frame }
         self.miniCalendar.onOpenDetail = { [weak self] id in self?.show(.detail(id)) }
         self.miniCalendar.onOpenMain = { [weak self] in
@@ -396,6 +404,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             onOpenUpcoming: { [weak self] in self?.show(.upcoming) },
             onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() },
             onOpenTray: { [weak self] id in self?.openTray(id) },
+            onOpenContacts: { [weak self] in self?.show(.contacts) },
             dockedApp: docking.dockedTarget.map {
                 AppDockState(
                     appName: $0.name,
@@ -510,6 +519,25 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 calendar: environment.workCalendar.calendar,
                 modelCatalog: environment.ai
             )
+        case .contacts:
+            ContactsView(
+                model: contactsModel,
+                onPickImportFile: { [weak self] in
+                    self?.contactsImporter.chooseImportFile()
+                },
+                onImportFile: { [weak self] url in
+                    guard let self else { return [] }
+                    return try self.contactsImporter.importFile(at: url)
+                },
+                onImportFromContacts: { [weak self] in
+                    guard let self else { return [] }
+                    return try self.contactsImporter.importFromContacts()
+                },
+                requestContactsAccess: { [weak self] in
+                    await self?.contactsImporter.requestAccess() ?? false
+                },
+                onOpenTask: { [weak self] id in self?.show(.detail(id)) }
+            )
         case .slimBar:
             if let summary {
                 SlimBarView(
@@ -526,6 +554,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 repository: environment.workItems,
                 linkRepository: environment.links,
                 attachmentRepository: environment.attachments,
+                contactRepository: environment.contacts,
                 activityRepository: environment.activities,
                 reminderRepository: environment.reminders,
                 calendar: environment.workCalendar,

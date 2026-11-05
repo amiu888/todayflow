@@ -9,6 +9,7 @@ struct TestDB {
     let workItems: GRDBWorkItemRepository
     let links: GRDBLinkRepository
     let attachments: GRDBAttachmentRepository
+    let contacts: GRDBContactRepository
     let settings: GRDBSettingRepository
     let outbox: OutboxStore
 
@@ -19,6 +20,7 @@ struct TestDB {
             workItems: GRDBWorkItemRepository(queue: queue),
             links: GRDBLinkRepository(queue: queue),
             attachments: GRDBAttachmentRepository(queue: queue),
+            contacts: GRDBContactRepository(queue: queue),
             settings: GRDBSettingRepository(queue: queue),
             outbox: OutboxStore(queue: queue)
         )
@@ -34,6 +36,7 @@ struct TestDB {
             workItems: GRDBWorkItemRepository(queue: queue),
             links: GRDBLinkRepository(queue: queue),
             attachments: GRDBAttachmentRepository(queue: queue),
+            contacts: GRDBContactRepository(queue: queue),
             settings: GRDBSettingRepository(queue: queue),
             outbox: OutboxStore(queue: queue)
         )

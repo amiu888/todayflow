@@ -110,3 +110,15 @@ struct MigrationsTests {
     }
     #expect(summary == "")
 }
+
+@Test func v6AddsContactsGroupsAndTaskLinks() throws {
+    let queue = try TodayFlowDatabase.makeInMemory()
+    defer { try? queue.close() }
+    let tables = try queue.read { db in
+        try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
+    #expect(tables.contains("contact"))
+    #expect(tables.contains("contact_group"))
+    #expect(tables.contains("contact_group_member"))
+    #expect(tables.contains("task_contact"))
+}

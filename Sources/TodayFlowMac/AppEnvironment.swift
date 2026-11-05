@@ -12,6 +12,7 @@ public final class AppEnvironment {
     public let workItems: any WorkItemRepository
     public let links: any LinkRepository
     public let attachments: any AttachmentRepository
+    public let contacts: any ContactRepository
     public let settings: any SettingRepository
     public let keychain: any KeychainStore
     /// Per-task custom reminders (FR-42).
@@ -37,6 +38,7 @@ public final class AppEnvironment {
         workItems: any WorkItemRepository,
         links: any LinkRepository,
         attachments: any AttachmentRepository,
+        contacts: (any ContactRepository)? = nil,
         settings: any SettingRepository,
         keychain: any KeychainStore,
         reminders: (any ReminderRepository)? = nil,
@@ -54,6 +56,7 @@ public final class AppEnvironment {
         self.workItems = workItems
         self.links = links
         self.attachments = attachments
+        self.contacts = contacts ?? InMemoryContactRepository()
         self.settings = settings
         self.keychain = keychain
         self.reminders = reminders ?? InMemoryReminderRepository()
@@ -79,6 +82,7 @@ public final class AppEnvironment {
             workItems: GRDBWorkItemRepository(queue: queue),
             links: GRDBLinkRepository(queue: queue),
             attachments: GRDBAttachmentRepository(queue: queue),
+            contacts: GRDBContactRepository(queue: queue),
             settings: settings,
             keychain: keychain,
             reminders: GRDBReminderRepository(queue: queue),

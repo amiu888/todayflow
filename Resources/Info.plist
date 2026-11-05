@@ -21,9 +21,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.4.4</string>
+    <string>1.5.0</string>
     <key>CFBundleVersion</key>
-    <string>15</string>
+    <string>16</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSApplicationCategoryType</key>
@@ -60,6 +60,8 @@
     <true/>
     <key>NSUserNotificationAlertStyle</key>
     <string>alert</string>
+    <key>NSContactsUsageDescription</key>
+    <string>TodayFlow imports contacts only when you choose Sync or Import from Contacts. Your contacts stay on this Mac unless you export them.</string>
     <key>NSHumanReadableCopyright</key>
     <string>TodayFlow</string>
 </dict>

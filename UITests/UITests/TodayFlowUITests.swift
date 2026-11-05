@@ -670,6 +670,49 @@ final class TodayFlowUITests: XCTestCase {
         app.buttons["Cancel"].click()
     }
 
+
+    /// The Today header opens the contacts window, and a contact can be created.
+    func testContactsWindowOpensAndCreatesContact() throws {
+        let app = launchApp()
+        let open = app.buttons["Open contacts"].firstMatch
+        XCTAssertTrue(open.waitForExistence(timeout: 5), "Contacts button missing")
+        open.click()
+
+        let window = app.windows["Contacts"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5), "Contacts window did not open")
+
+        window.buttons["New Contact"].click()
+        let first = app.textFields["First name"]
+        XCTAssertTrue(first.waitForExistence(timeout: 4))
+        first.typeText("Jane")
+        app.textFields["Last name"].typeText("Smith")
+        app.buttons["Save"].click()
+
+        XCTAssertTrue(
+            window.staticTexts["Jane Smith"].waitForExistence(timeout: 5),
+            "The created contact did not appear in the list"
+        )
+    }
+
+    /// Groups can be created from the contacts sidebar.
+    func testContactsWindowCreatesGroup() throws {
+        let app = launchApp()
+        app.buttons["Open contacts"].firstMatch.click()
+        let window = app.windows["Contacts"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+
+        window.buttons["New Group"].click()
+        let field = app.textFields["Group name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 4))
+        field.typeText("Customers")
+        app.buttons["Create"].click()
+
+        XCTAssertTrue(
+            window.staticTexts["Customers"].waitForExistence(timeout: 5),
+            "The new group did not appear"
+        )
+    }
+
     /// A tray opens next to the panel and a second tray sits to its right.
     func testTrayWindowsTileToTheRight() throws {
         let app = launchApp()

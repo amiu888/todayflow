@@ -213,6 +213,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewMenu.addItem(item("Upcoming", #selector(showUpcomingMenu), key: "2"))
         viewMenu.addItem(item("Completed", #selector(showCompletedMenu), key: "3"))
         viewMenu.addItem(item("Hierarchy", #selector(showHierarchyMenu), key: "4"))
+        viewMenu.addItem(item("Contacts", #selector(showContactsMenu), key: "8"))
         viewMenu.addItem(.separator())
         viewMenu.addItem(item("Slim Bar", #selector(showSlimBarMenu), key: ""))
         viewMenu.addItem(.separator())
@@ -376,6 +377,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func showHierarchyMenu() {
         windows?.show(.hierarchy)
+    }
+
+    @objc private func showContactsMenu() {
+        windows?.show(.contacts)
     }
 
     @objc private func showSlimBarMenu() {

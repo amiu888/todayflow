@@ -102,6 +102,10 @@ public final class DetailViewModel {
     public private(set) var displayStatus: Status = .todo
 
     public private(set) var attachments: [Attachment] = []
+    /// Contacts linked to this task (many-to-many).
+    public private(set) var contacts: [Contact] = []
+    /// Every contact, for the add-contact picker.
+    public private(set) var allContacts: [Contact] = []
     public private(set) var children: [WorkItem] = []
     /// Prerequisites: the `from` end of `.blocks` links pointing at the item.
     public private(set) var blockers: [WorkItem] = []
@@ -151,6 +155,7 @@ public final class DetailViewModel {
     @ObservationIgnored private let repository: any WorkItemRepository
     @ObservationIgnored private let linkRepository: any LinkRepository
     @ObservationIgnored private let attachmentRepository: any AttachmentRepository
+    @ObservationIgnored private let contactRepository: (any ContactRepository)?
     @ObservationIgnored private let activityRepository: (any ActivityRepository)?
     @ObservationIgnored private let reminderRepository: (any ReminderRepository)?
     @ObservationIgnored private let calendar: WorkCalendar
@@ -167,6 +172,7 @@ public final class DetailViewModel {
         repository: any WorkItemRepository,
         linkRepository: any LinkRepository,
         attachmentRepository: any AttachmentRepository,
+        contactRepository: (any ContactRepository)? = nil,
         activityRepository: (any ActivityRepository)? = nil,
         reminderRepository: (any ReminderRepository)? = nil,
         calendar: WorkCalendar = .standard,
@@ -178,6 +184,7 @@ public final class DetailViewModel {
         self.repository = repository
         self.linkRepository = linkRepository
         self.attachmentRepository = attachmentRepository
+        self.contactRepository = contactRepository
         self.activityRepository = activityRepository
         self.reminderRepository = reminderRepository
         self.calendar = calendar
@@ -236,6 +243,13 @@ public final class DetailViewModel {
             await (loadedAttachments, loadedChildren, linksTo, linksFrom, loadedAllItems)
 
         attachments = atts
+        if let contactRepository {
+            contacts = await contactRepository.contacts(forTask: item.id)
+            allContacts = await contactRepository.contacts()
+        } else {
+            contacts = []
+            allContacts = []
+        }
         children = kids
         linkCandidates = allItems
             .filter { $0.id != item.id && !$0.isDeleted }
@@ -332,6 +346,26 @@ public final class DetailViewModel {
     /// A no-op when nothing changed, so the view can call it on every
     /// interaction (title submit, date-picker change, focus loss) without
     /// bumping the version.
+    public func addContact(_ contactId: UUIDv7) async {
+        guard let item, let contactRepository else { return }
+        do {
+            try await contactRepository.addContact(contactId, toTask: item.id)
+            contacts = await contactRepository.contacts(forTask: item.id)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    public func removeContact(_ contactId: UUIDv7) async {
+        guard let item, let contactRepository else { return }
+        do {
+            try await contactRepository.removeContact(contactId, fromTask: item.id)
+            contacts = await contactRepository.contacts(forTask: item.id)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     public func commit() async {
         guard let current = item, !isSaving else { return }
 

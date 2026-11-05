@@ -35,8 +35,60 @@ public enum TodayFlowMigrations {
         migrator.registerMigration("v5") { db in
             try db.execute(sql: schemaV5)
         }
+        migrator.registerMigration("v6") { db in
+            try db.execute(sql: schemaV6)
+        }
         return migrator
     }
+
+    /// v6 adds contacts, contact groups, and many-to-many task links.
+    static let schemaV6 = """
+        CREATE TABLE contact (
+          id TEXT PRIMARY KEY,
+          first_name TEXT NOT NULL DEFAULT '',
+          last_name TEXT NOT NULL DEFAULT '',
+          company TEXT NOT NULL DEFAULT '',
+          job_title TEXT NOT NULL DEFAULT '',
+          emails_json TEXT NOT NULL DEFAULT '[]',
+          phones_json TEXT NOT NULL DEFAULT '[]',
+          notes TEXT NOT NULL DEFAULT '',
+          source TEXT NOT NULL DEFAULT 'manual',
+          external_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          deleted_at TEXT,
+          version INTEGER NOT NULL DEFAULT 1,
+          device_id TEXT NOT NULL
+        );
+        CREATE INDEX idx_contact_name ON contact(deleted_at, last_name, first_name);
+        CREATE INDEX idx_contact_external ON contact(source, external_id);
+
+        CREATE TABLE contact_group (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          color_hex TEXT NOT NULL DEFAULT '#60A5FA',
+          sort_order TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          version INTEGER NOT NULL DEFAULT 1,
+          device_id TEXT NOT NULL
+        );
+
+        CREATE TABLE contact_group_member (
+          contact_id TEXT NOT NULL REFERENCES contact(id) ON DELETE CASCADE,
+          group_id TEXT NOT NULL REFERENCES contact_group(id) ON DELETE CASCADE,
+          PRIMARY KEY (contact_id, group_id)
+        );
+        CREATE INDEX idx_group_member_group ON contact_group_member(group_id);
+
+        CREATE TABLE task_contact (
+          task_id TEXT NOT NULL REFERENCES work_item(id) ON DELETE CASCADE,
+          contact_id TEXT NOT NULL REFERENCES contact(id) ON DELETE CASCADE,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (task_id, contact_id)
+        );
+        CREATE INDEX idx_task_contact_contact ON task_contact(contact_id);
+        """
 
     /// v5 adds the task summary (AI-generated from an email or written by hand).
     static let schemaV5 = """

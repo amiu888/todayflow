@@ -42,7 +42,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free, `swift test` passes **593 tests**, and
+Verification: `swift build` is warning-free, `swift test` passes **610 tests**, and
 the XCUITest suite has nineteen cases against the real `.app` bundle (three drag-gesture
 cases are skipped because macOS XCUITest cannot synthesize drags). The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in
@@ -56,8 +56,10 @@ list and in a “Due soon” banner. The pin in the header docks the panel to an
 application (left by default, or right/top/bottom), and the panel follows that app’s
 front window. Tray windows tile to the right of the panel and of each other.
 
-Working trays are named staging areas for the tasks in play; drop tasks onto them
-from the list. Focus mode runs a 25-minute session on one task with pause, +5 min,
+Contacts are first-class: groups, duplicate review, vCard/CSV import, macOS
+Contacts sync, and many-to-many links to tasks. A task can have any number of
+contacts, and a contact can list every task they are linked to. Working trays are
+named staging areas for the tasks in play; drop tasks onto them from the list. Focus mode runs a 25-minute session on one task with pause, +5 min,
 and Done. A separate Calendar window switches between week and month planning.
 Attachments show up to three source-app icons with a hover overlay; the full list
 exports to JSON, CSV, or a real Excel `.xlsx` workbook. Dropping an Outlook or
@@ -72,6 +74,7 @@ Design rationale and the competitive references are in
 
 - **Priority** — click the compact, color-coded **P1–P4** pill on any row; the menu shows every level with a checkmark. Right-click a row for the same menu.
 - **Dock to an app** — the **pin** at the top right of the panel. Pick a running application and an edge (Left is the default; Right/Top/Bottom are available), then **Dock**. The panel follows that app’s front window. Click the pin again to change the edge or **Undock**.
+- **Contacts** — the **person.2** icon at the top right of the Today panel (or **View → Contacts**, ⌘8). Create contacts and groups, search, import from macOS Contacts (**Sync Contacts**), or import Outlook/other address books exported as vCard/CSV. The import sheet filters by text and by “must have email/phone”; matching emails and phones are merged automatically. **Duplicates** reviews shared emails/phones and offers auto-merge or merge-into a chosen contact. Open a task to link any number of contacts under its **Contacts** section.
 - **Microsoft Teams** — drag a chat message, a rich-text chat card, or a Teams link into the Today panel or a tray window. Teams chat text is read from plain text, HTML, or RTF; the first message line becomes the title, the sender is kept, and the full chat is attached as preview text. Works with Teams desktop and Teams web.
 - **Email tasks + summary** — drag a message from Outlook or Apple Mail. The task opens with the subject as its title and the message text attached; the detail window’s **Summary** field is filled by Apple Intelligence or your configured AI endpoint. If AI is off, the summary stays empty. Configure it in **Settings → AI**.
 - **Working trays** — Today panel, below the filter row. Drag any task (including Tomorrow & upcoming rows) onto a tray, or right-click → **Add to tray**. Trays hold any number of tasks and accept multi-item drags; drag a chip to another tray to move it. Double-click a tray (or its `…` → **Open tray window**) to open a full tray window with reorder, remove, and drag-and-drop; several tray windows can be open at once. Tray `…` menu: rename, color, insert after, move, delete.

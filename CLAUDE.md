@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (no-op).
-- `swift build` is warning-free; `swift test` passes **593 tests**; the XCUITest suite has 19 cases (3 drag-gesture cases skipped on macOS).
+- `swift build` is warning-free; `swift test` passes **610 tests**; the XCUITest suite has 19 cases (3 drag-gesture cases skipped on macOS).
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
@@ -22,7 +22,9 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
   bottom edge and follow its window; tray windows tile to the right. Priority pills
   use the priority palette. A task can live in only one tray. Outlook/Mail drops
   are summarized into the new `WorkItem.summary` by Apple Intelligence or an
-  OpenAI-compatible endpoint (schema v5).
+  OpenAI-compatible endpoint (schema v5). Contacts with groups, vCard/CSV and
+  macOS Contacts import, duplicate auto/manual merge, and many-to-many task links
+  (schema v6).
 - Design references and the token plan live in `docs/design/todayflow-design.md`.
 - Installed official Anthropic skills: `frontend-design`, `theme-factory`;
   Superpowers development skills (`test-driven-development`, `systematic-debugging`,

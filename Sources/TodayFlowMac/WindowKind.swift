@@ -13,6 +13,7 @@ public enum WindowKind: Hashable, Sendable {
     case upcoming
     case completed
     case settings
+    case contacts
     case detail(UUIDv7)
 
     public var title: String {
@@ -25,6 +26,7 @@ public enum WindowKind: Hashable, Sendable {
         case .upcoming: "Upcoming"
         case .completed: "Completed"
         case .settings: "Settings"
+        case .contacts: "Contacts"
         case .detail: "Task"
         }
     }
@@ -39,6 +41,7 @@ public enum WindowKind: Hashable, Sendable {
         case .upcoming: DesignTokens.Window.upcoming
         case .completed: DesignTokens.Window.completed
         case .settings: DesignTokens.Window.settings
+        case .contacts: DesignTokens.Window.contacts
         case .detail: DesignTokens.Window.detail
         }
     }

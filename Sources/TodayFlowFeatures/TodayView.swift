@@ -22,6 +22,7 @@ public struct TodayView: View {
     private let onOpenUpcoming: (@MainActor () -> Void)?
     private let onShowMiniCalendar: (@MainActor () -> Void)?
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
+    private let onOpenContacts: (@MainActor () -> Void)?
     private let dockedApp: AppDockState?
     private let onDockToApp: (@MainActor (String, String) -> Void)?
     private let onUndockApp: (@MainActor () -> Void)?
@@ -51,6 +52,7 @@ public struct TodayView: View {
         self.onOpenUpcoming = nil
         self.onShowMiniCalendar = nil
         self.onOpenTray = nil
+        self.onOpenContacts = nil
         self.dockedApp = nil
         self.onDockToApp = nil
         self.onUndockApp = nil
@@ -69,6 +71,7 @@ public struct TodayView: View {
         onOpenUpcoming: (@MainActor () -> Void)? = nil,
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
+        onOpenContacts: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
         onDockToApp: (@MainActor (String, String) -> Void)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
@@ -82,6 +85,7 @@ public struct TodayView: View {
         self.onOpenUpcoming = onOpenUpcoming
         self.onShowMiniCalendar = onShowMiniCalendar
         self.onOpenTray = onOpenTray
+        self.onOpenContacts = onOpenContacts
         self.dockedApp = dockedApp
         self.onDockToApp = onDockToApp
         self.onUndockApp = onUndockApp
@@ -110,6 +114,7 @@ public struct TodayView: View {
         onOpenUpcoming: (@MainActor () -> Void)? = nil,
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
+        onOpenContacts: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
         onDockToApp: (@MainActor (String, String) -> Void)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
@@ -132,6 +137,7 @@ public struct TodayView: View {
         self.onOpenUpcoming = onOpenUpcoming
         self.onShowMiniCalendar = onShowMiniCalendar
         self.onOpenTray = onOpenTray
+        self.onOpenContacts = onOpenContacts
         self.dockedApp = dockedApp
         self.onDockToApp = onDockToApp
         self.onUndockApp = onUndockApp
@@ -606,6 +612,19 @@ public struct TodayView: View {
                 .buttonStyle(.plain)
                 .help("Minimize to the mini day/week calendar")
                 .accessibilityLabel("Minimize to mini calendar")
+            }
+
+            if let onOpenContacts {
+                Button {
+                    onOpenContacts()
+                } label: {
+                    Image(systemName: "person.2")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("Open contacts")
+                .accessibilityLabel("Open contacts")
             }
 
             if onDockToApp != nil {
