@@ -116,8 +116,13 @@ public final class StatusItemController: NSObject {
         }
     }
 
-    /// Left click: open/close the popover.
+    /// Left click: restore a minimized Today panel, otherwise open/close the
+    /// compact popover. The menu-bar icon is the app's home.
     public func toggle() {
+        if let panel = windowManager.window(for: .panel), panel.isMiniaturized {
+            windowManager.show(.panel)
+            return
+        }
         guard let button = statusItem.button else { return }
         if popover.isShown {
             popover.performClose(nil)
