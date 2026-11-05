@@ -75,8 +75,9 @@ public struct ContactsView: View {
             TextField("Group name", text: $newGroupName)
             Button("Cancel", role: .cancel) { newGroupName = "" }
             Button("Create") {
-                Task { await model.addGroup(name: newGroupName) }
+                let name = newGroupName
                 newGroupName = ""
+                Task { await model.addGroup(name: name) }
             }
         }
         .alert(
@@ -90,9 +91,12 @@ public struct ContactsView: View {
             Button("Cancel", role: .cancel) { renamingGroup = nil }
             Button("Rename") {
                 if let group = renamingGroup {
-                    Task { await model.renameGroup(group, to: groupName) }
+                    let name = groupName
+                    renamingGroup = nil
+                    Task { await model.renameGroup(group, to: name) }
+                } else {
+                    renamingGroup = nil
                 }
-                renamingGroup = nil
             }
         }
         .task { await model.load() }
@@ -465,23 +469,30 @@ private struct ContactEditorView: View {
             Form {
                 Section("Name") {
                     TextField("First name", text: $draft.firstName)
+                        .accessibilityIdentifier("contact-first-name")
                     TextField("Last name", text: $draft.lastName)
+                        .accessibilityIdentifier("contact-last-name")
                     TextField("Company", text: $draft.company)
+                        .accessibilityIdentifier("contact-company")
                     TextField("Job title", text: $draft.jobTitle)
+                        .accessibilityIdentifier("contact-job-title")
                 }
                 Section("Email") {
                     TextEditor(text: $emailText)
                         .frame(minHeight: 52)
+                        .accessibilityIdentifier("contact-emails")
                     Text("One address per line").font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Phone") {
                     TextEditor(text: $phoneText)
                         .frame(minHeight: 46)
+                        .accessibilityIdentifier("contact-phones")
                     Text("One number per line").font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Notes") {
                     TextEditor(text: $draft.notes)
                         .frame(minHeight: 50)
+                        .accessibilityIdentifier("contact-notes")
                 }
                 if !groups.isEmpty {
                     Section("Groups") {

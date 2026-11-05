@@ -682,10 +682,12 @@ final class TodayFlowUITests: XCTestCase {
         XCTAssertTrue(window.waitForExistence(timeout: 5), "Contacts window did not open")
 
         window.buttons["New Contact"].click()
-        let first = app.textFields["First name"]
+        let first = app.textFields["contact-first-name"]
         XCTAssertTrue(first.waitForExistence(timeout: 4))
         first.typeText("Jane")
-        app.textFields["Last name"].typeText("Smith")
+        let last = app.textFields["contact-last-name"]
+        last.click()
+        last.typeText("Smith")
         app.buttons["Save"].click()
 
         XCTAssertTrue(
@@ -707,8 +709,11 @@ final class TodayFlowUITests: XCTestCase {
         field.typeText("Customers")
         app.buttons["Create"].click()
 
+        let group = window.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == 'Customers' OR value == 'Customers'"))
+            .firstMatch
         XCTAssertTrue(
-            window.staticTexts["Customers"].waitForExistence(timeout: 5),
+            group.waitForExistence(timeout: 5),
             "The new group did not appear"
         )
     }
