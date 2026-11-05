@@ -175,6 +175,7 @@ public struct TaskDragSource: NSViewRepresentable {
         }
 
         public override func rightMouseDown(with event: NSEvent) {
+            Diagnostics.log("drag", "rightMouseDown title=\(title)")
             guard !menuTitles.isEmpty else { return }
             let menu = NSMenu()
             for (index, action) in menuTitles.enumerated() {

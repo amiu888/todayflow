@@ -155,6 +155,7 @@ public struct TrayDetailView: View {
                 Text(item.title)
                     .font(.callout)
                     .lineLimit(1)
+                    .accessibilityIdentifier("tray-window-row-\(item.title)")
                 Text(item.endAt.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption2)
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
@@ -169,13 +170,7 @@ public struct TrayDetailView: View {
                         ? item.title
                         : item.descriptionMd,
                     onClick: { model.onOpenTask?(item.id) },
-                    menuActions: [
-                        .init("Open") { model.onOpenTask?(item.id) },
-                        .separator,
-                        .init("Remove from tray") {
-                            Task { await model.removeFromTray(item.id, trayId: trayId) }
-                        },
-                    ]
+                    menuActions: trayMenuActions(for: item)
                 )
             }
 
@@ -229,7 +224,6 @@ public struct TrayDetailView: View {
                 .fill(DesignTokens.Palette.surface.opacity(0.7))
         )
         .contentShape(Rectangle())
-        .accessibilityIdentifier("tray-window-row-\(item.title)")
         .onDrag {
             WorkItemDragPayload.itemProvider(for: item.id, sourceTray: trayId)
         }
@@ -291,6 +285,30 @@ public struct TrayDetailView: View {
             }
         }
         return true
+    }
+
+    @MainActor
+    private func trayMenuActions(for item: WorkItem) -> [TaskDragSource.MenuAction] {
+        var actions: [TaskDragSource.MenuAction] = [
+            .init("Open") { model.onOpenTask?(item.id) },
+            .separator,
+        ]
+        for other in model.trays where other.id != trayId {
+            actions.append(.init("Move to \(other.name)") {
+                Task {
+                    await model.moveToTray(
+                        item.id,
+                        from: trayId,
+                        to: other.id
+                    )
+                }
+            })
+        }
+        actions.append(.separator)
+        actions.append(.init("Remove from tray") {
+            Task { await model.removeFromTray(item.id, trayId: trayId) }
+        })
+        return actions
     }
 
     @MainActor

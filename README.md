@@ -43,7 +43,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
 Verification: `swift build` is warning-free, `swift test` passes **560 tests**, and
-the fifteen XCUITests pass against the real `.app` bundle. The app also makes a daily
+sixteen XCUITests run against the real `.app` bundle (thirteen pass; the three drag-gesture tests are skipped because XCUITest cannot synthesize macOS drags). The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in
 `Application Support/TodayFlow/Backups/` (NFR-09).
 
