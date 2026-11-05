@@ -58,13 +58,19 @@ public struct DroppedObjectLoader {
         if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
            let url = await loadURL(provider, type: .url)
         {
+            // Some providers only advertise public.url even for a file.
+            if url.isFileURL { return Self.object(forFileURL: url) }
             return DroppedObject(url: url, uti: .url)
         }
 
-        if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier),
-           let data = await loadData(provider, type: .image)
-        {
-            return DroppedObject(imageData: data, uti: .image)
+        // Ask for concrete image types first: a provider may list `public.png`
+        // or `public.tiff` but refuse to vend data through the `public.image`
+        // supertype. Safari/Preview screenshots commonly take this path.
+        for type in [UTType.png, .tiff, .jpeg, .heic, .image] {
+            guard provider.hasItemConformingToTypeIdentifier(type.identifier),
+                  let data = await loadData(provider, type: type)
+            else { continue }
+            return DroppedObject(imageData: data, uti: type)
         }
 
         if let (text, type) = await loadText(provider) {
