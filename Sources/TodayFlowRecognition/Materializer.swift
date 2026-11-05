@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 import TodayFlowCore
 
 /// Copies transient dropped items into the app's `Attachments/` container and
@@ -32,7 +33,11 @@ public struct Materializer: Sendable {
         if source.isFilePromise == true || Self.isTransientFile(source),
            let fileURL = source.fileURL
         {
-            if let copyPath = copyIntoContainer(fileURL: fileURL, name: result.displayName) {
+            if let copyPath = copyIntoContainer(
+                fileURL: fileURL,
+                name: result.displayName,
+                uti: result.uti
+            ) {
                 result.localCopyPath = copyPath
                 result.reference = copyPath
             }
@@ -72,8 +77,27 @@ public struct Materializer: Sendable {
         return ["eml", "msg", "ics"].contains(ext)
     }
 
-    private func copyIntoContainer(fileURL: URL, name: String) -> String? {
-        let destination = containerURL(named: sanitized(name))
+    private func copyIntoContainer(
+        fileURL: URL,
+        name: String,
+        uti: String?
+    ) -> String? {
+        // Email display names are subjects, not filenames. The copy must keep
+        // the source extension (.msg/.eml/.ics) or the Finder/LaunchServices
+        // handler opens it as plain text.
+        var ext = fileURL.pathExtension
+        if ext.isEmpty,
+           let uti,
+           let type = UTType(uti),
+           let preferred = type.preferredFilenameExtension
+        {
+            ext = preferred
+        }
+        var filename = sanitized(name)
+        if !ext.isEmpty, !filename.lowercased().hasSuffix(".\(ext.lowercased())") {
+            filename += ".\(ext)"
+        }
+        let destination = containerURL(named: filename)
         do {
             try fileAccess.createDirectory(attachmentsDirectory)
             try fileAccess.copy(from: fileURL, to: destination)

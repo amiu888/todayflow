@@ -42,7 +42,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free, `swift test` passes **580 tests**, and
+Verification: `swift build` is warning-free, `swift test` passes **587 tests**, and
 the XCUITest suite has nineteen cases against the real `.app` bundle (three drag-gesture
 cases are skipped because macOS XCUITest cannot synthesize drags). The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in
@@ -83,7 +83,7 @@ Design rationale and the competitive references are in
 - **Estimates + load meter** — open a task → **Estimate**; the meter appears under Today’s progress when estimates exist.
 - **Tags** — open a task; the tag row is under the status/priority pills.
 - **Excel export** — **File → Export Excel…** (also JSON/CSV).
-- **Attachments** — open a task; each object has its own description field. Double-click to open in its native app (Excel/Preview/etc.), right-click for **Open**, **Open With…**, Quick Look, Reveal.
+- **Attachments** — open a task; each object has its own description field. Double-click to open in its native app (Excel/Preview/etc.). Outlook email attachments reopen in Outlook; Mail messages reopen in Mail. Right-click for **Open**, **Open With…**, Quick Look, Reveal.
 - **Move a task** — use the up/down chevrons on the row, right-click → Move up/down, or ⌥↑/⌥↓.
 - **Docking** — **View → Dock to Edges** snaps floating windows to screen and other-window edges; the header **pin** attaches to a specific app window and edge.
 - **Appearance** — **View → Appearance** (Dark / Light / Follow System).

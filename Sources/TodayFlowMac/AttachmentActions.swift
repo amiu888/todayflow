@@ -47,11 +47,87 @@ public final class AttachmentActions: NSObject {
         return nil
     }
 
+    /// The email client that should reopen an email attachment. Outlook drops
+    /// carry `sourceApp = "outlook"`; Mail drops use `com.apple.mail` or a
+    /// `message://` reference. Nil means "use the system default".
+    public static func preferredEmailBundleIdentifier(
+        for attachment: Attachment
+    ) -> String? {
+        guard attachment.kind == .email else { return nil }
+        let source = (attachment.sourceApp ?? "").lowercased()
+        if source.contains("outlook") {
+            return "com.microsoft.outlook"
+        }
+        if source.contains("mail")
+            || attachment.reference?.hasPrefix("message:") == true
+        {
+            return "com.apple.mail"
+        }
+        return nil
+    }
+
+    /// The extension an email copy needs for LaunchServices to treat it as a
+    /// message. Older copies were named after the subject and lost their
+    /// extension, so this also repairs those attachments on open.
+    public static func emailFileExtension(for attachment: Attachment) -> String? {
+        guard attachment.kind == .email else { return nil }
+        let uti = (attachment.uti ?? attachment.metadata["drop_uti"] ?? "").lowercased()
+        if uti.contains("outlook") || uti.contains("msg") { return "msg" }
+        if uti.contains("rfc822") || uti.contains("eml")
+            || uti.contains("email-message")
+        {
+            return "eml"
+        }
+        if uti.contains("calendar") || uti.contains("ics") { return "ics" }
+        if let reference = attachment.reference {
+            let ext = URL(fileURLWithPath: reference).pathExtension
+            if !ext.isEmpty { return ext.lowercased() }
+        }
+        if let copy = attachment.localCopyPath {
+            let ext = URL(fileURLWithPath: copy).pathExtension
+            if !ext.isEmpty { return ext.lowercased() }
+        }
+        return nil
+    }
+
+    /// A file URL LaunchServices can identify. A legacy extension-less email
+    /// copy is duplicated beside itself with the correct `.msg`/`.eml` suffix.
+    private func openableURL(for attachment: Attachment) -> URL? {
+        guard var url = url(for: attachment) else { return nil }
+        guard url.isFileURL,
+              url.pathExtension.isEmpty,
+              let ext = Self.emailFileExtension(for: attachment)
+        else { return url }
+        let target = url.appendingPathExtension(ext)
+        if !FileManager.default.fileExists(atPath: target.path) {
+            try? FileManager.default.copyItem(at: url, to: target)
+        }
+        if FileManager.default.fileExists(atPath: target.path) {
+            url = target
+        }
+        return url
+    }
+
     /// Opens the original with its default app (or the system handler for a
     /// web/deep-link URL). Excel files open in Excel, PDFs in Preview, etc.
+    /// Email attachments reopen in the source client when it is installed.
     public func open(_ attachment: Attachment) {
-        guard let url = url(for: attachment) else {
+        guard let url = openableURL(for: attachment) else {
             NSSound.beep()
+            return
+        }
+        if let bundleId = Self.preferredEmailBundleIdentifier(for: attachment),
+           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId)
+        {
+            NSWorkspace.shared.open(
+                [url],
+                withApplicationAt: appURL,
+                configuration: NSWorkspace.OpenConfiguration()
+            ) { _, error in
+                if error != nil {
+                    NSSound.beep()
+                }
+            }
             return
         }
         NSWorkspace.shared.open(url)
@@ -59,7 +135,7 @@ public final class AttachmentActions: NSObject {
 
     /// The display name of the default handler, e.g. “Microsoft Excel”.
     public func defaultApplicationName(for attachment: Attachment) -> String? {
-        guard let url = url(for: attachment), url.isFileURL,
+        guard let url = openableURL(for: attachment), url.isFileURL,
               let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
         else { return nil }
         return FileManager.default.displayName(atPath: appURL.path)
@@ -67,7 +143,7 @@ public final class AttachmentActions: NSObject {
 
     /// Opens the attachment with a user-chosen application.
     public func chooseApplication(for attachment: Attachment) {
-        guard let url = url(for: attachment), url.isFileURL else {
+        guard let url = openableURL(for: attachment), url.isFileURL else {
             open(attachment)
             return
         }
@@ -102,7 +178,7 @@ public final class AttachmentActions: NSObject {
 
     /// Quick Look preview (Space in the detail window's attachment menu).
     public func quickLook(_ attachment: Attachment) {
-        guard let url = url(for: attachment), url.isFileURL else {
+        guard let url = openableURL(for: attachment), url.isFileURL else {
             open(attachment)
             return
         }

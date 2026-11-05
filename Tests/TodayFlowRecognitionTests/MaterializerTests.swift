@@ -128,3 +128,33 @@ struct MaterializerTests {
         #expect(result == recognized)
     }
 }
+
+@Suite("Materializer extension preservation")
+struct MaterializerExtensionTests {
+    @Test("transientEmailCopiesKeepTheSourceExtensionWhenDisplayNameIsASubject")
+    func transientEmailCopiesKeepTheExtension() {
+        let attachments = URL(
+            fileURLWithPath: "/tmp/todayflow-test-attachments",
+            isDirectory: true
+        )
+        let materializer = Materializer(
+            fileAccess: FakeFileAccess(),
+            attachmentsDirectory: attachments
+        )
+        let recognized = RecognizedObject(
+            type: .email,
+            uti: "x-outlook-message",
+            displayName: "Q3 budget review",
+            reference: "/tmp/Outlook Message.msg"
+        )
+        let source = DroppedObject(
+            fileURL: URL(fileURLWithPath: "/tmp/Outlook Message.msg"),
+            isFilePromise: true
+        )
+
+        let result = materializer.materialize(recognized, source: source)
+
+        #expect(result.localCopyPath?.hasSuffix("-Q3 budget review.msg") == true)
+        #expect(result.reference == result.localCopyPath)
+    }
+}

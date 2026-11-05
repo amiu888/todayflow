@@ -19,6 +19,7 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 
 cp "$BIN_PATH/TodayFlowApp" "$APP_DIR/Contents/MacOS/TodayFlowApp"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
