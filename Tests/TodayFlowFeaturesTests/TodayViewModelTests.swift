@@ -623,3 +623,100 @@ func projectFilter_limitsRowsToTheProjectsAncestry() async {
     f.vm.projectFilter = nil
     #expect(f.vm.visibleRows.count == 4)
 }
+
+// MARK: - Upcoming section (after-hours + tomorrow)
+
+@Test @MainActor
+func load_collectsTomorrowAndFutureTasksIntoUpcoming() async {
+    let f = Fixture()
+    let today = f.item("Today", displayOrder: "a1")
+    let tomorrow = f.item(
+        "Tomorrow",
+        startAt: testCalendar.date(byAdding: .day, value: 1, to: f.now),
+        endAt: testCalendar.date(byAdding: .day, value: 1, to: f.calendar.endOfBusiness(for: f.now)),
+        displayOrder: "a2"
+    )
+    let later = f.item(
+        "Next week",
+        startAt: testCalendar.date(byAdding: .day, value: 10, to: f.now),
+        endAt: testCalendar.date(byAdding: .day, value: 10, to: f.calendar.endOfBusiness(for: f.now)),
+        displayOrder: "a3"
+    )
+    let done = f.item("Done", status: .done, displayOrder: "a4")
+    for item in [today, tomorrow, later, done] { await f.seed(item) }
+
+    await f.vm.load()
+
+    #expect(f.vm.visibleRows.map(\.title) == ["Today"])
+    #expect(f.vm.upcomingRows.map(\.title) == ["Tomorrow"])
+}
+
+// MARK: - Due soon (FR-13/FR-14 urgency)
+
+@Test @MainActor
+func tasksDueWithinFifteenMinutesAreMarkedDueSoon() async {
+    let f = Fixture()
+    let soon = f.item(
+        "Soon",
+        endAt: f.now.addingTimeInterval(10 * 60),
+        displayOrder: "a1"
+    )
+    let later = f.item(
+        "Later",
+        endAt: f.now.addingTimeInterval(60 * 60),
+        displayOrder: "a2"
+    )
+    await f.seed(soon)
+    await f.seed(later)
+    await f.vm.load()
+
+    let soonRow = f.vm.visibleRows.first { $0.title == "Soon" }
+    let laterRow = f.vm.visibleRows.first { $0.title == "Later" }
+    #expect(soonRow?.isDueSoon == true)
+    #expect(laterRow?.isDueSoon == false)
+}
+
+// MARK: - Day planning / week strip
+
+@Test @MainActor
+func selectDay_showsThatDaysPlanAndCanReturnToToday() async {
+    let f = Fixture()
+    let tomorrow = testCalendar.date(byAdding: .day, value: 1, to: f.now)!
+    let task = f.item(
+        "Tomorrow task",
+        startAt: tomorrow,
+        endAt: f.calendar.endOfBusiness(for: tomorrow),
+        displayOrder: "a1"
+    )
+    await f.seed(task)
+    await f.vm.load()
+
+    #expect(f.vm.weekDays.count == 7)
+    #expect(f.vm.weekDays.first?.isToday == true)
+
+    await f.vm.selectDay(tomorrow)
+    #expect(!f.vm.isViewingToday)
+    #expect(f.vm.visibleRows.contains { $0.title == "Tomorrow task" })
+
+    await f.vm.goToToday()
+    #expect(f.vm.isViewingToday)
+}
+
+@Test @MainActor
+func setUpcomingPriority_updatesTheTask() async {
+    let f = Fixture()
+    let tomorrow = testCalendar.date(byAdding: .day, value: 1, to: f.now)!
+    let task = f.item(
+        "Plan me",
+        priority: .low,
+        startAt: tomorrow,
+        endAt: f.calendar.endOfBusiness(for: tomorrow),
+        displayOrder: "a1"
+    )
+    await f.seed(task)
+    await f.vm.load()
+
+    await f.vm.setUpcomingPriority(task.id, .urgent)
+
+    #expect(await f.repository.item(task.id)?.priority == .urgent)
+}

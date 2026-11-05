@@ -110,6 +110,7 @@ public struct DetailView: View {
             onDropAttachment?(providers) ?? false
         }
         #endif
+        .tint(DesignTokens.Palette.accent)
         .task { await model.load() }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.attachmentsChanged)) { _ in
             Task { @MainActor in await model.load() }
@@ -137,6 +138,9 @@ public struct DetailView: View {
                     titleField
                     pillsRow(item)
                     datesRow
+                    if model.remindersAvailable {
+                        reminderSection
+                    }
                     descriptionSection
 
                     if model.assistant != nil {
@@ -324,6 +328,45 @@ public struct DetailView: View {
         }
         .font(.callout)
         .disabled(model.isSaving)
+    }
+
+    /// Per-task custom reminder (FR-42). Distinct from the automatic
+    /// end-of-day nudges; setting one suppresses the automatic task nudge.
+    @MainActor
+    private var reminderSection: some View {
+        @Bindable var model = model
+
+        return HStack(spacing: 8) {
+            Label("Reminder", systemImage: "bell")
+                .font(.callout)
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+
+            DatePicker(
+                "",
+                selection: $model.reminderDate,
+                displayedComponents: [.date, .hourAndMinute]
+            )
+            .labelsHidden()
+            .accessibilityLabel("Reminder time")
+
+            Button(model.reminder == nil ? "Set" : "Update") {
+                Task { await model.setReminder(at: model.reminderDate) }
+            }
+            .disabled(model.isSaving)
+
+            if model.reminder != nil {
+                Button("Remove") {
+                    Task { await model.clearReminder() }
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .disabled(model.isSaving)
+            }
+
+            Spacer()
+        }
+        .font(.callout)
     }
 
     @MainActor
@@ -597,6 +640,8 @@ public struct DetailView: View {
         case .linkAdded: return "link"
         case .priorityChanged: return "exclamationmark.circle"
         case .scheduled: return "calendar"
+        case .reminderSet: return "bell.fill"
+        case .reminderCleared: return "bell.slash"
         case .reordered: return "arrow.up.arrow.down"
         case .reparented: return "arrow.triangle.branch"
         case .aiSuggested: return "sparkles"

@@ -56,7 +56,8 @@ public final class StatusItemController: NSObject {
                 onOpenTask: { [weak windowManager] id in windowManager?.show(.detail(id)) },
                 onDrop: { [weak windowManager] providers, itemId in
                     windowManager?.handleDrop(providers, onto: itemId) ?? false
-                }
+                },
+                onOpenUpcoming: { [weak windowManager] in windowManager?.show(.upcoming) }
             )
         )
 

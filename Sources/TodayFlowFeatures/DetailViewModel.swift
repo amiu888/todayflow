@@ -105,6 +105,10 @@ public final class DetailViewModel {
     public private(set) var linkCandidates: [WorkItem] = []
     /// Newest-first audit trail for the Activity section (FR-20).
     public private(set) var activity: [ActivityEvent] = []
+    /// The task's optional custom reminder (FR-42).
+    public private(set) var reminder: Reminder?
+    /// Editable reminder date shown by the detail sheet.
+    public var reminderDate: Date = .now
     public private(set) var parent: WorkItem?
     public private(set) var progress: RollUpProgress.Result =
         .init(done: 0, total: 0, fraction: 0)
@@ -125,6 +129,9 @@ public final class DetailViewModel {
     /// The item's priority, or the default while the item is unloaded.
     public var priority: Priority { item?.priority ?? .default }
 
+    /// True when the host supplied reminder storage (the production app does).
+    public var remindersAvailable: Bool { reminderRepository != nil }
+
     /// The host's "close the window" hook, called after a successful delete.
     @ObservationIgnored public var onClosed: (@MainActor () -> Void)?
 
@@ -135,6 +142,7 @@ public final class DetailViewModel {
     @ObservationIgnored private let linkRepository: any LinkRepository
     @ObservationIgnored private let attachmentRepository: any AttachmentRepository
     @ObservationIgnored private let activityRepository: (any ActivityRepository)?
+    @ObservationIgnored private let reminderRepository: (any ReminderRepository)?
     @ObservationIgnored private let calendar: WorkCalendar
     @ObservationIgnored private let deviceId: String
     @ObservationIgnored private let clock: @Sendable () -> Date
@@ -150,6 +158,7 @@ public final class DetailViewModel {
         linkRepository: any LinkRepository,
         attachmentRepository: any AttachmentRepository,
         activityRepository: (any ActivityRepository)? = nil,
+        reminderRepository: (any ReminderRepository)? = nil,
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         clock: @escaping @Sendable () -> Date = { .now },
@@ -160,6 +169,7 @@ public final class DetailViewModel {
         self.linkRepository = linkRepository
         self.attachmentRepository = attachmentRepository
         self.activityRepository = activityRepository
+        self.reminderRepository = reminderRepository
         self.calendar = calendar
         self.deviceId = deviceId
         self.clock = clock
@@ -242,6 +252,53 @@ public final class DetailViewModel {
         progress = await RollUpProgress(repository: repository).execute(item.id)
         if let activityRepository {
             activity = await activityRepository.events(for: item.id)
+        }
+        if let reminderRepository {
+            reminder = await reminderRepository.reminder(for: item.id, kind: .task)
+            reminderDate = reminder?.fireAt ?? defaultReminderDate(for: item)
+        }
+    }
+
+    private func defaultReminderDate(for item: WorkItem) -> Date {
+        let now = clock()
+        let proposed = item.endAt.addingTimeInterval(-30 * 60)
+        return proposed > now ? proposed : now.addingTimeInterval(15 * 60)
+    }
+
+    /// Sets (or replaces) this task's custom reminder and asks the app to
+    /// reschedule notifications immediately.
+    public func setReminder(at date: Date) async {
+        guard let item, let reminderRepository else { return }
+        guard date > clock() else {
+            lastError = "Choose a reminder time in the future."
+            return
+        }
+        do {
+            let value = Reminder(
+                id: reminder?.id ?? .new(),
+                itemId: item.id,
+                kind: .task,
+                fireAt: date,
+                createdAt: clock()
+            )
+            try await reminderRepository.save(value)
+            reminder = value
+            reminderDate = date
+            NotificationCenter.default.post(name: TodayFlowEvents.remindersChanged, object: nil)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    public func clearReminder() async {
+        guard let reminder, let reminderRepository else { return }
+        do {
+            try await reminderRepository.delete(reminder.id)
+            self.reminder = nil
+            if let item { reminderDate = defaultReminderDate(for: item) }
+            NotificationCenter.default.post(name: TodayFlowEvents.remindersChanged, object: nil)
+        } catch {
+            lastError = error.localizedDescription
         }
     }
 

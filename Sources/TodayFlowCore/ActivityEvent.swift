@@ -23,6 +23,8 @@ public struct ActivityEvent: Identifiable, Hashable, Sendable, Codable {
         case linkAdded
         case linkRemoved
         case deleted
+        case reminderSet
+        case reminderCleared
         case aiSuggested
         case other
     }

@@ -82,3 +82,14 @@ struct CreateTaskTests {
         #expect(task.parentId == project.id)
     }
 }
+
+@Test func topPlacementInsertsBeforeExistingSiblings() async throws {
+    let repo = InMemoryWorkItemRepository()
+    let uc = CreateTask(repository: repo, calendar: TestDates.workCalendar)
+    let first = try await uc.execute(.init(title: "First"))
+    let second = try await uc.execute(.init(title: "Second", placement: .top))
+
+    #expect(FractionalIndex.isLessThan(second.displayOrder, first.displayOrder))
+    let children = await repo.children(of: nil)
+    #expect(children.first?.title == "Second")
+}

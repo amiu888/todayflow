@@ -43,6 +43,7 @@ private struct Fixture {
     let linkRepository: InMemoryLinkRepository
     let attachmentRepository: InMemoryAttachmentRepository
     let activityRepository = InMemoryActivityRepository()
+    let reminderRepository = InMemoryReminderRepository()
     let vm: DetailViewModel
 
     init(
@@ -61,6 +62,7 @@ private struct Fixture {
             linkRepository: linkRepository,
             attachmentRepository: attachmentRepository,
             activityRepository: activityRepository,
+            reminderRepository: reminderRepository,
             calendar: WorkCalendar(calendar: testCalendar),
             clock: { testNow },
             onClosed: onClosed
@@ -549,4 +551,26 @@ func load_readsNewestActivityFirst() async {
     ])
     #expect(f.vm.activity.first?.sourceApp == "com.apple.finder")
     #expect(f.vm.activity.first?.location == "/tmp/shot.png")
+}
+
+// MARK: - Custom reminder (FR-42)
+
+@Test @MainActor
+func setAndClearReminder_updatesStorage() async {
+    let item = WorkItem(title: "Ship", startAt: date(2026, 11, 3, hour: 9), endAt: date(2026, 11, 3, hour: 17))
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.vm.load()
+
+    let fireAt = date(2026, 11, 3, hour: 16)
+    await f.vm.setReminder(at: fireAt)
+
+    #expect(f.vm.lastError == nil)
+    #expect(f.vm.reminder?.fireAt == fireAt)
+    #expect(await f.reminderRepository.reminder(for: item.id, kind: .task)?.fireAt == fireAt)
+
+    await f.vm.clearReminder()
+
+    #expect(f.vm.reminder == nil)
+    #expect(await f.reminderRepository.reminder(for: item.id, kind: .task) == nil)
 }

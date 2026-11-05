@@ -82,4 +82,6 @@ public enum TodayFlowEvents {
     public static let itemsChanged = Notification.Name("TodayFlow.itemsChanged")
     /// A capture finished; `userInfo["message"]` is shown as a confirmation.
     public static let captureSaved = Notification.Name("TodayFlow.captureSaved")
+    /// A task reminder was set or cleared; reschedule notifications.
+    public static let remindersChanged = Notification.Name("TodayFlow.remindersChanged")
 }

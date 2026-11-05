@@ -1,0 +1,35 @@
+name: TodayFlowUITests
+options:
+  bundleIdPrefix: com.todayflow
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+targets:
+  TodayFlowUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.todayflow.uitests
+        PRODUCT_NAME: TodayFlowUITests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGNING_REQUIRED: YES
+        ENABLE_HARDENED_RUNTIME: NO
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+schemes:
+  TodayFlowUITests:
+    build:
+      targets:
+        TodayFlowUITests: all
+    test:
+      targets:
+        - TodayFlowUITests
+      gatherCoverageData: false

@@ -96,14 +96,16 @@ public struct CaptureSheetView: View {
             alignment: .top
         )
         .background(
-            .regularMaterial,
+            DesignTokens.Palette.surface,
             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(borderColor, lineWidth: 1)
+                .stroke(DesignTokens.Palette.gradient, lineWidth: 1)
         )
+        .shadow(color: DesignTokens.Palette.shadow, radius: 24, y: 10)
+        .tint(DesignTokens.Palette.accent)
     }
 
     // MARK: - Header
@@ -112,7 +114,7 @@ public struct CaptureSheetView: View {
     private var header: some View {
         HStack(spacing: 8) {
             Image(systemName: "square.and.pencil")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(DesignTokens.Palette.accent)
 
             Text("New task")
                 .font(.headline)
@@ -141,16 +143,19 @@ public struct CaptureSheetView: View {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
+                    .fill(DesignTokens.Palette.surfaceRaised)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
+                    .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
             )
             .focused($isTitleFocused)
             .onAppear {
                 isTitleFocused = true
                 selectAllTitleText()
+            }
+            .onChange(of: isTitleFocused) { _, focused in
+                if focused { selectAllTitleText() }
             }
             .accessibilityLabel("Title")
     }
@@ -176,7 +181,15 @@ public struct CaptureSheetView: View {
     private func selectAllTitleText() {
         #if canImport(AppKit)
         Task { @MainActor in
-            NSApp.sendAction(#selector(NSResponder.selectAll(_:)), to: nil, from: nil)
+            // The field editor is the first responder while the field is
+            // being edited; target it directly (the old sendAction could hit
+            // the collection view instead).
+            try? await Task.sleep(for: .milliseconds(40))
+            if let editor = NSApp.keyWindow?.firstResponder as? NSTextView {
+                editor.selectAll(nil)
+            } else {
+                NSApp.sendAction(#selector(NSResponder.selectAll(_:)), to: nil, from: nil)
+            }
         }
         #endif
     }
@@ -443,6 +456,6 @@ public struct CaptureSheetView: View {
     // MARK: - Style
 
     private var borderColor: Color {
-        colorScheme == .dark ? Color(hex: "#38383A") : Color(hex: "#E5E5EA")
+        DesignTokens.Palette.hairline
     }
 }

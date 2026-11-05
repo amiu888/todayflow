@@ -93,20 +93,33 @@ struct GRDBWorkItemRepositoryTests {
         let dayStart = cal.calendar.startOfDay(for: day)
 
         // Local-time anchors so the test is correct in any time zone:
-        // 10:00 <= 17:00 EOB, 18:00 > EOB.
-        let inItem = WorkItem(title: "In", startAt: dayStart.addingTimeInterval(10 * 3600))
-        let outItem = WorkItem(title: "Out", startAt: dayStart.addingTimeInterval(18 * 3600))
+        // 10:00 and 18:00 are both today; tomorrow's 09:00 is not.
+        let inItem = WorkItem(
+            title: "In",
+            startAt: dayStart.addingTimeInterval(10 * 3600),
+            displayOrder: "a1"
+        )
+        let lateItem = WorkItem(
+            title: "Late",
+            startAt: dayStart.addingTimeInterval(18 * 3600),
+            displayOrder: "a2"
+        )
+        let tomorrowItem = WorkItem(
+            title: "Tomorrow",
+            startAt: dayStart.addingTimeInterval(33 * 3600),
+            displayOrder: "a3"
+        )
         let doneItem = WorkItem(title: "Done", status: .done, startAt: dayStart.addingTimeInterval(10 * 3600))
         let deletedItem = WorkItem(
             title: "Deleted",
             startAt: dayStart.addingTimeInterval(10 * 3600),
             deletedAt: dayStart.addingTimeInterval(11 * 3600)
         )
-        for item in [inItem, outItem, doneItem, deletedItem] {
+        for item in [inItem, lateItem, tomorrowItem, doneItem, deletedItem] {
             try await db.workItems.save(item)
         }
 
-        #expect(await db.workItems.todayItems(on: day, calendar: cal).map(\.title) == ["In"])
+        #expect(await db.workItems.todayItems(on: day, calendar: cal).map(\.title) == ["In", "Late"])
     }
 
     @Test("completedToday returns only items completed within the day")

@@ -38,6 +38,17 @@ public struct ProgressHeaderView: View {
                 overdueBadge
             }
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(DesignTokens.Palette.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+        )
+        .shadow(color: DesignTokens.Palette.shadow, radius: 10, y: 4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(voiceLabel)
     }
@@ -48,7 +59,7 @@ public struct ProgressHeaderView: View {
         } else if progress.overdue > 0 {
             return Color(hex: "#d03b3b")
         } else {
-            return .accentColor
+            return DesignTokens.Palette.accent
         }
     }
 

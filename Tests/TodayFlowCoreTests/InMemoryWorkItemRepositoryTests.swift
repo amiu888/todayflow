@@ -3,13 +3,26 @@ import Testing
 @testable import TodayFlowCore
 
 struct InMemoryWorkItemRepositoryTests {
-    @Test func todayItemsUsesStartAtBeforeEOB() async {
+    @Test func todayItemsIncludesAfterHoursStartsButNotTomorrow() async {
         let repo = InMemoryWorkItemRepository()
         let cal = TestDates.workCalendar
         let day = TestDates.monday
-        let included = WorkItem(title: "In", startAt: TestDates.date(2026, 1, 5, hour: 10))
-        let excluded = WorkItem(
-            title: "Out", startAt: TestDates.date(2026, 1, 5, hour: 18, minute: 30) // after 17:00 EOB
+        let included = WorkItem(
+            title: "In",
+            startAt: TestDates.date(2026, 1, 5, hour: 10),
+            displayOrder: "a1"
+        )
+        // 18:30 is after EOB but still today. An after-hours capture must be
+        // visible in Today, not silently disappear into tomorrow.
+        let late = WorkItem(
+            title: "Late",
+            startAt: TestDates.date(2026, 1, 5, hour: 18, minute: 30),
+            displayOrder: "a2"
+        )
+        let tomorrow = WorkItem(
+            title: "Tomorrow",
+            startAt: TestDates.date(2026, 1, 6, hour: 9),
+            displayOrder: "a3"
         )
         let done = WorkItem(title: "Done", status: .done, startAt: TestDates.date(2026, 1, 5, hour: 10))
         let deleted = WorkItem(
@@ -18,12 +31,13 @@ struct InMemoryWorkItemRepositoryTests {
             deletedAt: TestDates.date(2026, 1, 5, hour: 12)
         )
         await repo.seed(included)
-        await repo.seed(excluded)
+        await repo.seed(late)
+        await repo.seed(tomorrow)
         await repo.seed(done)
         await repo.seed(deleted)
 
         let result = await repo.todayItems(on: day, calendar: cal)
-        #expect(result.map(\.title) == ["In"])
+        #expect(result.map(\.title) == ["In", "Late"])
     }
 
     @Test func itemReturnsNilForSoftDeleted() async throws {

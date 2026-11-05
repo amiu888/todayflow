@@ -42,9 +42,19 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free and `swift test` passes **519 tests**.
-The app also makes a daily database snapshot (`VACUUM INTO`) and keeps the last 7
-in `Application Support/TodayFlow/Backups/` (NFR-09).
+Verification: `swift build` is warning-free, `swift test` passes **538 tests**, and
+the two XCUITests pass against the real `.app` bundle. The app also makes a daily
+database snapshot (`VACUUM INTO`) and keeps the last 7 in
+`Application Support/TodayFlow/Backups/` (NFR-09).
+
+The UI uses a cinematic dark theme (near-black indigo, blue-charcoal surfaces,
+sky→royal→violet accent) with a light theme from **View → Appearance**. The week
+strip plans future days in place, future rows expose priority/start/reorder
+actions, per-task reminders are set from the detail window, due tasks pulse on the
+list and in a “Due soon” banner, and floating windows dock to screen/window edges.
+
+Design rationale and the competitive references are in
+[`docs/design/todayflow-design.md`](./docs/design/todayflow-design.md).
 
 Every task keeps an append-only activity log: creation, edits, status/priority/date
 changes, reorder/reparent, completion/reopen, link add/remove, and attachment add/
@@ -67,6 +77,8 @@ swift test           # run all tests
 
 ./scripts/build-app.sh
 open build/TodayFlow.app
+
+./scripts/run-ui-tests.sh   # real XCUITest against the built .app
 ```
 
 `scripts/build-app.sh` wraps the SwiftPM executable in a minimal ad-hoc-signed

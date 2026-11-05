@@ -41,7 +41,7 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
     }
 
     public func todayItems(on day: Date, calendar: WorkCalendar) async -> [WorkItem] {
-        let eob = SqlTimestamp.encode(calendar.endOfBusiness(for: day))
+        let dayEnd = SqlTimestamp.encode(calendar.endOfDay(for: day))
         let items = try? await queue.read { db in
             try Row.fetchAll(
                 db,
@@ -49,10 +49,10 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
                     SELECT * FROM work_item
                     WHERE deleted_at IS NULL
                       AND status NOT IN ('done', 'cancelled')
-                      AND start_at <= ?
+                      AND start_at < ?
                     ORDER BY display_order
                     """,
-                arguments: [eob]
+                arguments: [dayEnd]
             ).map { WorkItemRecord(row: $0).model }
         }
         return items ?? []
@@ -443,7 +443,7 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
     /// thread) and cancels the observation when the stream terminates.
     public func observeToday(on day: Date, calendar: WorkCalendar) async -> AsyncStream<[WorkItem]> {
         AsyncStream { continuation in
-            let eob = SqlTimestamp.encode(calendar.endOfBusiness(for: day))
+            let dayEnd = SqlTimestamp.encode(calendar.endOfDay(for: day))
             let observation = ValueObservation.tracking { db in
                 let rows = try Row.fetchAll(
                     db,
@@ -451,10 +451,10 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
                         SELECT * FROM work_item
                         WHERE deleted_at IS NULL
                           AND status NOT IN ('done', 'cancelled')
-                          AND start_at <= ?
+                          AND start_at < ?
                         ORDER BY display_order
                         """,
-                    arguments: [eob]
+                    arguments: [dayEnd]
                 )
                 return rows.map { WorkItemRecord(row: $0).model }
             }

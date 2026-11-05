@@ -35,57 +35,67 @@ public struct FilterChipsView: View {
     }
 
     public var body: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 6) {
-                ForEach(TodayFilter.allCases) { filterCase in
-                    chip(for: filterCase)
-                }
+        HStack(spacing: 6) {
+            ForEach(TodayFilter.allCases) { filterCase in
+                chip(for: filterCase)
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
             if !projects.isEmpty {
                 projectMenu
             }
 
-            Menu {
-                ForEach(TodaySort.allCases) { sortCase in
-                    Button {
-                        onSortChange(sortCase)
-                    } label: {
-                        HStack {
-                            Text(sortCase.label)
-                            Spacer()
-                            if sortCase == sort {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text("Sort")
-                        .foregroundStyle(.secondary)
-                    Text(sort.label)
-                        .foregroundStyle(.primary)
-                    Image(systemName: "chevron.down")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .accessibilityLabel("Sort")
+            sortMenu
 
             Button {
                 onSearch()
             } label: {
                 Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                    .frame(width: 26, height: 26)
             }
             .buttonStyle(.plain)
             .keyboardShortcut("f", modifiers: .command)
+            .help("Search")
             .accessibilityLabel("Search")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var sortMenu: some View {
+        Menu {
+            ForEach(TodaySort.allCases) { sortCase in
+                Button {
+                    onSortChange(sortCase)
+                } label: {
+                    HStack {
+                        Text(sortCase.label)
+                        Spacer()
+                        if sortCase == sort {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(
+                    sort == .manual
+                        ? DesignTokens.Palette.textSecondary
+                        : DesignTokens.Palette.accent
+                )
+                .frame(width: 26, height: 26)
+        }
+        .menuIndicator(.hidden)
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Sort: \(sort.label)")
+        .accessibilityLabel("Sort: \(sort.label)")
     }
 
     @ViewBuilder
@@ -108,20 +118,20 @@ public struct FilterChipsView: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "folder")
-                if let selected {
-                    Text(selected)
-                        .lineLimit(1)
-                }
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-            }
-            .foregroundStyle(selected == nil ? .secondary : .primary)
+            Image(systemName: selected == nil ? "folder" : "folder.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(
+                    selected == nil
+                        ? DesignTokens.Palette.textSecondary
+                        : DesignTokens.Palette.accent
+                )
+                .frame(width: 26, height: 26)
         }
+        .menuIndicator(.hidden)
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .accessibilityLabel("Filter by project")
+        .help(selected.map { "Project: \($0)" } ?? "Filter by project")
+        .accessibilityLabel(selected.map { "Project: \($0)" } ?? "Filter by project")
     }
 
     private var borderColor: Color {
@@ -135,20 +145,36 @@ public struct FilterChipsView: View {
             onFilterChange(candidate)
         } label: {
             Text(candidate.label)
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isSelected ? Color.accentColor : Color.clear)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(
+                            isSelected
+                                ? DesignTokens.Palette.accent.opacity(0.22)
+                                : DesignTokens.Palette.surface
+                        )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(isSelected ? Color.clear : borderColor, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(
+                            isSelected
+                                ? DesignTokens.Palette.accent.opacity(0.7)
+                                : DesignTokens.Palette.hairline,
+                            lineWidth: 1
+                        )
                 )
-                .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                .foregroundStyle(
+                    isSelected
+                        ? DesignTokens.Palette.accent
+                        : DesignTokens.Palette.textSecondary
+                )
         }
         .buttonStyle(.plain)
+        .fixedSize()
         .accessibilityLabel(candidate.label)
     }
 }

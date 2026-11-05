@@ -20,6 +20,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     public private(set) var notifications: NotificationController?
     /// The automatic end-of-day review (FR-43).
     public private(set) var endOfDayReview: EndOfDayReviewController?
+    private weak var dockingMenuItem: NSMenuItem?
     /// AI planning and Q&A windows (driver.md §8).
     public private(set) var dayPlan: DayPlanWindowController?
     public private(set) var askAI: AskWindowController?
@@ -27,6 +28,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     public override init() {}
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        applyAppearance()
         do {
             let environment = try AppEnvironment.makeProduction()
             self.environment = environment
@@ -57,6 +59,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             controller.onExportJSON = { [weak self] in self?.export(.json) }
             controller.onExportCSV = { [weak self] in self?.export(.csv) }
             self.statusItem = controller
+            installMainMenu()
             summary.onRefreshed = { [weak controller, weak self] progress in
                 controller?.apply(progress: progress)
                 Task { @MainActor in
@@ -79,6 +82,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
                 let notifications = NotificationController(
                     repository: environment.workItems,
                     linkRepository: environment.links,
+                    reminders: environment.reminders,
                     calendar: environment.workCalendar,
                     onOpen: { windowManager.show(.panel) }
                 )
@@ -121,6 +125,213 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     ) -> Bool {
         windows?.show(.panel)
         return true
+    }
+
+    /// A proper macOS menu bar: standard Edit commands (so text fields work),
+    /// File capture/export, and View navigation. The status item remains the
+    /// home, but every command is also discoverable here.
+    private func installMainMenu() {
+        let main = NSMenu()
+
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(
+            item("About TodayFlow", #selector(about), key: "")
+        )
+        appMenu.addItem(.separator())
+        appMenu.addItem(
+            item("Settings…", #selector(openSettingsMenu), key: ",")
+        )
+        appMenu.addItem(.separator())
+        appMenu.addItem(
+            item("Quit TodayFlow", #selector(quitApp), key: "q")
+        )
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+
+        let fileItem = NSMenuItem()
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(item("New Task…", #selector(newTaskMenu), key: "n"))
+        fileMenu.addItem(
+            item("Capture Clipboard", #selector(captureClipboardMenu), key: "V", modifiers: [.command, .shift])
+        )
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(item("End-of-Day Review…", #selector(reviewMenu), key: ""))
+        fileMenu.addItem(item("Plan My Day…", #selector(planMenu), key: ""))
+        fileMenu.addItem(item("Ask About Tasks…", #selector(askMenu), key: ""))
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(item("Export JSON…", #selector(exportJSONMenu), key: ""))
+        fileMenu.addItem(item("Export CSV…", #selector(exportCSVMenu), key: ""))
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(item("Minimize", #selector(minimizeMenu), key: "m"))
+        fileMenu.addItem(responderItem("Close Window", #selector(NSWindow.performClose(_:)), key: "w"))
+        fileItem.submenu = fileMenu
+        main.addItem(fileItem)
+
+        let editItem = NSMenuItem()
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(responderItem("Undo", Selector(("undo:")), key: "z"))
+        editMenu.addItem(responderItem("Redo", Selector(("redo:")), key: "Z"))
+        editMenu.addItem(.separator())
+        editMenu.addItem(responderItem("Cut", #selector(NSText.cut(_:)), key: "x"))
+        editMenu.addItem(responderItem("Copy", #selector(NSText.copy(_:)), key: "c"))
+        editMenu.addItem(responderItem("Paste", #selector(NSText.paste(_:)), key: "v"))
+        editMenu.addItem(responderItem("Select All", #selector(NSText.selectAll(_:)), key: "a"))
+        editItem.submenu = editMenu
+        main.addItem(editItem)
+
+        let viewItem = NSMenuItem()
+        let viewMenu = NSMenu(title: "View")
+        let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+        let appearanceMenu = NSMenu(title: "Appearance")
+        appearanceMenu.addItem(item("Dark", #selector(appearanceDark), key: ""))
+        appearanceMenu.addItem(item("Light", #selector(appearanceLight), key: ""))
+        appearanceMenu.addItem(item("Follow System", #selector(appearanceSystem), key: ""))
+        appearanceItem.submenu = appearanceMenu
+        viewMenu.addItem(appearanceItem)
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(item("Today", #selector(showTodayMenu), key: "1"))
+        viewMenu.addItem(item("Upcoming", #selector(showUpcomingMenu), key: "2"))
+        viewMenu.addItem(item("Completed", #selector(showCompletedMenu), key: "3"))
+        viewMenu.addItem(item("Hierarchy", #selector(showHierarchyMenu), key: "4"))
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(item("Slim Bar", #selector(showSlimBarMenu), key: ""))
+        viewMenu.addItem(.separator())
+        let docking = item("Dock to Edges", #selector(toggleDocking), key: "")
+        docking.state = windows?.docking.isEnabled == true ? .on : .off
+        dockingMenuItem = docking
+        viewMenu.addItem(docking)
+        viewItem.submenu = viewMenu
+        main.addItem(viewItem)
+
+        NSApp.mainMenu = main
+    }
+
+    private func item(
+        _ title: String,
+        _ action: Selector,
+        key: String,
+        modifiers: NSEvent.ModifierFlags = [.command]
+    ) -> NSMenuItem {
+        let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        menuItem.keyEquivalentModifierMask = modifiers
+        menuItem.target = self
+        return menuItem
+    }
+
+    /// Standard Edit commands must travel the responder chain to the focused
+    /// text field; a nil target is what makes ⌘C/⌘V/⌘A work.
+    private func responderItem(
+        _ title: String,
+        _ action: Selector,
+        key: String
+    ) -> NSMenuItem {
+        let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        menuItem.keyEquivalentModifierMask = [.command]
+        menuItem.target = nil
+        return menuItem
+    }
+
+    @objc private func about() {
+        NSApp.orderFrontStandardAboutPanel(nil)
+    }
+
+    @objc private func openSettingsMenu() {
+        windows?.show(.settings)
+    }
+
+    @objc private func quitApp() {
+        NSApp.terminate(nil)
+    }
+
+    @objc private func newTaskMenu() {
+        windows?.showCapture()
+    }
+
+    @objc private func captureClipboardMenu() {
+        windows?.captureClipboard()
+    }
+
+    @objc private func minimizeMenu() {
+        windows?.minimizePanel()
+    }
+
+    @objc private func reviewMenu() {
+        endOfDayReview?.present()
+    }
+
+    @objc private func planMenu() {
+        dayPlan?.present()
+    }
+
+    @objc private func askMenu() {
+        askAI?.present()
+    }
+
+    @objc private func exportJSONMenu() {
+        export(.json)
+    }
+
+    @objc private func exportCSVMenu() {
+        export(.csv)
+    }
+
+    // MARK: - Appearance
+
+    private static let appearanceKey = "todayflow.appearance"
+
+    /// Cinematic dark is the default; light and system-follow are one menu
+    /// item away and persist across launches.
+    private func applyAppearance() {
+        switch UserDefaults.standard.string(forKey: Self.appearanceKey) {
+        case "light":
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case "system":
+            NSApp.appearance = nil
+        default:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+
+    @objc private func appearanceDark() {
+        UserDefaults.standard.set("dark", forKey: Self.appearanceKey)
+        applyAppearance()
+    }
+
+    @objc private func appearanceLight() {
+        UserDefaults.standard.set("light", forKey: Self.appearanceKey)
+        applyAppearance()
+    }
+
+    @objc private func appearanceSystem() {
+        UserDefaults.standard.set("system", forKey: Self.appearanceKey)
+        applyAppearance()
+    }
+
+    @objc private func showTodayMenu() {
+        windows?.show(.panel)
+    }
+
+    @objc private func showUpcomingMenu() {
+        windows?.show(.upcoming)
+    }
+
+    @objc private func showCompletedMenu() {
+        windows?.show(.completed)
+    }
+
+    @objc private func showHierarchyMenu() {
+        windows?.show(.hierarchy)
+    }
+
+    @objc private func showSlimBarMenu() {
+        windows?.show(.slimBar)
+    }
+
+    @objc private func toggleDocking() {
+        guard let docking = windows?.docking else { return }
+        docking.isEnabled.toggle()
+        dockingMenuItem?.state = docking.isEnabled ? .on : .off
     }
 
     /// NFR-09: export the whole task store as JSON or CSV.

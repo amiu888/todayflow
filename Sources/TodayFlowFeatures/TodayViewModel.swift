@@ -30,6 +30,7 @@ extension TaskRowModel {
             isBlocked: isBlocked,
             dueAt: dueAt,
             isOverdue: isOverdue,
+            isDueSoon: isDueSoon,
             completedAt: completedAt,
             attachments: attachments,
             attachmentCount: attachmentCount,
@@ -80,6 +81,39 @@ public final class TodayViewModel {
     /// Projects offered by the filter menu.
     public private(set) var projects: [WorkItem] = []
 
+    /// Open tasks due after today (next 7 days), shown as a compact section so
+    /// after-hours captures and tomorrow's work are never invisible.
+    public struct UpcomingRow: Identifiable, Hashable, Sendable {
+        public let id: UUIDv7
+        public let title: String
+        public let priority: Priority
+        public let dueAt: Date
+        public let parentColorHex: String?
+    }
+    public private(set) var upcomingRows: [UpcomingRow] = []
+
+    /// The day currently shown in the panel. Selecting a future day turns the
+    /// same list into a planning surface without changing the task model.
+    public private(set) var activeDay: Date
+
+    public struct WeekDay: Identifiable, Hashable, Sendable {
+        public let date: Date
+        public let count: Int
+        public let isToday: Bool
+        public let isSelected: Bool
+        public var id: Date { date }
+    }
+    public private(set) var weekDays: [WeekDay] = []
+
+    /// True when the panel is showing the actual current day (drives which
+    /// header and section affordances are shown).
+    public var isViewingToday: Bool {
+        calendar.calendar.isDate(
+            activeDay,
+            inSameDayAs: calendar.calendar.startOfDay(for: clock())
+        )
+    }
+
     /// The row selected by a single tap (drives ⌥↑/⌥↓ reordering, FR-12).
     public var selectedId: UUIDv7?
 
@@ -129,6 +163,7 @@ public final class TodayViewModel {
         self.deviceId = deviceId
         self.clock = clock
         self.onOpenTask = onOpenTask
+        self.activeDay = calendar.calendar.startOfDay(for: clock())
     }
 
     // MARK: Loading
@@ -149,7 +184,7 @@ public final class TodayViewModel {
         }
 
         let now = clock()
-        let day = calendar.calendar.startOfDay(for: now)
+        let day = activeDay
         let query = TodayQuery(repository: repository, calendar: calendar)
 
         async let dayResult = query.execute(on: day, at: now)
@@ -168,6 +203,50 @@ public final class TodayViewModel {
                     return FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder)
                 }
                 return $0.title < $1.title
+            }
+
+        let today = calendar.calendar.startOfDay(for: now)
+        self.weekDays = (0..<7).compactMap { offset -> WeekDay? in
+            guard let date = calendar.calendar.date(byAdding: .day, value: offset, to: today)
+            else { return nil }
+            let count = allItems.filter {
+                !$0.isDeleted
+                    && !$0.status.isTerminal
+                    && calendar.calendar.isDate($0.endAt, inSameDayAs: date)
+            }.count
+            return WeekDay(
+                date: date,
+                count: count,
+                isToday: calendar.calendar.isDate(date, inSameDayAs: today),
+                isSelected: calendar.calendar.isDate(date, inSameDayAs: activeDay)
+            )
+        }
+
+        let eob = calendar.endOfBusiness(for: day)
+        let windowEnd = calendar.calendar.date(byAdding: .day, value: 7, to: eob) ?? eob
+        self.upcomingRows = allItems
+            .filter {
+                !$0.isDeleted
+                    && !$0.status.isTerminal
+                    && $0.endAt > eob
+                    && $0.endAt <= windowEnd
+            }
+            // Manual display order, so future tasks can be planned up/down;
+            // the due date remains visible in the row.
+            .sorted {
+                if $0.displayOrder != $1.displayOrder {
+                    return FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder)
+                }
+                return $0.endAt < $1.endAt
+            }
+            .map { item in
+                UpcomingRow(
+                    id: item.id,
+                    title: item.title,
+                    priority: item.priority,
+                    dueAt: item.endAt,
+                    parentColorHex: item.parentId.flatMap { allItemsById[$0]?.color }
+                )
             }
 
         // Resolve references that are not on today's list: parents (color
@@ -219,13 +298,32 @@ public final class TodayViewModel {
     /// day rolls over, re-subscribes for the new day.
     public func observe() async {
         while !Task.isCancelled {
-            let day = calendar.calendar.startOfDay(for: clock())
+            let day = activeDay
             let stream = await repository.observeToday(on: day, calendar: calendar)
             for await _ in stream {
-                if calendar.calendar.startOfDay(for: clock()) != day { break }
+                let today = calendar.calendar.startOfDay(for: clock())
+                if activeDay != day { break }
+                if today != day, activeDay == day {
+                    // Midnight rolled over while the user was viewing Today.
+                    activeDay = today
+                    break
+                }
                 await load()
             }
         }
+    }
+
+    /// Switches the panel to another day (week strip / day planning).
+    public func selectDay(_ day: Date) async {
+        let start = calendar.calendar.startOfDay(for: day)
+        guard start != activeDay else { return }
+        activeDay = start
+        await load()
+    }
+
+    /// Returns to the real current day.
+    public func goToToday() async {
+        await selectDay(calendar.calendar.startOfDay(for: clock()))
     }
 
     // MARK: Derived rows
@@ -286,6 +384,9 @@ public final class TodayViewModel {
         let isBlocked = !isDone
             && StatusDeriver().derive(stored: item.status, blockers: blockerItems) == .blocked
         let isOverdue = !isDone && item.endAt < now
+        let isDueSoon = !isDone
+            && !isOverdue
+            && item.endAt.timeIntervalSince(now) <= 15 * 60
         let itemAttachments = attachments[item.id] ?? []
 
         return TaskRowModel(
@@ -296,6 +397,7 @@ public final class TodayViewModel {
             isBlocked: isBlocked,
             dueAt: item.endAt,
             isOverdue: isOverdue,
+            isDueSoon: isDueSoon,
             completedAt: item.completedAt,
             attachments: itemAttachments.prefix(3).map {
                 TaskRowModel.AttachmentHint(kind: $0.kind, displayName: $0.displayName)
@@ -401,6 +503,61 @@ public final class TodayViewModel {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    // MARK: Planning future work (Upcoming)
+
+    /// Changes a future task's priority from the Upcoming section.
+    public func setUpcomingPriority(_ id: UUIDv7, _ priority: Priority) async {
+        do {
+            try await SetPriority(repository: repository, deviceId: deviceId)
+                .execute(id, to: priority, at: clock())
+            await load()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Moves a future task's start time; its due time follows the calendar
+    /// rule when the new start would pass it.
+    public func setUpcomingStart(_ id: UUIDv7, to startAt: Date) async {
+        do {
+            try await SetStartTime(
+                repository: repository,
+                calendar: calendar,
+                deviceId: deviceId
+            ).execute(id, to: startAt, at: clock())
+            await load()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    public func moveUpcomingUp(_ id: UUIDv7) async {
+        await moveUpcoming(id, direction: .up)
+    }
+
+    public func moveUpcomingDown(_ id: UUIDv7) async {
+        await moveUpcoming(id, direction: .down)
+    }
+
+    private func moveUpcoming(_ id: UUIDv7, direction: MoveDirection) async {
+        let rows = upcomingRows
+        guard let index = rows.firstIndex(where: { $0.id == id }) else { return }
+        let neighborIndex = direction == .up ? index - 1 : index + 1
+        guard (0..<rows.count).contains(neighborIndex) else { return }
+        guard let neighborKey = displayKey(of: rows[neighborIndex].id) else { return }
+
+        let newKey: String
+        switch direction {
+        case .up:
+            let boundKey = index >= 2 ? displayKey(of: rows[index - 2].id) : nil
+            newKey = FractionalIndex.midpoint(boundKey, neighborKey)
+        case .down:
+            let boundKey = index + 2 < rows.count ? displayKey(of: rows[index + 2].id) : nil
+            newKey = FractionalIndex.midpoint(neighborKey, boundKey)
+        }
+        await applyManualMove(id, newKey: newKey)
     }
 
     /// Reverts the most recent completion (FR-14: ⌘Z, and the 5-second bar).

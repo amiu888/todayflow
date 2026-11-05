@@ -46,6 +46,14 @@ public struct WorkCalendar: Sendable {
         calendar.date(bySettingHour: Int(startHour), minute: 0, second: 0, of: date) ?? date
     }
 
+    /// The first instant of the next calendar day. Used by the Today query:
+    /// "startAt ≤ end of today" includes after-hours captures and late tasks.
+    public func endOfDay(for date: Date) -> Date {
+        let start = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .day, value: 1, to: start)
+            ?? start.addingTimeInterval(86_400)
+    }
+
     /// Default end time for a task created at `createdAt` (driver.md §2):
     /// - if `createdAt` falls before today's EOB on a working day → today's EOB
     /// - otherwise (after hours, or a non-working day) → the next working day's EOB

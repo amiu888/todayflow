@@ -15,6 +15,8 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
     public let isBlocked: Bool
     public let dueAt: Date
     public let isOverdue: Bool
+    /// Due within 15 minutes: the row pulses and the panel shows a banner.
+    public let isDueSoon: Bool
     public let completedAt: Date?
     /// Up to 3 attachment hints for the row's icon cluster.
     public let attachments: [AttachmentHint]
@@ -44,6 +46,7 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
         isBlocked: Bool,
         dueAt: Date,
         isOverdue: Bool,
+        isDueSoon: Bool = false,
         completedAt: Date? = nil,
         attachments: [AttachmentHint] = [],
         attachmentCount: Int = 0,
@@ -57,6 +60,7 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
         self.isBlocked = isBlocked
         self.dueAt = dueAt
         self.isOverdue = isOverdue
+        self.isDueSoon = isDueSoon
         self.completedAt = completedAt
         self.attachments = attachments
         self.attachmentCount = attachmentCount

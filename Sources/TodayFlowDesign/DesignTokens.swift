@@ -1,7 +1,65 @@
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// Design tokens shared by every TodayFlow surface (driver.md §4).
+///
+/// "Cinematic daylight": near-black indigo by default, with a white/slate
+/// light theme. The memorable gesture is the sky→royal→violet aurora behind
+/// the day header; lists and controls stay quiet around it.
 public enum DesignTokens {
+    public enum Palette {
+        public static let background = adaptive(light: "#F7F9FF", dark: "#07090F")
+        public static let surface = adaptive(light: "#FFFFFF", dark: "#151F2E")
+        public static let surfaceRaised = adaptive(light: "#F1F5F9", dark: "#1B2739")
+        public static let textPrimary = adaptive(light: "#0F172A", dark: "#F1F5F9")
+        public static let textSecondary = adaptive(light: "#475569", dark: "#94A3B8")
+
+        public static let accent = adaptive(light: "#2563EB", dark: "#60A5FA")
+        public static let accentStrong = adaptive(light: "#1D4ED8", dark: "#818CF8")
+        public static let violet = adaptive(light: "#7C3AED", dark: "#A78BFA")
+        public static let accentSoft = accent.opacity(0.14)
+
+        public static let success = adaptive(light: "#059669", dark: "#34D399")
+        public static let warning = adaptive(light: "#D97706", dark: "#FBBF24")
+        public static let danger = adaptive(light: "#DC2626", dark: "#F87171")
+        public static let urgent = danger
+
+        public static let hairline = adaptive(light: "#E2E8F0", dark: "#263449")
+        public static let shadow = Color.black.opacity(0.35)
+
+        /// The brand gesture: sky → royal → violet.
+        public static let gradient = LinearGradient(
+            colors: [accent, accentStrong, violet],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+
+        /// A soft aurora used once, behind the day header.
+        public static let aurora = LinearGradient(
+            colors: [
+                accent.opacity(0.22),
+                accentStrong.opacity(0.12),
+                violet.opacity(0.10),
+                .clear,
+            ],
+            startPoint: .topLeading,
+            endPoint: .center
+        )
+
+        private static func adaptive(light: String, dark: String) -> Color {
+            #if canImport(AppKit)
+            return Color(nsColor: NSColor(name: nil) { appearance in
+                let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                return NSColor(todayFlowHex: isDark ? dark : light) ?? .labelColor
+            })
+            #else
+            return Color(hex: light)
+            #endif
+        }
+    }
+
     /// Window mode sizes (driver.md §4: Panel 360×640 min 300×420, Slim bar
     /// 360×44, menu bar popover 340×480, Detail 720×640, Hierarchy 640×560,
     /// Settings 480×560).
@@ -32,6 +90,24 @@ public enum DesignTokens {
         public static let sectionGap: CGFloat = 8
     }
 }
+
+#if canImport(AppKit)
+extension NSColor {
+    convenience init?(todayFlowHex hex: String) {
+        var digits = hex
+        if digits.hasPrefix("#") { digits.removeFirst() }
+        guard digits.count == 6, let value = UInt64(digits, radix: 16) else {
+            return nil
+        }
+        self.init(
+            srgbRed: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
+#endif
 
 extension Color {
     /// A color from a `#rrggbb` hex string. Invalid input resolves to gray

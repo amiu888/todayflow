@@ -28,6 +28,7 @@ public final class NotificationController: NSObject, UNUserNotificationCenterDel
     private let center: UNUserNotificationCenter
     private let repository: any WorkItemRepository
     private let linkRepository: any LinkRepository
+    private let reminders: (any ReminderRepository)?
     private let deviceId: String
     private let clock: @Sendable () -> Date
     private var calendar: WorkCalendar
@@ -41,6 +42,7 @@ public final class NotificationController: NSObject, UNUserNotificationCenterDel
     public init(
         repository: any WorkItemRepository,
         linkRepository: any LinkRepository,
+        reminders: (any ReminderRepository)? = nil,
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         planner: NudgePlanner = NudgePlanner(),
@@ -51,6 +53,7 @@ public final class NotificationController: NSObject, UNUserNotificationCenterDel
         self.center = center
         self.repository = repository
         self.linkRepository = linkRepository
+        self.reminders = reminders
         self.calendar = calendar
         self.deviceId = deviceId
         self.planner = planner
@@ -114,7 +117,9 @@ public final class NotificationController: NSObject, UNUserNotificationCenterDel
         let pending = await center.pendingNotificationRequests()
         let ours = pending
             .map(\.identifier)
-            .filter { $0.hasPrefix("eod.") || $0.hasPrefix("task.") }
+            .filter {
+                $0.hasPrefix("eod.") || $0.hasPrefix("task.") || $0.hasPrefix("custom.")
+            }
         if !ours.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: ours)
         }
@@ -123,7 +128,57 @@ public final class NotificationController: NSObject, UNUserNotificationCenterDel
         let day = calendar.calendar.startOfDay(for: now)
         let result = await TodayQuery(repository: repository, calendar: calendar)
             .execute(on: day, at: now)
-        let nudges = planner.plan(openItems: result.all, calendar: calendar, now: now)
+
+        let customReminders = await reminders?.pending(after: now) ?? []
+        let customItems: [(Reminder, WorkItem)] = await withTaskGroup(
+            of: (Reminder, WorkItem)?.self
+        ) { group in
+            for reminder in customReminders where reminder.kind == .task {
+                group.addTask { [repository] in
+                    guard let id = reminder.itemId,
+                          let item = await repository.item(id),
+                          !item.status.isTerminal
+                    else { return nil }
+                    return (reminder, item)
+                }
+            }
+            var pairs: [(Reminder, WorkItem)] = []
+            for await pair in group {
+                if let pair { pairs.append(pair) }
+            }
+            return pairs.sorted { $0.0.fireAt < $1.0.fireAt }
+        }
+        let customItemIds = Set(customItems.compactMap { $0.0.itemId })
+
+        // A task with an explicit reminder should not also get the automatic
+        // 30-minute nudge.
+        let nudges = planner
+            .plan(openItems: result.all, calendar: calendar, now: now)
+            .filter { nudge in
+                if case .task(let id) = nudge.kind {
+                    return !customItemIds.contains(id)
+                }
+                return true
+            }
+
+        for (reminder, item) in customItems {
+            let content = UNMutableNotificationContent()
+            content.title = item.title
+            content.body = "Reminder · due at \(item.endAt.formatted(date: .omitted, time: .shortened))"
+            content.sound = .default
+            content.categoryIdentifier = Self.categoryID
+            content.interruptionLevel = item.priority == .urgent ? .timeSensitive : .active
+            content.userInfo = [Self.itemIdKey: item.id.description]
+
+            let interval = reminder.fireAt.timeIntervalSince(now)
+            guard interval > 0 else { continue }
+            let request = UNNotificationRequest(
+                identifier: "custom.\(reminder.id)",
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, interval), repeats: false)
+            )
+            try? await center.add(request)
+        }
 
         for nudge in nudges {
             let interval = nudge.fireAt.timeIntervalSince(now)

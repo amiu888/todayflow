@@ -24,9 +24,9 @@ public actor InMemoryWorkItemRepository: WorkItemRepository {
     }
 
     public func todayItems(on day: Date, calendar: WorkCalendar) async -> [WorkItem] {
-        let eob = calendar.endOfBusiness(for: day)
+        let dayEnd = calendar.endOfDay(for: day)
         return items.values
-            .filter { !$0.isDeleted && !$0.status.isTerminal && $0.startAt <= eob }
+            .filter { !$0.isDeleted && !$0.status.isTerminal && $0.startAt < dayEnd }
             .sorted { FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder) }
     }
 

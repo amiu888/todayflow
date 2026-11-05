@@ -227,9 +227,23 @@ func save_createsItemAndAttachment() async {
 }
 
 @Test @MainActor
+func emptyCapture_startsWithAnEmptyTitleAndCannotSave() async {
+    let f = Fixture()
+    f.vm.prepare(dropped: [], recognized: [])
+
+    #expect(f.vm.draft.title.isEmpty)
+
+    await f.vm.save()
+
+    #expect(f.vm.savedItem == nil)
+    #expect(f.vm.lastError != nil)
+}
+
+@Test @MainActor
 func save_withNoObjects_createsItemOnly() async {
     let f = Fixture()
     f.vm.prepare(dropped: [], recognized: [])
+    f.vm.draft.title = "New task"
 
     await f.vm.save()
 

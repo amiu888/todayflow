@@ -34,6 +34,7 @@ public struct TaskRowView: View {
     }
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovering: Bool = false
 
     @MainActor
@@ -50,8 +51,22 @@ public struct TaskRowView: View {
                 )
                 .fill(
                     isSelected
-                        ? Color.accentColor.opacity(0.15)
-                        : (isHovering ? Color.primary.opacity(0.045) : Color.clear)
+                        ? DesignTokens.Palette.accent.opacity(0.18)
+                        : (model.isDueSoon
+                            ? DesignTokens.Palette.warning.opacity(0.12)
+                            : (isHovering
+                                ? DesignTokens.Palette.accent.opacity(0.09)
+                                : DesignTokens.Palette.surface.opacity(0.55)))
+                )
+                .overlay(
+                    RoundedRectangle(
+                        cornerRadius: DesignTokens.Spacing.cornerRadius,
+                        style: .continuous
+                    )
+                    .stroke(
+                        isSelected ? DesignTokens.Palette.accent.opacity(0.5) : Color.clear,
+                        lineWidth: 1
+                    )
                 )
             }
             .contentShape(Rectangle())
@@ -108,6 +123,14 @@ public struct TaskRowView: View {
             }
 
             attachmentCluster
+
+            if model.isDueSoon {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignTokens.Palette.warning)
+                    .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)
+                    .accessibilityHidden(true)
+            }
 
             Text(dueTime)
                 .font(.system(size: 12))
@@ -250,6 +273,8 @@ public struct TaskRowView: View {
 
         if model.isDone {
             parts.append("done")
+        } else if model.isDueSoon {
+            parts.append("due soon")
         }
 
         parts.append(model.priority.label)

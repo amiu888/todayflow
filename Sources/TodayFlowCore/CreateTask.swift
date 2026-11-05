@@ -8,6 +8,13 @@ import Foundation
 /// - The hierarchy is validated against `WorkItem.Kind.allowedParentKinds`.
 public struct CreateTask: Sendable {
     public struct Input {
+        public enum Placement: Sendable {
+            /// Append after the last sibling (default, used for subtasks).
+            case bottom
+            /// Insert before the first sibling so a new capture is visible.
+            case top
+        }
+
         public var kind: WorkItem.Kind
         public var title: String
         public var descriptionMd: String
@@ -20,6 +27,7 @@ public struct CreateTask: Sendable {
         public var priority: Priority
         public var color: String?
         public var tags: [String]
+        public var placement: Placement
 
         public init(
             kind: WorkItem.Kind = .task,
@@ -30,7 +38,8 @@ public struct CreateTask: Sendable {
             endAt: Date? = nil,
             priority: Priority = .default,
             color: String? = nil,
-            tags: [String] = []
+            tags: [String] = [],
+            placement: Placement = .bottom
         ) {
             self.kind = kind
             self.title = title
@@ -41,6 +50,7 @@ public struct CreateTask: Sendable {
             self.priority = priority
             self.color = color
             self.tags = tags
+            self.placement = placement
         }
     }
 
@@ -81,7 +91,13 @@ public struct CreateTask: Sendable {
 
         let endAt = input.endAt ?? calendar.defaultEndAt(createdAt: input.startAt)
         let siblings = await repository.children(of: input.parentId)
-        let displayOrder = FractionalIndex.midpoint(siblings.last?.displayOrder, nil)
+        let displayOrder: String
+        switch input.placement {
+        case .top:
+            displayOrder = FractionalIndex.midpoint(nil, siblings.first?.displayOrder)
+        case .bottom:
+            displayOrder = FractionalIndex.midpoint(siblings.last?.displayOrder, nil)
+        }
 
         let item = WorkItem(
             kind: input.kind,

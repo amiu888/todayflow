@@ -17,6 +17,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private let capture: CaptureWindowController
     private let dropLoader = DroppedObjectLoader()
     private let attachmentActions = AttachmentActions()
+    /// Snaps floating windows to screen edges and neighbouring windows.
+    public let docking = WindowDockController()
 
     /// The shared summary model (driver.md FR-40); the delegate assigns it
     /// after construction. The slim bar reads it in `body` so it stays live.
@@ -116,6 +118,25 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         showCapture(dropped: objects, splitIntoTasks: splitIntoTasks)
     }
 
+    /// Minimize the Today panel; the menu-bar icon restores it.
+    public func minimizePanel() {
+        guard let panel = windows[.panel] ?? nil else {
+            show(.panel)
+            return
+        }
+        panel.miniaturize(nil)
+    }
+
+    /// File → Capture Clipboard: the same loader as a drop, from ⌘V content.
+    public func captureClipboard() {
+        let objects = DroppedObjectLoader.objects(from: .general)
+        guard !objects.isEmpty else {
+            presentDropError()
+            return
+        }
+        showCapture(dropped: objects)
+    }
+
     /// Adds the dropped objects to an existing task (FR-04).
     private func attach(_ objects: [DroppedObject], to itemId: UUIDv7) async {
         guard await environment.workItems.item(itemId) != nil else { return }
@@ -177,6 +198,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// open window just brings it to the front.
     public func show(_ kind: WindowKind) {
         if let window = windows[kind] {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
             return
@@ -294,7 +318,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 onOpenTask: { [weak self] id in self?.show(.detail(id)) },
                 onDrop: { [weak self] providers, itemId in
                     self?.handleDrop(providers, onto: itemId) ?? false
-                }
+                },
+                onOpenUpcoming: { [weak self] in self?.show(.upcoming) }
             )
         case .hierarchy:
             HierarchyView(
@@ -338,6 +363,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 linkRepository: environment.links,
                 attachmentRepository: environment.attachments,
                 activityRepository: environment.activities,
+                reminderRepository: environment.reminders,
                 calendar: environment.workCalendar,
                 onClosed: { [weak self] in self?.close(.detail(id)) }
             )

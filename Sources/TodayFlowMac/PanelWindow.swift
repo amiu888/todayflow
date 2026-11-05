@@ -22,7 +22,7 @@ public final class PanelWindow: NSPanel {
         let mask: NSWindow.StyleMask
         switch style {
         case .panel:
-            mask = [.titled, .closable, .resizable, .nonactivatingPanel]
+            mask = [.titled, .closable, .miniaturizable, .resizable, .nonactivatingPanel]
         case .slimBar, .capture:
             mask = [.borderless, .nonactivatingPanel]
         }

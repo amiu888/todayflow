@@ -86,7 +86,9 @@ public final class CaptureViewModel {
         self.draft = CaptureDraft(
             title: "",
             startAt: now,
-            endAt: calendar.defaultEndAt(createdAt: now)
+            // A capture belongs to today's plan: due at today's end of
+            // business, even when created after hours.
+            endAt: calendar.endOfBusiness(for: now)
         )
     }
 
@@ -120,6 +122,28 @@ public final class CaptureViewModel {
         let now = clock()
         self.draft = CaptureDraftBuilder(calendar: calendar)
             .build(objects: recognized, at: now, parentId: parentId)
+
+        // An empty keyboard capture must start empty, not with the literal
+        // placeholder “New task” (which users would then append to).
+        if recognized.isEmpty {
+            draft.title = ""
+            draft.descriptionMd = ""
+        }
+
+        // Explicit dates in the title/description still win, but a plain
+        // capture is due at today's end of business (not tomorrow's), so it
+        // shows up on the Today plan immediately.
+        let parser = ParseNaturalLanguageDates(
+            calendar: calendar.calendar,
+            workCalendar: calendar
+        )
+        let hasExplicitDate = !parser.parse(draft.title, at: now).isEmpty
+            || !parser.parse(draft.descriptionMd, at: now).isEmpty
+        if !hasExplicitDate {
+            draft.startAt = now
+            draft.endAt = calendar.endOfBusiness(for: now)
+        }
+
         self.droppedObjects = dropped
         self.splitsIntoTasks = splitIntoTasks
             && recognized.count > 1
@@ -241,7 +265,8 @@ public final class CaptureViewModel {
                             parentId: draft.parentId,
                             startAt: draft.startAt,
                             endAt: draft.endAt,
-                            priority: draft.priority
+                            priority: draft.priority,
+                            placement: .top
                         )
                     )
                     try await saveAttachment(object, source: dropped, for: item.id, at: now)
@@ -264,7 +289,8 @@ public final class CaptureViewModel {
                         parentId: draft.parentId,
                         startAt: draft.startAt,
                         endAt: draft.endAt,
-                        priority: draft.priority
+                        priority: draft.priority,
+                        placement: .top
                     )
                 )
                 savedItem = item
@@ -320,7 +346,7 @@ public final class CaptureViewModel {
         draft = CaptureDraft(
             title: "",
             startAt: now,
-            endAt: calendar.defaultEndAt(createdAt: now)
+            endAt: calendar.endOfBusiness(for: now)
         )
         droppedObjects = []
         savedItem = nil

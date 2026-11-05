@@ -19,8 +19,10 @@ public struct TodayView: View {
     /// drop landed on a row (FR-04), or `nil` for the panel background (FR-01).
     private let onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)?
     #endif
+    private let onOpenUpcoming: (@MainActor () -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isSearching: Bool = false
     @State private var searchText: String = ""
     @State private var isPanelDropTargeted: Bool = false
@@ -35,6 +37,7 @@ public struct TodayView: View {
         #if canImport(AppKit)
         self.onDrop = nil
         #endif
+        self.onOpenUpcoming = nil
     }
 
     /// Convenience initializer for hosts that own the repositories.
@@ -50,7 +53,8 @@ public struct TodayView: View {
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil,
-        onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil
+        onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil,
+        onOpenUpcoming: (@MainActor () -> Void)? = nil
     ) {
         self.model = TodayViewModel(
             repository: repository,
@@ -64,6 +68,7 @@ public struct TodayView: View {
         #if canImport(AppKit)
         self.onDrop = onDrop
         #endif
+        self.onOpenUpcoming = onOpenUpcoming
     }
 
     private var motion: Motion {
@@ -73,10 +78,18 @@ public struct TodayView: View {
     @MainActor
     public var body: some View {
         VStack(spacing: 0) {
-            ProgressHeaderView(progress: model.progress, motion: motion)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 4)
+            VStack(spacing: 8) {
+                dateHeader
+                weekStrip
+                if model.isViewingToday {
+                    ProgressHeaderView(progress: model.progress, motion: motion)
+                } else {
+                    futureDaySummary
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 2)
 
             FilterChipsView(
                 filter: model.filter,
@@ -113,6 +126,12 @@ public struct TodayView: View {
                 errorBanner(lastError)
             }
 
+            if model.isViewingToday,
+               let dueSoon = model.visibleRows.first(where: \.isDueSoon)
+            {
+                dueSoonBanner(dueSoon)
+            }
+
             if model.isLoading && model.visibleRows.isEmpty && model.visibleDoneRows.isEmpty {
                 loadingState
             } else {
@@ -123,6 +142,12 @@ public struct TodayView: View {
             minWidth: DesignTokens.Window.panelMinimum.width,
             minHeight: DesignTokens.Window.panelMinimum.height
         )
+        .background(DesignTokens.Palette.background)
+        .overlay(alignment: .top) {
+            DesignTokens.Palette.aurora
+                .frame(height: 240)
+                .allowsHitTesting(false)
+        }
         .background { keyboardShortcuts }
         #if canImport(AppKit)
         .onDrop(of: CaptureDropTypes.supported, isTargeted: $isPanelDropTargeted) { providers in
@@ -165,6 +190,7 @@ public struct TodayView: View {
         }
         .overlay(alignment: .bottom) { undoBar }
         .overlay(alignment: .top) { captureToast }
+        .tint(DesignTokens.Palette.accent)
         .task { await model.observe() }
     }
 
@@ -254,7 +280,7 @@ public struct TodayView: View {
     private var panelDropIndicator: some View {
         if isPanelDropTargeted {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.accentColor, lineWidth: 2)
+                .stroke(DesignTokens.Palette.accent, lineWidth: 2)
                 .padding(3)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -383,7 +409,13 @@ public struct TodayView: View {
                     }
                 }
 
-                if model.visibleRows.isEmpty && model.visibleDoneRows.isEmpty {
+                if model.isViewingToday, !model.upcomingRows.isEmpty {
+                    upcomingSection
+                }
+
+                if model.visibleRows.isEmpty && model.visibleDoneRows.isEmpty
+                    && model.upcomingRows.isEmpty
+                {
                     emptyState
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 40)
@@ -425,7 +457,7 @@ public struct TodayView: View {
         return content
             .background {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(dropTargetId == row.id ? Color.accentColor.opacity(0.12) : Color.clear)
+                    .fill(dropTargetId == row.id ? DesignTokens.Palette.accent.opacity(0.12) : Color.clear)
             }
             .onDrop(
                 of: CaptureDropTypes.supported,
@@ -441,7 +473,7 @@ public struct TodayView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.accentColor))
+                        .background(Capsule().fill(DesignTokens.Palette.accent))
                         .padding(.trailing, 8)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
@@ -450,6 +482,131 @@ public struct TodayView: View {
         #else
         return content
         #endif
+    }
+
+    // MARK: - Day header / week strip
+
+    @MainActor
+    private var dateHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(model.isViewingToday
+                ? "Today"
+                : model.activeDay.formatted(.dateTime.weekday(.wide))
+            )
+            .font(.system(.title2, design: .rounded).weight(.bold))
+            .foregroundStyle(DesignTokens.Palette.textPrimary)
+
+            Text(model.activeDay.formatted(.dateTime.month(.wide).day()))
+                .font(.subheadline)
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+
+            Spacer()
+
+            if !model.isViewingToday {
+                Button("Back to today") {
+                    Task { @MainActor in await model.goToToday() }
+                }
+                .buttonStyle(.borderless)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DesignTokens.Palette.accent)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @MainActor
+    private var weekStrip: some View {
+        HStack(spacing: 3) {
+            ForEach(model.weekDays) { day in
+                Button {
+                    Task { @MainActor in await model.selectDay(day.date) }
+                } label: {
+                    VStack(spacing: 2) {
+                        Text(day.date.formatted(.dateTime.weekday(.narrow)))
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(day.isSelected ? Color.white.opacity(0.8) : .secondary)
+
+                        Text(day.date.formatted(.dateTime.day()))
+                            .font(.system(.callout, design: .rounded).weight(.semibold))
+
+                        Circle()
+                            .fill(day.isSelected ? Color.white : DesignTokens.Palette.accent)
+                            .frame(width: 4, height: 4)
+                            .opacity(day.count > 0 ? 1 : 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .background {
+                        if day.isSelected {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(DesignTokens.Palette.gradient)
+                        } else {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(DesignTokens.Palette.surface)
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(
+                                day.isToday && !day.isSelected
+                                    ? DesignTokens.Palette.accent.opacity(0.65)
+                                    : DesignTokens.Palette.hairline,
+                                lineWidth: 1
+                            )
+                    )
+                    .foregroundStyle(
+                        day.isSelected
+                            ? Color.white
+                            : (day.isToday
+                                ? DesignTokens.Palette.accent
+                                : DesignTokens.Palette.textPrimary)
+                    )
+                    .shadow(
+                        color: day.isSelected ? DesignTokens.Palette.accent.opacity(0.35) : .clear,
+                        radius: 6,
+                        y: 2
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("\(day.count) task\(day.count == 1 ? "" : "s") due")
+                .accessibilityLabel(
+                    "\(day.date.formatted(date: .complete, time: .omitted)), \(day.count) tasks"
+                )
+            }
+        }
+    }
+
+    @MainActor
+    private var futureDaySummary: some View {
+        let ring = ProgressRingModel(done: model.progress.done, total: model.progress.total)
+        return HStack(spacing: 12) {
+            ProgressRingView(model: ring, tint: DesignTokens.Palette.accent, motion: motion)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(model.progress.remaining) planned")
+                    .font(.system(.body, design: .rounded).weight(.semibold))
+                Text(ring.doneLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text("Pick a task to work ahead")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(DesignTokens.Palette.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+        )
+        .shadow(color: DesignTokens.Palette.shadow, radius: 10, y: 4)
     }
 
     @MainActor
@@ -466,9 +623,223 @@ public struct TodayView: View {
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 2)
+        .padding(.top, 10)
+        .padding(.bottom, 3)
         .accessibilityElement(children: .combine)
+    }
+
+    @MainActor
+    private var upcomingSection: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text("Tomorrow & upcoming")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Text("\(model.upcomingRows.count)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if let onOpenUpcoming {
+                    Button("See all") {
+                        onOpenUpcoming()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.accent)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 3)
+
+            ForEach(model.upcomingRows) { row in
+                upcomingRow(row)
+            }
+        }
+    }
+
+    @MainActor
+    private func upcomingRow(_ row: TodayViewModel.UpcomingRow) -> some View {
+        HStack(spacing: 4) {
+            Button {
+                model.onOpenTask?(row.id)
+            } label: {
+                HStack(spacing: 8) {
+                    if let color = row.parentColorHex {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(Color(hex: color))
+                            .frame(width: 3, height: 16)
+                    }
+
+                    Circle()
+                        .fill(PriorityColor.color(for: row.priority, in: colorScheme))
+                        .frame(width: 7, height: 7)
+
+                    Text(row.title)
+                        .lineLimit(1)
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    Text(upcomingLabel(row.dueAt))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.leading, 14)
+                .padding(.trailing, 4)
+                .frame(height: 34)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                Menu("Priority") {
+                    ForEach(Priority.allCases, id: \.self) { priority in
+                        Button {
+                            Task { await model.setUpcomingPriority(row.id, priority) }
+                        } label: {
+                            HStack {
+                                Text(priority.label)
+                                if priority == row.priority {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Menu("Start time") {
+                    Button("Now") {
+                        Task { await model.setUpcomingStart(row.id, to: .now) }
+                    }
+                    Button("Tomorrow at 9:00") {
+                        Task { await model.setUpcomingStart(row.id, to: startTime(daysAhead: 1)) }
+                    }
+                    Button("Next Monday at 9:00") {
+                        Task { await model.setUpcomingStart(row.id, to: nextMonday()) }
+                    }
+                    Button("Tomorrow at end of day") {
+                        Task { await model.setUpcomingStart(row.id, to: tomorrowEndOfDay()) }
+                    }
+                }
+
+                Divider()
+
+                Button("Move up") {
+                    Task { await model.moveUpcomingUp(row.id) }
+                }
+                Button("Move down") {
+                    Task { await model.moveUpcomingDown(row.id) }
+                }
+
+                Divider()
+
+                Button("Open") {
+                    model.onOpenTask?(row.id)
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .padding(.trailing, 8)
+            .accessibilityLabel("Plan \(row.title)")
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.028))
+        )
+        .padding(.horizontal, 12)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func startTime(daysAhead: Int) -> Date {
+        let calendar = Calendar.current
+        let base = calendar.date(
+            byAdding: .day,
+            value: daysAhead,
+            to: calendar.startOfDay(for: .now)
+        ) ?? .now
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: base) ?? base
+    }
+
+    private func tomorrowEndOfDay() -> Date {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: .now)
+        ) ?? .now
+        return calendar.date(bySettingHour: 17, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+    }
+
+    private func nextMonday() -> Date {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let weekday = calendar.component(.weekday, from: today)
+        var days = (2 - weekday + 7) % 7
+        if days == 0 { days = 7 }
+        let monday = calendar.date(byAdding: .day, value: days, to: today) ?? today
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: monday) ?? monday
+    }
+
+    private func upcomingLabel(_ date: Date) -> String {
+        if Calendar.current.isDateInTomorrow(date) {
+            return "Tomorrow " + date.formatted(date: .omitted, time: .shortened)
+        }
+        return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+    }
+
+    // MARK: - Due soon
+
+    @MainActor
+    private func dueSoonBanner(_ row: TaskRowModel) -> some View {
+        let minutes = max(1, Int(row.dueAt.timeIntervalSinceNow / 60))
+        return HStack(spacing: 9) {
+            Image(systemName: "clock.fill")
+                .foregroundStyle(DesignTokens.Palette.warning)
+                .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Due soon · \(minutes) min")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.warning)
+
+                Text(row.title)
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textPrimary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            LinearGradient(
+                colors: [
+                    DesignTokens.Palette.warning.opacity(0.16),
+                    DesignTokens.Palette.warning.opacity(0.05),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(DesignTokens.Palette.warning)
+                .frame(width: 2)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Due soon, \(row.title), \(minutes) minutes")
     }
 
     // MARK: - States
@@ -527,7 +898,9 @@ public struct TodayView: View {
 
     @MainActor
     private var emptyTitle: String {
-        if model.progress.total == 0 {
+        if !model.isViewingToday, model.progress.total == 0 {
+            return "Nothing planned"
+        } else if model.progress.total == 0 {
             return "Nothing scheduled"
         } else if model.progress.isCleared {
             return "Day cleared"
@@ -538,10 +911,12 @@ public struct TodayView: View {
 
     @MainActor
     private var emptySubtitle: String {
-        if model.progress.total == 0 {
+        if !model.isViewingToday, model.progress.total == 0 {
+            return "Pick another day in the week strip, or add a task from Today."
+        } else if model.progress.total == 0 {
             return "Drop something anywhere, or press ⌃⌥Space to add a task."
         } else if model.progress.isCleared {
-            return "Everything on today's list is done."
+            return "Everything on this day is done."
         } else {
             return "Try a different filter or search."
         }
