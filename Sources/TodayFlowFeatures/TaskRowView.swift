@@ -44,13 +44,15 @@ public struct TaskRowView: View {
             .frame(height: DesignTokens.Spacing.rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
-                if isSelected {
-                    RoundedRectangle(
-                        cornerRadius: DesignTokens.Spacing.cornerRadius,
-                        style: .continuous
-                    )
-                    .fill(Color.accentColor.opacity(0.15))
-                }
+                RoundedRectangle(
+                    cornerRadius: DesignTokens.Spacing.cornerRadius,
+                    style: .continuous
+                )
+                .fill(
+                    isSelected
+                        ? Color.accentColor.opacity(0.15)
+                        : (isHovering ? Color.primary.opacity(0.045) : Color.clear)
+                )
             }
             .contentShape(Rectangle())
             .onTapGesture { onSelect(model.id) }

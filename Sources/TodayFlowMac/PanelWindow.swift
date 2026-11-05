@@ -37,6 +37,11 @@ public final class PanelWindow: NSPanel {
             titleVisibility = .visible
         case .slimBar, .capture:
             isMovableByWindowBackground = true
+            // Let the SwiftUI material card define the shape instead of
+            // showing an opaque square borderless window.
+            isOpaque = false
+            backgroundColor = .clear
+            hasShadow = true
         }
     }
 

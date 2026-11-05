@@ -60,7 +60,10 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             let objects = await self.dropLoader.load(from: providers)
-            guard !objects.isEmpty else { return }
+            guard !objects.isEmpty else {
+                self.presentDropError()
+                return
+            }
             if let itemId {
                 await self.attach(objects, to: itemId)
             } else {
@@ -90,6 +93,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         } catch {
             presentAttachmentError(error)
         }
+    }
+
+    /// A drop whose provider vended nothing (a source app can offer an
+    /// unsupported private type) should say so instead of failing silently.
+    private func presentDropError() {
+        let alert = NSAlert()
+        alert.messageText = "Couldn’t read that drop"
+        alert.informativeText = "The app didn’t provide a file, link, image, or text this app can read. Try dragging it from Finder or copying and pasting it."
+        alert.alertStyle = .informational
+        alert.runModal()
     }
 
     private func presentAttachmentError(_ error: Error) {

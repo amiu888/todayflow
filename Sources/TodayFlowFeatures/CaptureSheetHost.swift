@@ -40,7 +40,9 @@ public struct CaptureSheetHost: View {
                     viewModel.removeObject(at: index)
                 }
             },
-            motion: Motion(preference: reduceMotion ? .reduced : .full)
+            motion: Motion(preference: reduceMotion ? .reduced : .full),
+            errorMessage: viewModel.lastError,
+            isSaving: viewModel.isSaving
         )
         .task { await model.loadParents() }
     }

@@ -633,3 +633,60 @@ func singleObjectDrop_ignoresSplitFlag() async {
 
     #expect(await f.repository.allItems().count == 1)
 }
+
+// MARK: - Retry after a partial save
+
+private actor FlakyAttachmentRepository: AttachmentRepository {
+    struct Failure: Error {}
+    private var shouldFail = true
+    private(set) var stored: [TodayFlowCore.Attachment] = []
+
+    func attachments(for itemId: UUIDv7) async -> [TodayFlowCore.Attachment] {
+        stored.filter { $0.itemId == itemId }
+    }
+
+    func save(_ attachment: TodayFlowCore.Attachment) async throws {
+        if shouldFail {
+            shouldFail = false
+            throw Failure()
+        }
+        stored.append(attachment)
+    }
+
+    func delete(_ id: UUIDv7) async throws {
+        stored.removeAll { $0.id == id }
+    }
+
+    var count: Int { stored.count }
+}
+
+@Test @MainActor
+func retryingASaveAfterAnAttachmentFailure_doesNotDuplicateTheTask() async {
+    let repository = InMemoryWorkItemRepository()
+    let attachments = FlakyAttachmentRepository()
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let model = CaptureViewModel(
+        repository: repository,
+        attachmentRepository: attachments,
+        materializer: Materializer(
+            fileAccess: FakeFileAccess(),
+            attachmentsDirectory: URL(fileURLWithPath: "/tmp/todayflow-retry")
+        ),
+        clock: { now }
+    )
+    model.prepare(
+        dropped: [DroppedObject(fileURL: URL(fileURLWithPath: "/tmp/photo.png"))],
+        recognized: [RecognizedObject(type: .image, displayName: "photo.png")]
+    )
+    model.draft.title = "Photo"
+
+    await model.save()
+    #expect(model.lastError != nil)
+    #expect(await repository.allItems().count == 1)
+    #expect(await attachments.count == 0)
+
+    await model.save()
+    #expect(model.lastError == nil)
+    #expect(await repository.allItems().count == 1)
+    #expect(await attachments.count == 1)
+}

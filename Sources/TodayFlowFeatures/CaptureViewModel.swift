@@ -60,6 +60,9 @@ public final class CaptureViewModel {
     @ObservationIgnored private var droppedObjects: [DroppedObject] = []
     /// Suppresses the natural-language re-parse while AI fills in a suggestion.
     @ObservationIgnored private var isApplyingSuggestion = false
+    /// Attachments already persisted by a partially failed save, so retrying
+    /// "Add" does not create a duplicate task or duplicate rows.
+    @ObservationIgnored private var savedAttachmentCount = 0
 
     public init(
         repository: any WorkItemRepository,
@@ -124,6 +127,7 @@ public final class CaptureViewModel {
         self.savedItem = nil
         self.lastError = nil
         self.isSaving = false
+        self.savedAttachmentCount = 0
     }
 
     /// Removes a draft object (the sheet's chip × button), keeping the raw
@@ -242,23 +246,32 @@ public final class CaptureViewModel {
                 return
             }
 
-            let item = try await create.execute(
-                CreateTask.Input(
-                    kind: .task,
-                    title: draft.title,
-                    descriptionMd: draft.descriptionMd,
-                    parentId: draft.parentId,
-                    startAt: draft.startAt,
-                    endAt: draft.endAt,
-                    priority: draft.priority
+            let item: WorkItem
+            if let existing = savedItem {
+                // Retry after an attachment failed: the task already exists.
+                item = existing
+            } else {
+                item = try await create.execute(
+                    CreateTask.Input(
+                        kind: .task,
+                        title: draft.title,
+                        descriptionMd: draft.descriptionMd,
+                        parentId: draft.parentId,
+                        startAt: draft.startAt,
+                        endAt: draft.endAt,
+                        priority: draft.priority
+                    )
                 )
-            )
-
-            for (dropped, object) in zip(droppedObjects, draft.objects) {
-                try await saveAttachment(object, source: dropped, for: item.id, at: now)
+                savedItem = item
             }
 
-            savedItem = item
+            let pending = Array(zip(droppedObjects, draft.objects))
+                .dropFirst(savedAttachmentCount)
+            for (dropped, object) in pending {
+                try await saveAttachment(object, source: dropped, for: item.id, at: now)
+                savedAttachmentCount += 1
+            }
+
             onSaved?(item.id)
         } catch {
             lastError = error.localizedDescription
@@ -292,6 +305,7 @@ public final class CaptureViewModel {
         droppedObjects = []
         savedItem = nil
         lastError = nil
+        savedAttachmentCount = 0
         onCancel?()
     }
 

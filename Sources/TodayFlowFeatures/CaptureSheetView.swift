@@ -27,10 +27,9 @@ public struct CaptureSheetView: View {
     public let onCancel: @Sendable () -> Void
     public let onRemoveObject: @Sendable (Int) -> Void
     public let motion: Motion
-
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isDescriptionExpanded: Bool = false
-    @FocusState private var isTitleFocused: Bool
+    /// A failed save (for example an unreadable attachment) to show inline.
+    public let errorMessage: String?
+    public let isSaving: Bool
 
     public init(
         draft: Binding<CaptureDraft>,
@@ -38,7 +37,9 @@ public struct CaptureSheetView: View {
         onSave: @escaping @Sendable () -> Void,
         onCancel: @escaping @Sendable () -> Void,
         onRemoveObject: @escaping @Sendable (Int) -> Void,
-        motion: Motion = Motion(preference: .full)
+        motion: Motion = Motion(preference: .full),
+        errorMessage: String? = nil,
+        isSaving: Bool = false
     ) {
         self._draft = draft
         self.parents = parents
@@ -46,11 +47,17 @@ public struct CaptureSheetView: View {
         self.onCancel = onCancel
         self.onRemoveObject = onRemoveObject
         self.motion = motion
+        self.errorMessage = errorMessage
+        self.isSaving = isSaving
     }
+
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isDescriptionExpanded: Bool = false
+    @FocusState private var isTitleFocused: Bool
 
     @MainActor
     public var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             header
             titleField
             descriptionSection
@@ -58,19 +65,55 @@ public struct CaptureSheetView: View {
 
             if !draft.objects.isEmpty {
                 attachmentChips
+            } else {
+                dropHint
             }
 
+            if let errorMessage {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color(hex: "#fab219"))
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(8)
+                .background(
+                    Color(hex: "#fab219").opacity(0.14),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+                .accessibilityElement(children: .combine)
+            }
+
+            Spacer(minLength: 0)
             footer
         }
-        .padding(16)
-        .frame(width: DesignTokens.Window.panel.width)
+        .padding(18)
+        .frame(
+            width: DesignTokens.Window.capture.width,
+            height: DesignTokens.Window.capture.height,
+            alignment: .top
+        )
+        .background(
+            .regularMaterial,
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(borderColor, lineWidth: 1)
+        )
     }
 
     // MARK: - Header
 
     @MainActor
     private var header: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Image(systemName: "square.and.pencil")
+                .foregroundStyle(Color.accentColor)
+
             Text("New task")
                 .font(.headline)
 
@@ -91,15 +134,39 @@ public struct CaptureSheetView: View {
 
     @MainActor
     private var titleField: some View {
-        TextField("Title", text: $draft.title)
+        TextField("What needs doing?", text: $draft.title)
             .textFieldStyle(.plain)
             .font(.title3.weight(.medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            )
             .focused($isTitleFocused)
             .onAppear {
                 isTitleFocused = true
                 selectAllTitleText()
             }
             .accessibilityLabel("Title")
+    }
+
+    /// Shown when the sheet has no attachments — a quiet reminder that the
+    /// panel accepts more than the keyboard.
+    @MainActor
+    private var dropHint: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.down.doc")
+            Text("Drop a file, link, image, or text here — or press ⌘V.")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     /// Selects the prefilled title so the first keystroke overwrites the
@@ -276,9 +343,17 @@ public struct CaptureSheetView: View {
         let remove = onRemoveObject
 
         return HStack(spacing: 6) {
-            Image(systemName: style.symbolName)
-                .font(.system(size: 12))
-                .foregroundStyle(style.tint(in: scheme))
+            if let thumbnail = imageThumbnail(for: object) {
+                Image(nsImage: thumbnail)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 22, height: 22)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            } else {
+                Image(systemName: style.symbolName)
+                    .font(.system(size: 12))
+                    .foregroundStyle(style.tint(in: scheme))
+            }
 
             Text(object.displayName)
                 .lineLimit(1)
@@ -313,6 +388,17 @@ public struct CaptureSheetView: View {
         .accessibilityLabel("\(style.accessibilityName), \(object.displayName)")
     }
 
+    /// A real preview for image attachments when a local file is available.
+    private func imageThumbnail(for object: RecognizedObject) -> NSImage? {
+        #if canImport(AppKit)
+        guard object.type == .image else { return nil }
+        guard let path = object.localCopyPath ?? object.reference else { return nil }
+        return NSImage(contentsOfFile: path)
+        #else
+        return nil
+        #endif
+    }
+
     /// "com.microsoft.outlook" → "outlook".
     private func shortAppName(_ sourceApp: String) -> String {
         sourceApp.split(separator: ".").last.map(String.init) ?? sourceApp
@@ -341,12 +427,15 @@ public struct CaptureSheetView: View {
             .keyboardShortcut(.cancelAction)
             .accessibilityLabel("Cancel")
 
-            Button("Add") {
+            Button(isSaving ? "Adding…" : "Add") {
                 onSave()
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.borderedProminent)
-            .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(
+                isSaving
+                    || draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
             .accessibilityLabel("Add task")
         }
     }

@@ -112,7 +112,20 @@ public struct DroppedObjectLoader {
     private func loadURL(_ provider: NSItemProvider, type: UTType) async -> URL? {
         let objectURL: URL? = await withCheckedContinuation { continuation in
             provider.loadItem(forTypeIdentifier: type.identifier, options: nil) { item, _ in
-                continuation.resume(returning: item as? URL)
+                // Providers vend file URLs as NSURL, URL, String, or Data
+                // depending on the source app and OS version. A Finder drag
+                // in particular is not guaranteed to hand back a Swift URL.
+                if let url = item as? URL {
+                    continuation.resume(returning: url)
+                } else if let url = item as? NSURL {
+                    continuation.resume(returning: url as URL)
+                } else if let string = item as? String {
+                    continuation.resume(returning: URL(string: string))
+                } else if let data = item as? Data {
+                    continuation.resume(returning: Self.url(from: data))
+                } else {
+                    continuation.resume(returning: nil)
+                }
             }
         }
         if let objectURL { return objectURL }
