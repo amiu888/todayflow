@@ -116,70 +116,6 @@ final class TodayFlowUITests: XCTestCase {
         trayItem.click()
     }
 
-    /// Dragging the AppKit title area starts a real dragging session.
-    func testDraggingTaskTitleIntoTray() throws {
-        throw XCTSkip("XCUITest cannot synthesize macOS drag events; the AppKit drag source and drop pipeline are covered by unit tests and the drag-area hit test.")
-        let app = launchApp()
-        let title = "Title drag \(UUID().uuidString.prefix(5))"
-        _ = createTask(app, title)
-
-        let dragArea = app.descendants(matching: .any)
-            .matching(identifier: "task-drag-area-\(title)").firstMatch
-        XCTAssertTrue(dragArea.waitForExistence(timeout: 5), "Drag area missing")
-
-        let tray = app.descendants(matching: .any)
-            .matching(identifier: "tray-name-Working tray").firstMatch
-        XCTAssertTrue(tray.waitForExistence(timeout: 5))
-
-        dragArea.press(forDuration: 0.6, thenDragTo: tray)
-
-        XCTAssertTrue(
-            app.descendants(matching: .any)
-                .matching(identifier: "tray-chip-\(title)").firstMatch
-                .waitForExistence(timeout: 6),
-            "The dragged task did not land in the tray"
-        )
-    }
-
-    /// Dragging a title from one tray window to another moves it.
-    func testDraggingBetweenTrayWindows() throws {
-        throw XCTSkip("XCUITest cannot synthesize macOS drag events; the AppKit drag source and drop pipeline are covered by unit tests and the drag-area hit test.")
-        let app = launchApp()
-        let title = "Window drag \(UUID().uuidString.prefix(5))"
-        let row = createTask(app, title)
-        addToTray(app, row: row, tray: "Working tray")
-
-        app.buttons["Add working tray"].click()
-        let name = app.textFields["Tray name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 3))
-        name.typeText("Second tray")
-        app.buttons["Create"].click()
-
-        let secondName = app.descendants(matching: .any)
-            .matching(identifier: "tray-name-Second tray").firstMatch
-        XCTAssertTrue(secondName.waitForExistence(timeout: 4))
-        secondName.doubleClick()
-        let secondWindow = app.windows["Tray · Second tray"]
-        XCTAssertTrue(secondWindow.waitForExistence(timeout: 5))
-
-        app.descendants(matching: .any)
-            .matching(identifier: "tray-name-Working tray").firstMatch.doubleClick()
-        let workingWindow = app.windows["Tray · Working tray"]
-        XCTAssertTrue(workingWindow.waitForExistence(timeout: 5))
-
-        let dragArea = workingWindow.descendants(matching: .any)
-            .matching(identifier: "task-drag-area-\(title)").firstMatch
-        XCTAssertTrue(dragArea.waitForExistence(timeout: 4))
-        dragArea.press(forDuration: 0.6, thenDragTo: secondWindow)
-
-        XCTAssertTrue(
-            secondWindow.descendants(matching: .any)
-                .matching(identifier: "tray-window-row-\(title)").firstMatch
-                .waitForExistence(timeout: 6),
-            "The task did not move to the second tray window"
-        )
-    }
-
     /// Two tasks can be added to the same tray in sequence.
     func testAddingMultipleTasksToTray() throws {
         let app = launchApp()
@@ -614,40 +550,6 @@ final class TodayFlowUITests: XCTestCase {
         }
         XCTAssertFalse(rowB.exists, "Remove did not take the task out of the tray")
     }
-
-    /// Dragging a task from Today into an open tray window adds it there.
-    func testDraggingTaskIntoOpenTrayWindow() throws {
-        throw XCTSkip("XCUITest cannot synthesize macOS drag events; the AppKit drag source and drop pipeline are covered by unit tests and the drag-area hit test.")
-        let app = launchApp()
-        let title = "Window drop \(UUID().uuidString.prefix(5))"
-        _ = createTask(app, title)
-
-        app.buttons["Add working tray"].click()
-        let name = app.textFields["Tray name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 3))
-        name.typeText("Drop target")
-        app.buttons["Create"].click()
-
-        let trayName = app.descendants(matching: .any)
-            .matching(identifier: "tray-name-Drop target").firstMatch
-        XCTAssertTrue(trayName.waitForExistence(timeout: 4))
-        trayName.doubleClick()
-        let window = app.windows["Tray · Drop target"]
-        XCTAssertTrue(window.waitForExistence(timeout: 5))
-
-        let dragArea = app.descendants(matching: .any)
-            .matching(identifier: "task-drag-area-\(title)").firstMatch
-        XCTAssertTrue(dragArea.waitForExistence(timeout: 4))
-        dragArea.press(forDuration: 0.6, thenDragTo: window)
-
-        XCTAssertTrue(
-            window.descendants(matching: .any)
-                .matching(identifier: "tray-window-row-\(title)").firstMatch
-                .waitForExistence(timeout: 6),
-            "The task was not added to the open tray window"
-        )
-    }
-
 
     /// The header pin opens a dock popover with every edge; Left is the default.
     func testDockPopoverDefaultsToLeftEdge() throws {
