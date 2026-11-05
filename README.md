@@ -34,14 +34,16 @@ Build increments land in the order from `driver.md` §11. All eight are complete
 - [x] **3. TodayFlowRecognition** — eleven recognizers, materializer, enricher, pipeline
 - [x] **4. TodayFlowDesign** — priority colors, icons, progress ring, motion, tokens
 - [x] **5. TodayFlowFeatures** — Today, Capture, Detail, Hierarchy, Settings, end-of-day
-      review, Upcoming, Completed, project filter, undo, drag reorder
+      review, Upcoming, Completed, project filter, undo, drag reorder, JSON/CSV export
 - [x] **6. TodayFlowMac** — composition root, floating panel, menu bar, slim bar,
       global hotkey, drag-and-drop + paste, notifications, Quick Look / open / reveal
 - [x] **7. TodayFlowAI** — OpenAI-compatible client (JSON-schema fallback, retries,
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free and `swift test` passes **502 tests**.
+Verification: `swift build` is warning-free and `swift test` passes **508 tests**.
+The app also makes a daily database snapshot (`VACUUM INTO`) and keeps the last 7
+in `Application Support/TodayFlow/Backups/` (NFR-09).
 
 Known follow-ups before shipping a signed build (outside the eight build increments):
 

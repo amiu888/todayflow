@@ -81,6 +81,7 @@ public struct FilterChipsView: View {
                 Image(systemName: "magnifyingglass")
             }
             .buttonStyle(.plain)
+            .keyboardShortcut("f", modifiers: .command)
             .accessibilityLabel("Search")
         }
         .padding(.horizontal, 16)

@@ -1,6 +1,8 @@
 #if canImport(AppKit)
 import AppKit
 import Foundation
+import UniformTypeIdentifiers
+import TodayFlowFeatures
 
 /// The app's `NSApplicationDelegate` (driver.md build order 6): opens the
 /// production environment, installs the menu-bar status item, and shows the
@@ -52,6 +54,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             controller.onEndOfDayReview = { [weak review] in review?.present() }
             controller.onPlanDay = { [weak dayPlan] in dayPlan?.present() }
             controller.onAskAI = { [weak askAI] in askAI?.present() }
+            controller.onExportJSON = { [weak self] in self?.export(.json) }
+            controller.onExportCSV = { [weak self] in self?.export(.csv) }
             self.statusItem = controller
             summary.onRefreshed = { [weak controller, weak self] progress in
                 controller?.apply(progress: progress)
@@ -69,6 +73,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             }
             Task {
                 await environment.loadSettings()
+                await environment.backupDatabaseIfNeeded()
                 summary.updateCalendar(environment.workCalendar)
 
                 let notifications = NotificationController(
@@ -116,6 +121,41 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     ) -> Bool {
         windows?.show(.panel)
         return true
+    }
+
+    /// NFR-09: export the whole task store as JSON or CSV.
+    private func export(_ format: DataExport.Format) {
+        guard let environment else { return }
+        Task { @MainActor in
+            let items = await environment.workItems.allItems()
+            let data: Data
+            do {
+                data = try DataExport().data(for: items, format: format)
+            } catch {
+                self.presentExportError(error)
+                return
+            }
+
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = "TodayFlow.\(format.fileExtension)"
+            panel.allowedContentTypes = [format == .json ? .json : .commaSeparatedText]
+            panel.canCreateDirectories = true
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                self.presentExportError(error)
+            }
+        }
+    }
+
+    private func presentExportError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Couldn’t export"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 
     /// Releases the Carbon hotkey before the process exits.

@@ -25,6 +25,9 @@ public final class AppEnvironment {
 
     /// Optional AI clients (driver.md §8); `nil` in tests/previews.
     public let ai: AIEnvironment?
+    /// The production database location/queue, used for daily backups.
+    public let databaseURL: URL?
+    public let databaseQueue: DatabaseQueue?
 
     public init(
         workItems: any WorkItemRepository,
@@ -38,7 +41,9 @@ public final class AppEnvironment {
             attachmentsDirectory: AppEnvironment.defaultAttachmentsDirectory()
         ),
         workCalendar: WorkCalendar = .standard,
-        ai: AIEnvironment? = nil
+        ai: AIEnvironment? = nil,
+        databaseURL: URL? = nil,
+        databaseQueue: DatabaseQueue? = nil
     ) {
         self.workItems = workItems
         self.links = links
@@ -49,6 +54,8 @@ public final class AppEnvironment {
         self.materializer = materializer
         self.workCalendar = workCalendar
         self.ai = ai
+        self.databaseURL = databaseURL
+        self.databaseQueue = databaseQueue
     }
 
     /// Production wiring: one SQLite file in Application Support
@@ -65,7 +72,9 @@ public final class AppEnvironment {
             settings: settings,
             keychain: keychain,
             pipeline: .standard,
-            ai: AIEnvironment(settingsRepository: settings, keychain: keychain)
+            ai: AIEnvironment(settingsRepository: settings, keychain: keychain),
+            databaseURL: url,
+            databaseQueue: queue
         )
     }
 
@@ -87,6 +96,17 @@ public final class AppEnvironment {
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first ?? FileManager.default.temporaryDirectory
         return base.appendingPathComponent("TodayFlow", isDirectory: true)
+    }
+
+    /// Makes one daily snapshot, keeping the last seven (driver.md NFR-09).
+    /// Runs best-effort: a failed backup must never prevent the app starting.
+    public func backupDatabaseIfNeeded(at date: Date = .now) async {
+        guard let databaseQueue, let databaseURL else { return }
+        let directory = databaseURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Backups", isDirectory: true)
+        _ = try? await DatabaseBackup(directory: directory, keep: 7)
+            .run(queue: databaseQueue, at: date)
     }
 
     /// Loads the stored business-hours settings (driver.md line 49). A missing

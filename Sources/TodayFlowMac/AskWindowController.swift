@@ -82,6 +82,9 @@ public final class AskWindowController: NSObject, NSWindowDelegate {
     }
 
     public func windowWillClose(_ notification: Notification) {
+        // Closing the window is already the finish signal; clearing the hook
+        // prevents `cancel()` from calling back into `dismiss()`.
+        model?.onFinished = nil
         model?.cancel()
         model = nil
         window = nil

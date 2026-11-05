@@ -22,6 +22,9 @@ public final class StatusItemController: NSObject {
     /// Presents the AI plan/ask sheets (driver.md §8).
     public var onPlanDay: (() -> Void)?
     public var onAskAI: (() -> Void)?
+    /// NFR-09 export commands.
+    public var onExportJSON: (() -> Void)?
+    public var onExportCSV: (() -> Void)?
 
     public init(
         environment: AppEnvironment,
@@ -146,6 +149,9 @@ public final class StatusItemController: NSObject {
         menu.addItem(item("Hierarchy", #selector(openHierarchy)))
         menu.addItem(item("Settings", #selector(openSettings)))
         menu.addItem(.separator())
+        menu.addItem(item("Export JSON…", #selector(exportJSON)))
+        menu.addItem(item("Export CSV…", #selector(exportCSV)))
+        menu.addItem(.separator())
         menu.addItem(item("Quit TodayFlow", #selector(quit)))
         return menu
     }
@@ -181,6 +187,10 @@ public final class StatusItemController: NSObject {
     @objc private func openHierarchy() { windowManager.show(.hierarchy) }
 
     @objc private func openSettings() { windowManager.show(.settings) }
+
+    @objc private func exportJSON() { onExportJSON?() }
+
+    @objc private func exportCSV() { onExportCSV?() }
 
     @objc private func quit() { NSApp.terminate(nil) }
 }
