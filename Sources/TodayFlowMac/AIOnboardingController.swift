@@ -86,7 +86,7 @@ public final class AIOnboardingController: NSObject, NSWindowDelegate {
         window.level = .floating
         window.hidesOnDeactivate = true
         window.isReleasedWhenClosed = false
-        window.isMovableByWindowBackground = true
+        window.isMovableByWindowBackground = false
         window.delegate = self
         window.center()
         self.window = window

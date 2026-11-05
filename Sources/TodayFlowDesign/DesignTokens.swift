@@ -85,7 +85,7 @@ public enum DesignTokens {
     /// Settings 480×560).
     public enum Window {
         public static let panel = CGSize(width: 360, height: 640)
-        public static let panelMinimum = CGSize(width: 280, height: 420)
+        public static let panelMinimum = CGSize(width: 300, height: 420)
         public static let slimBar = CGSize(width: 360, height: 44)
         public static let menuBar = CGSize(width: 340, height: 480)
         /// The quick-add capture panel (FR-02/FR-05); width matches the panel.

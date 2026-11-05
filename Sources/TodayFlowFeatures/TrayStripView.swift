@@ -10,6 +10,7 @@ import TodayFlowDesign
 public struct TrayStripView: View {
     private let model: TodayViewModel
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
+    private let isCompact: Bool
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isAddingTray = false
@@ -21,10 +22,12 @@ public struct TrayStripView: View {
 
     public init(
         model: TodayViewModel,
-        onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil
+        onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
+        isCompact: Bool = false
     ) {
         self.model = model
         self.onOpenTray = onOpenTray
+        self.isCompact = isCompact
     }
 
     @MainActor
@@ -52,7 +55,9 @@ public struct TrayStripView: View {
             .padding(.horizontal, 12)
 
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 120), spacing: 8)],
+                columns: isCompact
+                    ? [GridItem(.flexible(), spacing: 8)]
+                    : [GridItem(.adaptive(minimum: 120), spacing: 8)],
                 alignment: .leading,
                 spacing: 8
             ) {

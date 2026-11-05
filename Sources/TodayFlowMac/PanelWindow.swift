@@ -49,8 +49,12 @@ public final class PanelWindow: NSPanel {
             // background makes an ordinary click with a tiny mouse movement
             // shove the whole UI a few pixels.
             isMovableByWindowBackground = false
-        case .slimBar, .capture:
+        case .slimBar:
+            // The slim bar has no title bar, so its background is the drag
+            // surface. The capture panel has an explicit drag grabber.
             isMovableByWindowBackground = true
+        case .capture:
+            isMovableByWindowBackground = false
             // Let the SwiftUI material card define the shape instead of
             // showing an opaque square borderless window.
             isOpaque = false

@@ -42,7 +42,7 @@ public final class FocusWindowController: NSObject, NSWindowDelegate {
             rootView: FocusView(model: model)
         )
         window.isReleasedWhenClosed = false
-        window.isMovableByWindowBackground = true
+        window.isMovableByWindowBackground = false
         window.delegate = self
         window.center()
         self.window = window

@@ -174,71 +174,13 @@ public struct TodayView: View {
     @MainActor
     private var panelBody: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 6) {
-                dateHeader
+            panelHeader
 
-                // One compact surface holds the week strip and the day's
-                // status row; the old design used three separate cards.
-                VStack(spacing: 0) {
-                    weekStrip
-                        .padding(.horizontal, 3)
-                        .padding(.vertical, 3)
+            filterBar
 
-                    Divider()
-                        .overlay(DesignTokens.Palette.hairline.opacity(0.7))
-
-                    if model.isViewingToday {
-                        ProgressHeaderView(progress: model.progress, motion: motion)
-                    } else {
-                        futureDaySummary
-                    }
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(DesignTokens.Palette.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
-                )
-
-                if model.isViewingToday, model.plannedMinutes > 0 {
-                    loadMeter
-                }
+            if !isCompact {
+                trayStrip
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 2)
-
-            FilterChipsView(
-                filter: model.filter,
-                sort: model.sort,
-                projects: model.projects,
-                projectFilter: model.projectFilter,
-                onFilterChange: { filter in
-                    Task { @MainActor in
-                        model.filter = filter
-                    }
-                },
-                onSortChange: { sort in
-                    Task { @MainActor in
-                        await model.setSort(sort)
-                    }
-                },
-                onProjectChange: { projectId in
-                    Task { @MainActor in
-                        model.projectFilter = projectId
-                    }
-                },
-                onSearch: {
-                    Task { @MainActor in
-                        isSearching = true
-                    }
-                }
-            )
-
-            TrayStripView(model: model, onOpenTray: onOpenTray)
-                .padding(.top, 2)
 
             if isSearching {
                 searchField
@@ -284,31 +226,16 @@ public struct TodayView: View {
         .overlay { panelDropIndicator }
         #endif
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.attachmentsChanged)) { _ in
-            Task { @MainActor in
-                await model.load()
-            }
+            reload()
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
-            Task { @MainActor in
-                await model.load()
-            }
+            reload()
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.captureSaved)) { note in
-            guard let message = note.userInfo?["message"] as? String else { return }
-            showCaptureConfirmation(message)
+            handleCaptureSaved(note)
         }
         .onChange(of: model.completionUndo) { _, undo in
-            undoBarTask?.cancel()
-            guard let undo else {
-                showsUndoBar = false
-                return
-            }
-            showsUndoBar = true
-            undoBarTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(5))
-                guard !Task.isCancelled, model.completionUndo == undo else { return }
-                showsUndoBar = false
-            }
+            updateUndoBar(for: undo)
         }
         .overlay(alignment: .bottom) { undoBar }
         .overlay(alignment: .top) { captureToast }
@@ -330,6 +257,121 @@ public struct TodayView: View {
         }
         .tint(DesignTokens.Palette.accent)
         .task { await model.observe() }
+    }
+
+    @MainActor
+    private var trayStrip: some View {
+        TrayStripView(
+            model: model,
+            onOpenTray: onOpenTray,
+            isCompact: isCompact
+        )
+        .padding(.top, 2)
+    }
+
+    @MainActor
+    private var filterBar: some View {
+        FilterChipsView(
+            filter: model.filter,
+            sort: model.sort,
+            projects: model.projects,
+            projectFilter: model.projectFilter,
+            onFilterChange: { filter in
+                Task { @MainActor in
+                    model.filter = filter
+                }
+            },
+            onSortChange: { sort in
+                Task { @MainActor in
+                    await model.setSort(sort)
+                }
+            },
+            onProjectChange: { projectId in
+                Task { @MainActor in
+                    model.projectFilter = projectId
+                }
+            },
+            onSearch: {
+                Task { @MainActor in
+                    isSearching = true
+                }
+            }
+        )
+    }
+
+    @MainActor
+    private var panelHeader: some View {
+        VStack(spacing: 6) {
+            dateHeader
+
+            // One compact surface holds the week strip and the day's status
+            // row; the old design used three separate cards.
+            dayStatusCard
+
+            if model.isViewingToday, model.plannedMinutes > 0 {
+                loadMeter
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
+    }
+
+    @MainActor
+    private var dayStatusCard: some View {
+        VStack(spacing: 0) {
+            if isCompact {
+                verticalWeekStrip
+            } else {
+                weekStrip
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 3)
+            }
+
+            Divider()
+                .overlay(DesignTokens.Palette.hairline.opacity(0.7))
+
+            if model.isViewingToday {
+                ProgressHeaderView(progress: model.progress, motion: motion)
+            } else {
+                futureDaySummary
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(DesignTokens.Palette.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+        )
+    }
+
+    private func reload() {
+        Task { @MainActor in
+            await model.load()
+        }
+    }
+
+    @MainActor
+    private func handleCaptureSaved(_ note: Notification) {
+        guard let message = note.userInfo?["message"] as? String else { return }
+        showCaptureConfirmation(message)
+    }
+
+    @MainActor
+    private func updateUndoBar(for undo: TodayViewModel.CompletionUndo?) {
+        undoBarTask?.cancel()
+        guard let undo else {
+            showsUndoBar = false
+            return
+        }
+        showsUndoBar = true
+        undoBarTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, model.completionUndo == undo else { return }
+            showsUndoBar = false
+        }
     }
 
     @MainActor
@@ -518,7 +560,15 @@ public struct TodayView: View {
     @MainActor
     private var list: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap) {
+            VStack(spacing: 0) {
+                if isCompact {
+                    trayStrip
+                        .padding(.bottom, 2)
+                    Divider()
+                        .padding(.horizontal, 12)
+                }
+
+                LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap) {
                 if !model.visibleOverdueRows.isEmpty {
                     sectionHeader("Overdue", count: model.visibleOverdueRows.count, tint: Color(hex: "#d03b3b"))
 
@@ -558,8 +608,9 @@ public struct TodayView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 40)
                 }
+                }
+                .padding(.horizontal, 12)
             }
-            .padding(.horizontal, 12)
         }
     }
 
@@ -961,6 +1012,69 @@ public struct TodayView: View {
                 )
             }
         }
+    }
+
+    @MainActor
+    private var verticalWeekStrip: some View {
+        VStack(spacing: 0) {
+            ForEach(model.weekDays) { day in
+                Button {
+                    Task { @MainActor in await model.selectDay(day.date) }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(day.date.formatted(.dateTime.weekday(.abbreviated)))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(
+                                day.isSelected
+                                    ? DesignTokens.Palette.accent
+                                    : DesignTokens.Palette.textSecondary
+                            )
+                            .frame(width: 34, alignment: .leading)
+
+                        Text(day.date.formatted(.dateTime.month(.abbreviated).day()))
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(
+                                day.isSelected
+                                    ? DesignTokens.Palette.textPrimary
+                                    : DesignTokens.Palette.textPrimary
+                            )
+
+                        Spacer(minLength: 0)
+
+                        if day.count > 0 {
+                            Text("\(day.count)")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                        }
+
+                        if day.isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(DesignTokens.Palette.accent)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background {
+                        if day.isSelected {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(DesignTokens.Palette.accent.opacity(0.13))
+                        } else if day.isToday {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(DesignTokens.Palette.accent.opacity(0.06))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("\(day.count) task\(day.count == 1 ? "" : "s") due")
+                .accessibilityLabel(
+                    "\(day.date.formatted(date: .complete, time: .omitted)), \(day.count) tasks"
+                )
+            }
+        }
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
     }
 
     @MainActor
