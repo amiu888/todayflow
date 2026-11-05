@@ -99,5 +99,14 @@ public final class AIEnvironment: AIModelCatalog {
         }
         return try await assistant.listModels()
     }
+
+    /// Settings can fetch before Save: build the client from the in-memory form.
+    public func listModels(for settings: AIEndpointSettings) async throws -> [String] {
+        guard settings.enabled else { throw AIError.disabled }
+        guard let assistant = makeAssistant(settings) else {
+            throw AIError.invalidConfiguration("Check the base URL and model.")
+        }
+        return try await assistant.listModels()
+    }
 }
 #endif

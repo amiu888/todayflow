@@ -92,4 +92,14 @@ public protocol AIAssistant: Sendable {
 /// (driver.md §8 configuration table).
 public protocol AIModelCatalog: Sendable {
     func listModels() async throws -> [String]
+
+    /// Lists models for the settings currently being edited, before Save.
+    /// The default implementation ignores the override.
+    func listModels(for settings: AIEndpointSettings) async throws -> [String]
+}
+
+public extension AIModelCatalog {
+    func listModels(for settings: AIEndpointSettings) async throws -> [String] {
+        try await listModels()
+    }
 }

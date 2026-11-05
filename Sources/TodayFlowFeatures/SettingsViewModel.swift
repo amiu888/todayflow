@@ -150,7 +150,8 @@ public final class SettingsViewModel {
         lastError = nil
 
         do {
-            availableModels = try await modelCatalog.listModels()
+            // Use the current edits so Fetch works before Save.
+            availableModels = try await modelCatalog.listModels(for: aiSettings)
         } catch {
             availableModels = []
             lastError = error.localizedDescription

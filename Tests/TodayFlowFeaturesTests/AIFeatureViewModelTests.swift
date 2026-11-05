@@ -348,3 +348,26 @@ struct SettingsModelCatalogTests {
         #expect(model.lastError == "stub failure")
     }
 }
+
+private struct OverrideCatalog: AIModelCatalog {
+    func listModels() async throws -> [String] { ["saved"] }
+    func listModels(for settings: AIEndpointSettings) async throws -> [String] {
+        settings.enabled ? ["edited-\(settings.model)"] : []
+    }
+}
+
+@Test @MainActor
+func fetchModels_usesTheCurrentFormBeforeSave() async {
+    let model = SettingsViewModel(
+        repository: InMemorySettingRepository(),
+        keychain: InMemoryKeychainStore(),
+        calendar: aiTestCalendar,
+        modelCatalog: OverrideCatalog()
+    )
+    model.aiSettings.enabled = true
+    model.aiSettings.model = "llama3.1:8b"
+
+    await model.fetchModels()
+
+    #expect(model.availableModels == ["edited-llama3.1:8b"])
+}

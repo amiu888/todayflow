@@ -41,7 +41,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free and `swift test` passes **501 tests**.
+Verification: `swift build` is warning-free and `swift test` passes **502 tests**.
 
 Known follow-ups before shipping a signed build (outside the eight build increments):
 
