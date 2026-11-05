@@ -106,9 +106,13 @@ public struct CompletedHistoryView: View {
 
                                     Spacer()
 
-                                    Text((item.completedAt ?? item.updatedAt), format: .dateTime.day().month(.abbreviated).year())
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    Text(
+                                        (item.completedAt ?? item.updatedAt),
+                                        format: .dateTime.month(.abbreviated).day().hour().minute()
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .help("Completed \((item.completedAt ?? item.updatedAt).formatted(date: .abbreviated, time: .shortened))")
                                 }
                                 .padding(.horizontal, 12)
                                 .frame(height: DesignTokens.Spacing.rowHeight)
