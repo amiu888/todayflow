@@ -60,6 +60,32 @@ final class TodayFlowUITests: XCTestCase {
         )
     }
 
+    /// Dragging a task row onto a working tray adds it to that tray.
+    func testDraggingTaskIntoWorkingTrayAddsIt() throws {
+        let app = launchApp()
+        app.activate()
+        app.typeKey("n", modifierFlags: .command)
+
+        let title = app.textFields["Title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        app.typeText("Tray drag test")
+        app.buttons["Add task"].click()
+
+        let row = app.descendants(matching: .any).matching(identifier: "task-row-Tray drag test").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 8), "Task row missing")
+
+        let tray = app.descendants(matching: .any).matching(identifier: "tray-Working tray").firstMatch
+        XCTAssertTrue(tray.waitForExistence(timeout: 5), "Working tray missing")
+
+        row.press(forDuration: 0.8, thenDragTo: tray)
+
+        let chip = app.descendants(matching: .any).matching(identifier: "tray-chip-Tray drag test").firstMatch
+        XCTAssertTrue(
+            chip.waitForExistence(timeout: 6),
+            "The task was not added to the working tray by drag and drop"
+        )
+    }
+
     /// A single click on a task opens its detail window.
     func testClickingTaskOpensDetailWindow() throws {
         let app = launchApp()

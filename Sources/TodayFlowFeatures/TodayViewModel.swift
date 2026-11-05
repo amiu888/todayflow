@@ -436,6 +436,7 @@ public final class TodayViewModel {
     }
 
     public func addToTray(_ itemId: UUIDv7, trayId: UUIDv7) async {
+        Diagnostics.log("tray", "addToTray item=\(itemId) tray=\(trayId)")
         guard let index = trays.firstIndex(where: { $0.id == trayId }) else { return }
         guard !trays[index].itemIds.contains(itemId) else { return }
         trays[index].itemIds.append(itemId)

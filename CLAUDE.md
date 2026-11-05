@@ -9,14 +9,15 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (no-op).
-- `swift build` is warning-free; `swift test` passes **545 tests**; three XCUITests pass.
+- `swift build` is warning-free; `swift test` passes **545 tests**; four XCUITests pass.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
 - UI: cinematic dark/light theme, week strip/day planning, future-row priority/
   start/reorder menus, due-soon pulse + banner, window edge/window docking,
   native main menu, minimize-to-menu-bar restore, working trays, Focus mode,
-  week/month Calendar window, per-task reminders, XLSX export.
+  week/month Calendar window, per-task reminders, XLSX export, estimates/load
+  meter, tags editor, Insights, mini calendar corner pinning, attachment Open With.
 - Design references and the token plan live in `docs/design/todayflow-design.md`.
 - Installed official Anthropic skills: `frontend-design`, `theme-factory`;
   Superpowers development skills (`test-driven-development`, `systematic-debugging`,

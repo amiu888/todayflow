@@ -43,7 +43,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
 Verification: `swift build` is warning-free, `swift test` passes **545 tests**, and
-the three XCUITests pass against the real `.app` bundle. The app also makes a daily
+the four XCUITests pass against the real `.app` bundle. The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in
 `Application Support/TodayFlow/Backups/` (NFR-09).
 
@@ -61,6 +61,23 @@ exports to JSON, CSV, or a real Excel `.xlsx` workbook.
 
 Design rationale and the competitive references are in
 [`docs/design/todayflow-design.md`](./docs/design/todayflow-design.md).
+
+### Where to find things
+
+- **Working trays** — Today panel, below the filter row. Drag a task onto a tray, or right-click a task → **Add to tray**. Tray `…` menu: rename, color, insert after, move, delete.
+- **Mini calendar** — **View → Mini Calendar** (⌘7), or the compress icon in the date header. Choose Day/Week; pin to any of the four corners from the same menu or the pin menu in the mini window. It stays on every desktop.
+- **Show windows on all desktops** — **View → Show Windows on All Desktops**.
+- **Calendar** — **View → Calendar** (⌘5): week/month boards; drag a task onto a day to reschedule.
+- **Insights / weekly review** — **View → Insights** (⌘6).
+- **Focus mode** — hover a task and click the scope icon, or right-click → **Focus for 25 minutes**.
+- **Reminders** — open a task; the Reminder row is below the dates.
+- **Estimates + load meter** — open a task → **Estimate**; the meter appears under Today’s progress when estimates exist.
+- **Tags** — open a task; the tag row is under the status/priority pills.
+- **Excel export** — **File → Export Excel…** (also JSON/CSV).
+- **Attachments** — open a task; double-click to open in its native app (Excel/Preview/etc.), right-click for **Open**, **Open With…**, Quick Look, Reveal.
+- **Docking** — **View → Dock to Edges**; windows snap to screen and other-window edges.
+- **Appearance** — **View → Appearance** (Dark / Light / Follow System).
+
 
 Every task keeps an append-only activity log: creation, edits, status/priority/date
 changes, reorder/reparent, completion/reopen, link add/remove, and attachment add/

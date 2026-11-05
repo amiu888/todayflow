@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import TodayFlowCore
 import TodayFlowDesign
 #if canImport(AppKit)
@@ -17,6 +18,9 @@ public struct TaskRowView: View {
     public let onSelect: @Sendable (UUIDv7) -> Void
     /// Drop of a dragged row: `(draggedId, targetId, insertBefore)`, FR-12.
     public let onMove: @Sendable (UUIDv7, UUIDv7, Bool) -> Void
+    /// All trays, for the “Add to tray” context-menu fallback.
+    public let allTrays: [WorkTray]
+    public let onAddToTray: (@Sendable (UUIDv7, UUIDv7) -> Void)?
 
     public init(
         model: TaskRowModel,
@@ -25,7 +29,9 @@ public struct TaskRowView: View {
         motion: Motion = Motion(preference: .full),
         isSelected: Bool = false,
         onSelect: @escaping @Sendable (UUIDv7) -> Void = { _ in },
-        onMove: @escaping @Sendable (UUIDv7, UUIDv7, Bool) -> Void = { _, _, _ in }
+        onMove: @escaping @Sendable (UUIDv7, UUIDv7, Bool) -> Void = { _, _, _ in },
+        allTrays: [WorkTray] = [],
+        onAddToTray: (@Sendable (UUIDv7, UUIDv7) -> Void)? = nil
     ) {
         self.model = model
         self.onToggle = onToggle
@@ -34,6 +40,8 @@ public struct TaskRowView: View {
         self.isSelected = isSelected
         self.onSelect = onSelect
         self.onMove = onMove
+        self.allTrays = allTrays
+        self.onAddToTray = onAddToTray
     }
 
     @Environment(\.colorScheme) private var colorScheme
@@ -87,21 +95,45 @@ public struct TaskRowView: View {
                     quickActions
                 }
             }
-            // Drag to reorder (FR-12). The FR-30 drop popover (a choice of
-            // "move / reparent / complete") is a later refinement; today a
-            // drop is always a reorder relative to the target row.
-            .draggable(WorkItemDragPayload(itemId: model.id))
-            .dropDestination(for: WorkItemDragPayload.self) { payloads, location in
-                guard let payload = payloads.first, payload.itemId != model.id else {
-                    return false
+            // Drag to reorder (FR-12) and into trays. The NSItemProvider path
+            // is used instead of Transferable because it also works reliably
+            // across SwiftUI's nested ScrollViews on macOS.
+            .onDrag {
+                let itemId = model.id
+                return NSItemProvider(
+                    item: itemId.uuid.uuidString as NSString,
+                    typeIdentifier: UTType.todayFlowWorkItem.identifier
+                )
+            }
+            .onDrop(
+                of: [.todayFlowWorkItem],
+                isTargeted: nil
+            ) { providers in
+                guard let provider = providers.first else { return false }
+                Task { @MainActor in
+                    guard let string = try? await provider.loadItem(
+                        forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
+                        options: nil
+                    ) as? String,
+                        let uuid = UUID(uuidString: string),
+                        UUIDv7(uuid) != model.id
+                    else { return }
+                    onMove(UUIDv7(uuid), model.id, true)
                 }
-                let isBefore = location.y < DesignTokens.Spacing.rowHeight / 2
-                onMove(payload.itemId, model.id, isBefore)
                 return true
             }
             .contextMenu {
                 Button("Open") { onQuickAction(model.id, .open) }
                 Button("Focus for 25 minutes") { onQuickAction(model.id, .focus) }
+                if !allTrays.isEmpty, let onAddToTray {
+                    Menu("Add to tray") {
+                        ForEach(allTrays) { tray in
+                            Button(tray.name) {
+                                onAddToTray(model.id, tray.id)
+                            }
+                        }
+                    }
+                }
                 Divider()
                 Button("Move up") { onQuickAction(model.id, .moveUp) }
                 Button("Move down") { onQuickAction(model.id, .moveDown) }
@@ -117,6 +149,7 @@ public struct TaskRowView: View {
                 }
             }
             .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("task-row-\(model.title)")
             .accessibilityLabel(accessibilityLabel(dueTime: dueTime))
     }
 

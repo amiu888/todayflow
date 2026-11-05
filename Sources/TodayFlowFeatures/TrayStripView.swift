@@ -1,5 +1,6 @@
 import SwiftUI
 import Foundation
+import UniformTypeIdentifiers
 import TodayFlowCore
 import TodayFlowDesign
 
@@ -15,6 +16,7 @@ public struct TrayStripView: View {
     @State private var newTrayName = ""
     @State private var renamingTray: UUIDv7?
     @State private var renameText = ""
+    @State private var dropTargetID: UUIDv7?
 
     public init(model: TodayViewModel) {
         self.model = model
@@ -205,11 +207,48 @@ public struct TrayStripView: View {
                 .padding(.top, 3)
         }
         .shadow(color: DesignTokens.Palette.shadow.opacity(0.5), radius: 6, y: 2)
-        .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
-            guard let payload = payloads.first else { return false }
-            Task { await model.addToTray(payload.itemId, trayId: column.tray.id) }
+        .contentShape(Rectangle())
+        .onDrop(
+            of: [.todayFlowWorkItem],
+            isTargeted: Binding(
+                get: { dropTargetID == column.tray.id },
+                set: { targeted in
+                    if targeted {
+                        dropTargetID = column.tray.id
+                    } else if dropTargetID == column.tray.id {
+                        dropTargetID = nil
+                    }
+                }
+            )
+        ) { providers in
+            Diagnostics.log(
+                "tray",
+                "drop on tray \(column.tray.name) providers=\(providers.count)"
+            )
+            guard let provider = providers.first else { return false }
+            let trayId = column.tray.id
+            Task { @MainActor in
+                let item = try? await provider.loadItem(
+                    forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
+                    options: nil
+                )
+                let string = (item as? String)
+                    ?? (item as? NSString).map(String.init)
+                guard let string, let uuid = UUID(uuidString: string) else { return }
+                await model.addToTray(UUIDv7(uuid), trayId: trayId)
+            }
             return true
         }
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(
+                    dropTargetID == column.tray.id
+                        ? DesignTokens.Palette.accent
+                        : Color.clear,
+                    lineWidth: 2
+                )
+        )
+        .accessibilityIdentifier("tray-\(column.tray.name)")
         .accessibilityLabel("\(column.tray.name) tray, \(column.items.count) tasks")
     }
 
@@ -257,6 +296,7 @@ public struct TrayStripView: View {
             }
         }
         .help(item.descriptionMd.isEmpty ? item.title : item.descriptionMd)
+        .accessibilityIdentifier("tray-chip-\(item.title)")
         .draggable(WorkItemDragPayload(itemId: item.id))
     }
 

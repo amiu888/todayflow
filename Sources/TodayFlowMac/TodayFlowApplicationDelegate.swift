@@ -194,7 +194,19 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewMenu.addItem(appearanceItem)
         viewMenu.addItem(.separator())
         viewMenu.addItem(item("Today", #selector(showTodayMenu), key: "1"))
-        viewMenu.addItem(item("Mini Calendar", #selector(toggleMiniCalendarMenu), key: "7"))
+        let miniItem = NSMenuItem(title: "Mini Calendar", action: nil, keyEquivalent: "")
+        let miniMenu = NSMenu(title: "Mini Calendar")
+        miniMenu.addItem(item("Show / Hide", #selector(toggleMiniCalendarMenu), key: "7"))
+        miniMenu.addItem(item("Day view", #selector(showMiniDayMenu), key: ""))
+        miniMenu.addItem(item("Week view", #selector(showMiniWeekMenu), key: ""))
+        miniMenu.addItem(.separator())
+        miniMenu.addItem(item("Pin to Top Left", #selector(pinTopLeft), key: ""))
+        miniMenu.addItem(item("Pin to Top Right", #selector(pinTopRight), key: ""))
+        miniMenu.addItem(item("Pin to Bottom Left", #selector(pinBottomLeft), key: ""))
+        miniMenu.addItem(item("Pin to Bottom Right", #selector(pinBottomRight), key: ""))
+        miniMenu.addItem(item("Unpin", #selector(unpinMini), key: ""))
+        miniItem.submenu = miniMenu
+        viewMenu.addItem(miniItem)
         viewMenu.addItem(item("Calendar", #selector(showCalendarMenu), key: "5"))
         viewMenu.addItem(item("Insights", #selector(showInsightsMenu), key: "6"))
         viewMenu.addItem(item("Upcoming", #selector(showUpcomingMenu), key: "2"))
@@ -334,6 +346,20 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     @objc private func toggleMiniCalendarMenu() {
         windows?.toggleMiniCalendar()
     }
+
+    @objc private func showMiniDayMenu() {
+        windows?.showMiniCalendar(mode: .day)
+    }
+
+    @objc private func showMiniWeekMenu() {
+        windows?.showMiniCalendar(mode: .week)
+    }
+
+    @objc private func pinTopLeft() { windows?.pinMiniCalendar(to: .topLeft) }
+    @objc private func pinTopRight() { windows?.pinMiniCalendar(to: .topRight) }
+    @objc private func pinBottomLeft() { windows?.pinMiniCalendar(to: .bottomLeft) }
+    @objc private func pinBottomRight() { windows?.pinMiniCalendar(to: .bottomRight) }
+    @objc private func unpinMini() { windows?.pinMiniCalendar(to: nil) }
 
     @objc private func showInsightsMenu() {
         windows?.show(.insights)

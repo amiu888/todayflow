@@ -154,6 +154,17 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         miniCalendar.toggle()
     }
 
+    public func showMiniCalendar(mode: MiniCalendarViewModel.Mode) {
+        miniCalendar.present(mode: mode)
+    }
+
+    public func pinMiniCalendar(to corner: ScreenCorner?) {
+        if !miniCalendar.isPresenting {
+            miniCalendar.present()
+        }
+        miniCalendar.pin(to: corner)
+    }
+
     /// Minimize the Today panel; the menu-bar icon restores it.
     public func minimizePanel() {
         guard let panel = windows[.panel] ?? nil else {

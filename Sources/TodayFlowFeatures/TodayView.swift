@@ -462,6 +462,12 @@ public struct TodayView: View {
                 Task { @MainActor in
                     await model.move(draggedId, targetId: targetId, before: before)
                 }
+            },
+            allTrays: model.trays,
+            onAddToTray: { itemId, trayId in
+                Task { @MainActor in
+                    await model.addToTray(itemId, trayId: trayId)
+                }
             }
         )
 
