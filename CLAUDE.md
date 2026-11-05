@@ -29,10 +29,11 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
   `verification-before-completion`, `writing-plans`, review skills).
 - v1 is local-only. Sync outbox rows stay pending for the v2 CloudKit engine.
 
-`./scripts/build-app.sh` wraps the executable in a local ad-hoc-signed `.app`
-(Info.plist + Dock icon). Known follow-ups before a signed release: Developer ID,
-hardened runtime, notarization, XCUITests + performance gates, live Markdown
-rendering and pasted images in the detail description.
+`./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`
+(hardened runtime). `scripts/package-dmg.sh` notarizes and staples the DMG when
+`NOTARY_PROFILE` is set; the 1.4.2 DMG is notarized. Known follow-ups: XCUITests +
+performance gates, live Markdown rendering and pasted images in the detail
+description.
 
 ## Context rules (keep sessions small)
 - Never read or search inside: `.build/`, `DerivedData/`, `Pods/`, `*.sqlite`, `*.xcodeproj/project.pbxproj`.

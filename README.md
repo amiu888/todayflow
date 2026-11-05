@@ -94,12 +94,12 @@ changes, reorder/reparent, completion/reopen, link add/remove, and attachment ad
 remove, including the dropping app, file path/URL, actor, and timestamp. It is
 visible at the bottom of the task detail window.
 
-Known follow-ups before shipping a signed build (outside the eight build increments):
+Distribution status:
 
-- Developer ID signing, hardened-runtime entitlements, and notarization for distribution
-  (the local bundle script does ad-hoc signing).
+- Developer ID signing, hardened runtime, and **notarization + stapling** are done for
+  the 1.4.2 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
 - Broader XCUITest coverage (drag/drop, trays, calendar, focus) and the NFR-01…05
-  performance gates.
+  performance gates remain follow-ups.
 - Live Markdown rendering and pasted-image attachments inside the detail description.
 - CloudKit sync (v2, per `driver.md` §6); v1 is intentionally local-only.
 
@@ -117,9 +117,11 @@ open build/TodayFlow.app
 
 `scripts/build-app.sh` wraps the SwiftPM executable in a `.app` bundle and signs
 it with the first **Developer ID Application** identity in the keychain (hardened
-runtime). `scripts/package-dmg.sh` builds a signed DMG plus SHA-256 checksum.
+runtime). `scripts/package-dmg.sh` builds a signed DMG, notarizes and staples it
+when `NOTARY_PROFILE` is set, and writes the SHA-256 checksum **after** stapling
+(stapling changes the DMG).
 
-Notarization needs an Apple Developer account and a notarytool keychain profile:
+One-time notarytool setup:
 
 ```sh
 xcrun notarytool store-credentials todayflow \
