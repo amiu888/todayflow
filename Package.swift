@@ -30,6 +30,7 @@ let package = Package(
         .library(name: "TodayFlowCore", targets: ["TodayFlowCore"]),
         .library(name: "TodayFlowPersistence", targets: ["TodayFlowPersistence"]),
         .library(name: "TodayFlowRecognition", targets: ["TodayFlowRecognition"]),
+        .library(name: "TodayFlowAI", targets: ["TodayFlowAI"]),
         .library(name: "TodayFlowDesign", targets: ["TodayFlowDesign"]),
         .library(name: "TodayFlowFeatures", targets: ["TodayFlowFeatures"]),
         .library(name: "TodayFlowMac", targets: ["TodayFlowMac"]),
@@ -62,6 +63,15 @@ let package = Package(
         .target(
             name: "TodayFlowRecognition",
             dependencies: ["TodayFlowCore"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        .target(
+            name: "TodayFlowAI",
+            dependencies: ["TodayFlowCore"],
+            resources: [.process("Resources")],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
@@ -108,6 +118,14 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "TodayFlowAITests",
+            dependencies: ["TodayFlowAI"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        .testTarget(
             name: "TodayFlowRecognitionTests",
             dependencies: ["TodayFlowRecognition"],
             swiftSettings: [
@@ -129,6 +147,7 @@ let package = Package(
                 "TodayFlowCore",
                 "TodayFlowPersistence",
                 "TodayFlowRecognition",
+                "TodayFlowAI",
                 "TodayFlowDesign",
                 "TodayFlowFeatures",
                 .product(name: "GRDB", package: "GRDB.swift"),
