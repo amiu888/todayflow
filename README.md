@@ -42,7 +42,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free, `swift test` passes **547 tests**, and
+Verification: `swift build` is warning-free, `swift test` passes **551 tests**, and
 the five XCUITests pass against the real `.app` bundle. The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in
 `Application Support/TodayFlow/Backups/` (NFR-09).
@@ -64,7 +64,7 @@ Design rationale and the competitive references are in
 
 ### Where to find things
 
-- **Working trays** — Today panel, below the filter row. Drag any task (including Tomorrow & upcoming rows) onto a tray, or right-click → **Add to tray**. Tray `…` menu: rename, color, insert after, move, delete.
+- **Working trays** — Today panel, below the filter row. Drag any task (including Tomorrow & upcoming rows) onto a tray, or right-click → **Add to tray**. Trays hold any number of tasks and accept multi-item drags; drag a chip to another tray to move it. Double-click a tray (or its `…` → **Open tray window**) to open a full tray window with reorder, remove, and drag-and-drop; several tray windows can be open at once. Tray `…` menu: rename, color, insert after, move, delete.
 - **Mini calendar / 4 corners** — the **window menu** at the right of the date header, or **View → Mini Calendar** (⌘7). Choose Day/Week and **Pin mini calendar → Top Left / Top Right / Bottom Left / Bottom Right**. It stays on every desktop. **View → Show Windows on All Desktops** extends that to every window.
 - **Show windows on all desktops** — **View → Show Windows on All Desktops**.
 - **Calendar** — **View → Calendar** (⌘5): week/month boards; drag a task onto a day to reschedule.

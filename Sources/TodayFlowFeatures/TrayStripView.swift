@@ -9,6 +9,7 @@ import TodayFlowDesign
 /// are views over tasks, not a separate list.
 public struct TrayStripView: View {
     private let model: TodayViewModel
+    private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isAddingTray = false
@@ -18,8 +19,12 @@ public struct TrayStripView: View {
     @State private var renameText = ""
     @State private var dropTargetID: UUIDv7?
 
-    public init(model: TodayViewModel) {
+    public init(
+        model: TodayViewModel,
+        onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil
+    ) {
         self.model = model
+        self.onOpenTray = onOpenTray
     }
 
     @MainActor
@@ -108,6 +113,7 @@ public struct TrayStripView: View {
                 Text(column.tray.name)
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
+                    .accessibilityIdentifier("tray-name-\(column.tray.name)")
 
                 Text("\(column.items.count)")
                     .font(.caption2)
@@ -116,6 +122,9 @@ public struct TrayStripView: View {
                 Spacer(minLength: 2)
 
                 Menu {
+                    Button("Open tray window") {
+                        onOpenTray?(column.tray.id)
+                    }
                     Button("Rename…") {
                         renameText = column.tray.name
                         renamingTray = column.tray.id
@@ -166,6 +175,11 @@ public struct TrayStripView: View {
                 .help("Tray actions")
                 .accessibilityLabel("Actions for \(column.tray.name)")
             }
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                onOpenTray?(column.tray.id)
+            }
+            .help("Double-click to open \(column.tray.name)")
 
             if column.items.isEmpty {
                 Text("Drop a task here")
@@ -186,8 +200,12 @@ public struct TrayStripView: View {
                             chip(item, trayId: column.tray.id)
                         }
                     }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxHeight: 78)
+                .frame(maxHeight: 112)
+                .onDrop(of: [.todayFlowWorkItem], isTargeted: nil) { providers in
+                    accept(providers, into: column.tray.id)
+                }
             }
         }
         .padding(8)
@@ -221,28 +239,24 @@ public struct TrayStripView: View {
                 }
             )
         ) { providers in
-            Diagnostics.log(
-                "tray",
-                "drop on tray \(column.tray.name) providers=\(providers.count)"
-            )
-            guard let provider = providers.first else { return false }
-            let trayId = column.tray.id
-            Task { @MainActor in
-                let item = try? await provider.loadItem(
-                    forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
-                    options: nil
-                )
-                let string = (item as? String)
-                    ?? (item as? NSString).map(String.init)
-                guard let string, let uuid = UUID(uuidString: string) else { return }
-                await model.addToTray(UUIDv7(uuid), trayId: trayId)
-            }
-            return true
+            accept(providers, into: column.tray.id)
         }
         .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
             // Second path for SwiftUI-native drags.
-            guard let payload = payloads.first else { return false }
-            Task { await model.addToTray(payload.itemId, trayId: column.tray.id) }
+            guard !payloads.isEmpty else { return false }
+            for payload in payloads {
+                Task {
+                    if let source = payload.sourceTrayId {
+                        await model.moveToTray(
+                            payload.itemId,
+                            from: source,
+                            to: column.tray.id
+                        )
+                    } else {
+                        await model.addToTray(payload.itemId, trayId: column.tray.id)
+                    }
+                }
+            }
             return true
         }
         .overlay(
@@ -254,8 +268,6 @@ public struct TrayStripView: View {
                     lineWidth: 2
                 )
         )
-        .accessibilityIdentifier("tray-\(column.tray.name)")
-        .accessibilityLabel("\(column.tray.name) tray, \(column.items.count) tasks")
     }
 
     @MainActor
@@ -303,9 +315,38 @@ public struct TrayStripView: View {
         }
         .help(item.descriptionMd.isEmpty ? item.title : item.descriptionMd)
         .accessibilityIdentifier("tray-chip-\(item.title)")
-        .onDrag {
-            WorkItemDragPayload.itemProvider(for: item.id)
+        .draggable(WorkItemDragPayload(itemId: item.id, sourceTrayId: trayId))
+        .onDrop(of: [.todayFlowWorkItem], isTargeted: nil) { providers in
+            accept(providers, into: trayId)
         }
+    }
+
+    /// Accepts one or many providers; a drag that started in another tray is a
+    /// move, a drag from Today is an add.
+    @MainActor
+    private func accept(_ providers: [NSItemProvider], into trayId: UUIDv7) -> Bool {
+        Diagnostics.log("tray", "drop into tray=\(trayId) providers=\(providers.count)")
+        guard !providers.isEmpty else { return false }
+        for provider in providers {
+            Task { @MainActor in
+                let item = try? await provider.loadItem(
+                    forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
+                    options: nil
+                )
+                let string = (item as? String)
+                    ?? (item as? NSString).map(String.init)
+                guard let string,
+                      let decoded = WorkItemDragPayload.decode(string)
+                else { return }
+
+                if let source = decoded.sourceTray {
+                    await model.moveToTray(decoded.itemId, from: source, to: trayId)
+                } else {
+                    await model.addToTray(decoded.itemId, trayId: trayId)
+                }
+            }
+        }
+        return true
     }
 
     @MainActor

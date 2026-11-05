@@ -48,39 +48,7 @@ public final class StatusItemController: NSObject {
         popover.behavior = .transient
         popover.contentSize = DesignTokens.Window.menuBar
         popover.contentViewController = NSHostingController(
-            rootView: TodayView(
-                repository: environment.workItems,
-                linkRepository: environment.links,
-                attachmentRepository: environment.attachments,
-                settingRepository: environment.settings,
-                calendar: environment.workCalendar,
-                onOpenTask: { [weak windowManager] id in windowManager?.show(.detail(id)) },
-                onFocusTask: { [weak windowManager] id in windowManager?.presentFocus(id) },
-                onDrop: { [weak windowManager] providers, itemId in
-                    windowManager?.handleDrop(providers, onto: itemId) ?? false
-                },
-                onOpenUpcoming: { [weak windowManager] in windowManager?.show(.upcoming) },
-                windowActions: WindowMenuActions(
-                    toggleDocking: { [weak windowManager] in
-                        windowManager?.docking.isEnabled.toggle()
-                    },
-                    toggleAllDesktops: { [weak windowManager] in
-                        windowManager?.showOnAllDesktops.toggle()
-                    },
-                    toggleMiniCalendar: { [weak windowManager] in
-                        windowManager?.toggleMiniCalendar()
-                    },
-                    showMiniDay: { [weak windowManager] in
-                        windowManager?.showMiniCalendar(mode: .day)
-                    },
-                    showMiniWeek: { [weak windowManager] in
-                        windowManager?.showMiniCalendar(mode: .week)
-                    },
-                    pinMiniCalendar: { [weak windowManager] corner in
-                        windowManager?.pinMiniCalendar(to: corner)
-                    }
-                )
-            )
+            rootView: windowManager.makeTodayView()
         )
 
         installDropTarget(on: button)

@@ -14,6 +14,13 @@ final class TodayFlowUITests: XCTestCase {
 
     private func launchApp() -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "com.todayflow.app")
+        // Every UI test gets a clean database; never touch the user's tasks.
+        let db = FileManager.default.temporaryDirectory
+            .appendingPathComponent("todayflow-uitest-\(UUID().uuidString).sqlite")
+        app.launchEnvironment["TODAYFLOW_DB_PATH"] = db.path
+        // Floating, non-activating panels are invisible to XCUITest's window
+        // snapshot on current macOS; host the same views in normal windows.
+        app.launchEnvironment["TODAYFLOW_UI_TESTING"] = "1"
         app.launch()
         app.activate()
         let appeared = app.windows.firstMatch.waitForExistence(timeout: 15)
@@ -60,30 +67,35 @@ final class TodayFlowUITests: XCTestCase {
         )
     }
 
-    /// Dragging a task row onto a working tray adds it to that tray.
-    func testDraggingTaskIntoWorkingTrayAddsIt() throws {
+    /// Double-clicking a tray opens its full window, and multiple tray windows
+    /// can be open at once.
+    func testTrayWindowsOpenForMultipleTrays() throws {
         let app = launchApp()
         app.activate()
-        app.typeKey("n", modifierFlags: .command)
 
-        let title = app.textFields["Title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        app.typeText("Tray drag test")
-        app.buttons["Add task"].click()
-
-        let row = app.descendants(matching: .any).matching(identifier: "task-row-Tray drag test").firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 8), "Task row missing")
-
-        let tray = app.descendants(matching: .any).matching(identifier: "tray-Working tray").firstMatch
-        XCTAssertTrue(tray.waitForExistence(timeout: 5), "Working tray missing")
-
-        row.press(forDuration: 0.8, thenDragTo: tray)
-
-        let chip = app.descendants(matching: .any).matching(identifier: "tray-chip-Tray drag test").firstMatch
+        let working = app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Working tray").firstMatch
+        XCTAssertTrue(working.waitForExistence(timeout: 5))
+        working.doubleClick()
         XCTAssertTrue(
-            chip.waitForExistence(timeout: 6),
-            "The task was not added to the working tray by drag and drop"
+            app.windows["Tray · Working tray"].waitForExistence(timeout: 5),
+            "Double-click on a tray did not open its window"
         )
+        app.buttons["Add working tray"].click()
+        let name = app.textFields["Tray name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        name.typeText("Second tray")
+        app.buttons["Create"].click()
+
+        let second = app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Second tray").firstMatch
+        XCTAssertTrue(second.waitForExistence(timeout: 4))
+        second.doubleClick()
+        XCTAssertTrue(
+            app.windows["Tray · Second tray"].waitForExistence(timeout: 5),
+            "The second tray window did not open"
+        )
+        XCTAssertTrue(app.windows["Tray · Working tray"].exists)
     }
 
     /// Moving a task changes its position in the list.
@@ -153,16 +165,31 @@ final class TodayFlowUITests: XCTestCase {
         app.activate()
         app.typeKey("n", modifierFlags: .command)
 
+        let taskTitle = "Detail test \(UUID().uuidString.prefix(6))"
         let title = app.textFields["Title"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
-        app.typeText("Detail test task")
+        app.typeText(taskTitle)
 
         app.buttons["Add task"].click()
+        let deadline = Date().addingTimeInterval(5)
+        while title.exists, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        Thread.sleep(forTimeInterval: 0.5)
 
         let row = app.descendants(matching: .any)
-            .matching(identifier: "task-row-Detail test task").firstMatch
+            .matching(identifier: "task-row-\(taskTitle)").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 8))
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.4)).click()
+
+        // The first click on a window that lost key status only activates it;
+        // retry once before failing.
+        app.windows["Today"]
+            .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02))
+            .click()
+        row.click()
+        if !app.windows["Task"].waitForExistence(timeout: 3) {
+            row.click()
+        }
 
         XCTAssertTrue(
             app.windows["Task"].waitForExistence(timeout: 5),

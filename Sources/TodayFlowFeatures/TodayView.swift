@@ -21,6 +21,7 @@ public struct TodayView: View {
     #endif
     private let onOpenUpcoming: (@MainActor () -> Void)?
     private let onShowMiniCalendar: (@MainActor () -> Void)?
+    private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
     private let windowActions: WindowMenuActions?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,7 +42,30 @@ public struct TodayView: View {
         #endif
         self.onOpenUpcoming = nil
         self.onShowMiniCalendar = nil
+        self.onOpenTray = nil
         self.windowActions = nil
+    }
+
+    /// Host initializer used when the window manager owns the shared model.
+    @MainActor
+    public init(
+        model: TodayViewModel,
+        onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil,
+        onFocusTask: (@MainActor (UUIDv7) -> Void)? = nil,
+        onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil,
+        onOpenUpcoming: (@MainActor () -> Void)? = nil,
+        onShowMiniCalendar: (@MainActor () -> Void)? = nil,
+        onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
+        windowActions: WindowMenuActions? = nil
+    ) {
+        self.model = model
+        #if canImport(AppKit)
+        self.onDrop = onDrop
+        #endif
+        self.onOpenUpcoming = onOpenUpcoming
+        self.onShowMiniCalendar = onShowMiniCalendar
+        self.onOpenTray = onOpenTray
+        self.windowActions = windowActions
     }
 
     /// Convenience initializer for hosts that own the repositories.
@@ -61,6 +85,7 @@ public struct TodayView: View {
         onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil,
         onOpenUpcoming: (@MainActor () -> Void)? = nil,
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
+        onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         windowActions: WindowMenuActions? = nil
     ) {
         self.model = TodayViewModel(
@@ -78,6 +103,7 @@ public struct TodayView: View {
         #endif
         self.onOpenUpcoming = onOpenUpcoming
         self.onShowMiniCalendar = onShowMiniCalendar
+        self.onOpenTray = onOpenTray
         self.windowActions = windowActions
     }
 
@@ -131,7 +157,7 @@ public struct TodayView: View {
                 }
             )
 
-            TrayStripView(model: model)
+            TrayStripView(model: model, onOpenTray: onOpenTray)
                 .padding(.top, 2)
 
             if isSearching {

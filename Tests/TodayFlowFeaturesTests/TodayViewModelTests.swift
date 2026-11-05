@@ -755,3 +755,59 @@ func trays_startWithAWorkingTrayAndPersistCustomNames() async {
     await fresh.load()
     #expect(fresh.trays.map(\.name) == ["Working tray", "Now"])
 }
+
+// MARK: - Tray capacity, cross-tray moves, ordering
+
+@Test @MainActor
+func trays_supportUnlimitedItemsAndMoveBetweenTrays() async {
+    let f = Fixture()
+    await f.vm.load()
+    let source = f.vm.trays[0].id
+    await f.vm.addTray(name: "Dest")
+
+    var items: [WorkItem] = []
+    for index in 0..<25 {
+        let item = f.item("Tray item \(index)", displayOrder: String(format: "b%02d", index))
+        items.append(item)
+        await f.seed(item)
+    }
+    await f.vm.load()
+
+    for item in items {
+        await f.vm.addToTray(item.id, trayId: source)
+    }
+
+    #expect(f.vm.trayItems(trayId: source).count == 25)
+
+    let destination = try! #require(f.vm.trays.first { $0.name == "Dest" }?.id)
+    await f.vm.moveToTray(items[0].id, from: source, to: destination)
+
+    #expect(f.vm.trayItems(trayId: source).count == 24)
+    #expect(f.vm.trayItems(trayId: destination).map(\.id) == [items[0].id])
+
+    await f.vm.moveTrayItemUp(items[1].id, trayId: source)
+    #expect(f.vm.trayItems(trayId: source).first?.id == items[1].id)
+
+    await f.vm.moveTrayItemDown(items[1].id, trayId: source)
+    #expect(f.vm.trayItems(trayId: source).first?.id == items[2].id)
+}
+
+// MARK: - Multiple tray drops
+
+@Test @MainActor
+func addingMultipleItemsToOneTrayKeepsEveryItem() async {
+    let f = Fixture()
+    await f.vm.load()
+    let trayId = f.vm.trays[0].id
+
+    let first = f.item("First", displayOrder: "a1")
+    let second = f.item("Second", displayOrder: "a2")
+    await f.seed(first)
+    await f.seed(second)
+    await f.vm.load()
+
+    await f.vm.addToTray(first.id, trayId: trayId)
+    await f.vm.addToTray(second.id, trayId: trayId)
+
+    #expect(f.vm.trayItems(trayId: trayId).map(\.id) == [first.id, second.id])
+}

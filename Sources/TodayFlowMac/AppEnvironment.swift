@@ -69,7 +69,9 @@ public final class AppEnvironment {
     /// Production wiring: one SQLite file in Application Support
     /// (driver.md line 248: everything in one local SQLite database, GRDB, WAL).
     public static func makeProduction(databaseURL: URL? = nil) throws -> AppEnvironment {
-        let url = databaseURL ?? defaultDatabaseURL()
+        let environmentURL = ProcessInfo.processInfo.environment["TODAYFLOW_DB_PATH"]
+            .map { URL(fileURLWithPath: $0) }
+        let url = databaseURL ?? environmentURL ?? defaultDatabaseURL()
         let queue = try TodayFlowDatabase.make(at: url)
         let settings = GRDBSettingRepository(queue: queue)
         let keychain = SecurityKeychainStore()

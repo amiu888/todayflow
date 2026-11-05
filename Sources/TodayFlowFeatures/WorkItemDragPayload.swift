@@ -21,9 +21,13 @@ public extension UTType {
 /// so the two views can exchange drags and each decides what a drop means.
 public struct WorkItemDragPayload: Codable, Transferable {
     public let itemId: UUIDv7
+    /// Set when the drag began inside a tray, so dropping on another tray is a
+    /// move rather than a copy.
+    public let sourceTrayId: UUIDv7?
 
-    public init(itemId: UUIDv7) {
+    public init(itemId: UUIDv7, sourceTrayId: UUIDv7? = nil) {
         self.itemId = itemId
+        self.sourceTrayId = sourceTrayId
     }
 
     public static var transferRepresentation: some TransferRepresentation {
@@ -34,11 +38,30 @@ public struct WorkItemDragPayload: Codable, Transferable {
     /// The AppKit-backed drag source shared by Today, Upcoming, and trays.
     /// Using one provider implementation keeps every row draggable.
     @MainActor
-    public static func itemProvider(for itemId: UUIDv7) -> NSItemProvider {
-        NSItemProvider(
-            item: itemId.uuid.uuidString as NSString,
+    public static func itemProvider(
+        for itemId: UUIDv7,
+        sourceTray: UUIDv7? = nil
+    ) -> NSItemProvider {
+        let value = sourceTray == nil
+            ? itemId.uuid.uuidString
+            : "\(itemId.uuid.uuidString)|\(sourceTray!.uuid.uuidString)"
+        return NSItemProvider(
+            item: value as NSString,
             typeIdentifier: UTType.todayFlowWorkItem.identifier
         )
+    }
+
+    /// Parses the provider string into the item and, when the drag started in
+    /// a tray, its source tray (for move-between-trays).
+    public static func decode(_ value: String) -> (itemId: UUIDv7, sourceTray: UUIDv7?)? {
+        let parts = value.split(separator: "|", maxSplits: 1).map(String.init)
+        guard let first = parts.first, let uuid = UUID(uuidString: first) else {
+            return nil
+        }
+        let source = parts.count > 1
+            ? UUID(uuidString: parts[1]).map(UUIDv7.init)
+            : nil
+        return (UUIDv7(uuid), source)
     }
     #endif
 }

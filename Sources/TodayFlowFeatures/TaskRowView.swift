@@ -98,12 +98,9 @@ public struct TaskRowView: View {
                     quickActions
                 }
             }
-            // Drag to reorder (FR-12) and into trays. The NSItemProvider path
-            // is used instead of Transferable because it also works reliably
-            // across SwiftUI's nested ScrollViews on macOS.
-            .onDrag {
-                WorkItemDragPayload.itemProvider(for: model.id)
-            }
+            // The small grip at the leading edge is the drag source; the row
+            // itself stays clickable for opening details and moving with the
+            // chevrons.
             .onDrop(
                 of: [.todayFlowWorkItem],
                 delegate: TaskRowDropDelegate(
@@ -150,6 +147,16 @@ public struct TaskRowView: View {
                     .fill(Color(hex: parentColorHex))
                     .frame(width: 3)
             }
+
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(DesignTokens.Palette.textSecondary.opacity(0.7))
+                .frame(width: 14, height: 24)
+                .contentShape(Rectangle())
+                .draggable(WorkItemDragPayload(itemId: model.id))
+                .help("Drag to reorder or into a tray")
+                .accessibilityLabel("Drag \(model.title)")
+                .accessibilityIdentifier("drag-handle-\(model.title)")
 
             completionControl
 

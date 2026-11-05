@@ -19,6 +19,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private let attachmentActions = AttachmentActions()
     private let focus: FocusWindowController
     private let miniCalendar: MiniCalendarWindowController
+    /// One shared Today model for the panel, popover, and tray windows.
+    public let todayModel: TodayViewModel
+    private let trayWindows: TrayWindowController
     /// Snaps floating windows to screen edges and neighbouring windows.
     public let docking = WindowDockController()
     /// When true, all app windows follow the user across every Space.
@@ -42,8 +45,20 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         self.capture = CaptureWindowController(environment: environment)
         self.focus = FocusWindowController(environment: environment)
         self.miniCalendar = MiniCalendarWindowController(environment: environment)
+        let model = TodayViewModel(
+            repository: environment.workItems,
+            linkRepository: environment.links,
+            attachmentRepository: environment.attachments,
+            settingRepository: environment.settings,
+            calendar: environment.workCalendar,
+            deviceId: "local"
+        )
+        self.todayModel = model
+        self.trayWindows = TrayWindowController(model: model)
         self.showOnAllDesktops = UserDefaults.standard.object(forKey: Self.desktopsKey) as? Bool ?? false
         super.init()
+        self.todayModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
+        self.todayModel.onFocusTask = { [weak self] id in self?.presentFocus(id) }
         self.miniCalendar.onOpenDetail = { [weak self] id in self?.show(.detail(id)) }
         self.miniCalendar.onOpenMain = { [weak self] in
             self?.show(.panel)
@@ -142,6 +157,11 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// Opens the focused-work timer for one task.
     public func presentFocus(_ id: UUIDv7) {
         focus.present(itemId: id)
+    }
+
+    /// Opens a full tray window with every task, reorder, and remove controls.
+    public func openTray(_ id: UUIDv7) {
+        trayWindows.open(trayId: id)
     }
 
     /// Collapse the full panel into the corner-friendly mini calendar.
@@ -335,6 +355,42 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         }
     }
 
+    /// The Today panel hosted with the shared model. The menu-bar popover uses
+    /// the same instance, so tray windows and the panel stay in sync.
+    public func makeTodayView() -> TodayView {
+        TodayView(
+            model: todayModel,
+            onOpenTask: { [weak self] id in self?.show(.detail(id)) },
+            onFocusTask: { [weak self] id in self?.presentFocus(id) },
+            onDrop: { [weak self] providers, itemId in
+                self?.handleDrop(providers, onto: itemId) ?? false
+            },
+            onOpenUpcoming: { [weak self] in self?.show(.upcoming) },
+            onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() },
+            onOpenTray: { [weak self] id in self?.openTray(id) },
+            windowActions: WindowMenuActions(
+                toggleDocking: { [weak self] in
+                    self?.docking.isEnabled.toggle()
+                },
+                toggleAllDesktops: { [weak self] in
+                    self?.showOnAllDesktops.toggle()
+                },
+                toggleMiniCalendar: { [weak self] in
+                    self?.toggleMiniCalendar()
+                },
+                showMiniDay: { [weak self] in
+                    self?.showMiniCalendar(mode: .day)
+                },
+                showMiniWeek: { [weak self] in
+                    self?.showMiniCalendar(mode: .week)
+                },
+                pinMiniCalendar: { [weak self] corner in
+                    self?.pinMiniCalendar(to: corner)
+                }
+            )
+        )
+    }
+
     /// A save confirmation that explains where the task actually landed.
     /// After business hours the capture's due date is the next working day,
     /// which is not on Today's list.
@@ -366,40 +422,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private func content(for kind: WindowKind) -> some View {
         switch kind {
         case .panel:
-            TodayView(
-                repository: environment.workItems,
-                linkRepository: environment.links,
-                attachmentRepository: environment.attachments,
-                settingRepository: environment.settings,
-                calendar: environment.workCalendar,
-                onOpenTask: { [weak self] id in self?.show(.detail(id)) },
-                onFocusTask: { [weak self] in self?.presentFocus($0) },
-                onDrop: { [weak self] providers, itemId in
-                    self?.handleDrop(providers, onto: itemId) ?? false
-                },
-                onOpenUpcoming: { [weak self] in self?.show(.upcoming) },
-                onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() },
-                windowActions: WindowMenuActions(
-                    toggleDocking: { [weak self] in
-                        self?.docking.isEnabled.toggle()
-                    },
-                    toggleAllDesktops: { [weak self] in
-                        self?.showOnAllDesktops.toggle()
-                    },
-                    toggleMiniCalendar: { [weak self] in
-                        self?.toggleMiniCalendar()
-                    },
-                    showMiniDay: { [weak self] in
-                        self?.showMiniCalendar(mode: .day)
-                    },
-                    showMiniWeek: { [weak self] in
-                        self?.showMiniCalendar(mode: .week)
-                    },
-                    pinMiniCalendar: { [weak self] corner in
-                        self?.pinMiniCalendar(to: corner)
-                    }
-                )
-            )
+            makeTodayView()
         case .hierarchy:
             HierarchyView(
                 repository: environment.workItems,

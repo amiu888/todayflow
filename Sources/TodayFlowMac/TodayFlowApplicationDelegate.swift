@@ -2,6 +2,7 @@
 import AppKit
 import Foundation
 import UniformTypeIdentifiers
+import TodayFlowCore
 import TodayFlowFeatures
 
 /// The app's `NSApplicationDelegate` (driver.md build order 6): opens the

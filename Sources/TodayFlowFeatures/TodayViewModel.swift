@@ -449,6 +449,53 @@ public final class TodayViewModel {
         await persistTrays()
     }
 
+    /// Moves a task from one tray to another in one step (drag between trays).
+    public func moveToTray(
+        _ itemId: UUIDv7,
+        from sourceTrayId: UUIDv7,
+        to targetTrayId: UUIDv7
+    ) async {
+        guard sourceTrayId != targetTrayId else { return }
+        if let source = trays.firstIndex(where: { $0.id == sourceTrayId }) {
+            trays[source].itemIds.removeAll { $0 == itemId }
+        }
+        if let target = trays.firstIndex(where: { $0.id == targetTrayId }),
+           !trays[target].itemIds.contains(itemId)
+        {
+            trays[target].itemIds.append(itemId)
+        }
+        await persistTrays()
+    }
+
+    /// Reorders membership inside one tray, independent of the global list.
+    public func moveTrayItemUp(_ itemId: UUIDv7, trayId: UUIDv7) async {
+        await moveTrayItem(itemId, trayId: trayId, by: -1)
+    }
+
+    public func moveTrayItemDown(_ itemId: UUIDv7, trayId: UUIDv7) async {
+        await moveTrayItem(itemId, trayId: trayId, by: 1)
+    }
+
+    private func moveTrayItem(_ itemId: UUIDv7, trayId: UUIDv7, by offset: Int) async {
+        guard let index = trays.firstIndex(where: { $0.id == trayId }),
+              let current = trays[index].itemIds.firstIndex(of: itemId)
+        else { return }
+        let target = current + offset
+        guard trays[index].itemIds.indices.contains(target) else { return }
+        trays[index].itemIds.swapAt(current, target)
+        await persistTrays()
+    }
+
+    public func tray(id: UUIDv7) -> WorkTray? {
+        trays.first { $0.id == id }
+    }
+
+    public func trayItems(trayId: UUIDv7) -> [WorkItem] {
+        guard let tray = tray(id: trayId) else { return [] }
+        return tray.itemIds.compactMap { allItemsById[$0] }
+            .filter { !$0.isDeleted }
+    }
+
     private func moveTray(_ id: UUIDv7, by offset: Int) async {
         var ordered = trays.sorted { $0.sortOrder < $1.sortOrder }
         guard let index = ordered.firstIndex(where: { $0.id == id }) else { return }
