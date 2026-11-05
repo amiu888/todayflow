@@ -20,6 +20,21 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN_PATH/TodayFlowApp" "$APP_DIR/Contents/MacOS/TodayFlowApp"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+
+# SwiftPM resource bundles (TodayFlowAI prompts, GRDB resources) are separate
+# from the executable. Bundle.module looks in Bundle.main.resourceURL, which
+# is Contents/Resources inside an .app; without this copy the first AI request
+# crashes on the resource_bundle_accessor assertion.
+for bundle in "$BIN_PATH"/*.bundle; do
+    [[ -d "$bundle" ]] || continue
+    cp -R "$bundle" "$APP_DIR/Contents/Resources/"
+done
+
+if [[ ! -d "$APP_DIR/Contents/Resources/TodayFlow_TodayFlowAI.bundle" ]]; then
+    echo "error: TodayFlowAI resource bundle was not copied into the app" >&2
+    exit 1
+fi
+
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
