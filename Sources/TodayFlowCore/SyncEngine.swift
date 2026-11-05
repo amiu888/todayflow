@@ -12,14 +12,3 @@ public protocol SyncEngine: Sendable {
     /// Pull remote changes and merge them into the local store.
     func pull() async throws
 }
-
-/// A single-device sync engine that records nothing (driver.md §5: "Noop in v1").
-///
-/// Lets the app run and be tested without a server; the TodayFlowSync package
-/// provides the real implementation behind this same port.
-public struct NoopSyncEngine: SyncEngine, Sendable {
-    public init() {}
-
-    public func pushPending() async throws {}
-    public func pull() async throws {}
-}
