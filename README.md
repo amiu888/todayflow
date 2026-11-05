@@ -43,7 +43,9 @@ Build increments land in the order from `driver.md` §11. All eight are complete
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
 Verification: `swift build` is warning-free, `swift test` passes **685 tests**, and
-the XCUITest suite has twenty-one cases against the real `.app` bundle. The app also makes a daily
+the XCUITest suite has twenty-one cases against the real `.app` bundle. Local performance
+spot-checks: the Today panel appears in about 273 ms, 5,000 contacts load and search in
+about 0.21 s, and the 10,000-item Today query stays under the 500 ms NFR-04 bound. The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in
 `Application Support/TodayFlow/Backups/` (NFR-09).
 
