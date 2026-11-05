@@ -768,3 +768,35 @@ func savingAnEmailWithoutASummarizerLeavesTheSummaryEmpty() async {
     let id = try! #require(f.vm.savedItem?.id)
     #expect(await f.repository.item(id)?.summary == "")
 }
+
+@Test @MainActor
+func savingAnEmailResolvesTheSummarizerAtSaveTime() async {
+    let f = Fixture()
+    f.vm.emailSummarizerProvider = {
+        FixedEmailSummarizer(result: "Resolved at save time.")
+    }
+    let recognized = RecognizedObject(
+        type: .email,
+        displayName: "Late provider",
+        suggestedTitle: "Late provider",
+        previewText: "Body text"
+    )
+    f.vm.prepare(
+        dropped: [DroppedObject(url: URL(string: "message://late")!)],
+        recognized: [recognized]
+    )
+    f.vm.draft.title = "Late provider"
+
+    await f.vm.save()
+    let id = try! #require(f.vm.savedItem?.id)
+
+    var summary = ""
+    for _ in 0..<50 {
+        if let item = await f.repository.item(id), !item.summary.isEmpty {
+            summary = item.summary
+            break
+        }
+        try? await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(summary == "Resolved at save time.")
+}

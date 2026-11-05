@@ -25,6 +25,7 @@ public struct TodayView: View {
     private let dockedApp: AppDockState?
     private let onDockToApp: (@MainActor (String, String) -> Void)?
     private let onUndockApp: (@MainActor () -> Void)?
+    private let dockedAppProvider: (@MainActor () -> AppDockState?)?
     private let windowActions: WindowMenuActions?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -53,6 +54,7 @@ public struct TodayView: View {
         self.dockedApp = nil
         self.onDockToApp = nil
         self.onUndockApp = nil
+        self.dockedAppProvider = nil
         self.windowActions = nil
         _localDockedName = State(initialValue: nil)
     }
@@ -70,6 +72,7 @@ public struct TodayView: View {
         dockedApp: AppDockState? = nil,
         onDockToApp: (@MainActor (String, String) -> Void)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
+        dockedAppProvider: (@MainActor () -> AppDockState?)? = nil,
         windowActions: WindowMenuActions? = nil
     ) {
         self.model = model
@@ -82,6 +85,7 @@ public struct TodayView: View {
         self.dockedApp = dockedApp
         self.onDockToApp = onDockToApp
         self.onUndockApp = onUndockApp
+        self.dockedAppProvider = dockedAppProvider
         self.windowActions = windowActions
         _localDockedName = State(
             initialValue: dockedApp?.isDocked == true ? dockedApp?.appName : nil
@@ -109,6 +113,7 @@ public struct TodayView: View {
         dockedApp: AppDockState? = nil,
         onDockToApp: (@MainActor (String, String) -> Void)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
+        dockedAppProvider: (@MainActor () -> AppDockState?)? = nil,
         windowActions: WindowMenuActions? = nil
     ) {
         self.model = TodayViewModel(
@@ -130,6 +135,7 @@ public struct TodayView: View {
         self.dockedApp = dockedApp
         self.onDockToApp = onDockToApp
         self.onUndockApp = onUndockApp
+        self.dockedAppProvider = dockedAppProvider
         self.windowActions = windowActions
         _localDockedName = State(
             initialValue: dockedApp?.isDocked == true ? dockedApp?.appName : nil
@@ -604,6 +610,7 @@ public struct TodayView: View {
 
             if onDockToApp != nil {
                 Button {
+                    refreshDockState()
                     prepareDockPopover()
                     showingDockPopover = true
                 } label: {
@@ -672,6 +679,13 @@ public struct TodayView: View {
             return "Docked to \(name) — click to change"
         }
         return "Dock to another application"
+    }
+
+    @MainActor
+    private func refreshDockState() {
+        guard let state = dockedAppProvider?() else { return }
+        localDockedName = state.isDocked ? state.appName : nil
+        dockEdge = state.edge
     }
 
     @MainActor

@@ -32,6 +32,10 @@ public final class CaptureViewModel {
     /// Optional email summarizer. When nil (AI off, no provider, or the
     /// feature disabled) the task is saved without a summary.
     @ObservationIgnored public var emailSummarizer: (any EmailSummarizer)?
+    /// Resolves the summarizer at save time, so a capture saved immediately
+    /// after the panel opens still gets a summary once Settings has loaded.
+    @ObservationIgnored public var emailSummarizerProvider:
+        (@MainActor () async -> (any EmailSummarizer)?)?
 
     /// Projects the sheet's parent (project) picker offers.
     public private(set) var parents: [CaptureParentOption] = []
@@ -366,13 +370,23 @@ public final class CaptureViewModel {
         source: DroppedObject,
         at now: Date
     ) {
-        guard let summarizer = emailSummarizer,
-              let digest = emailDigest(object, source: source)
-        else { return }
+        guard let digest = emailDigest(object, source: source) else { return }
 
+        let direct = emailSummarizer
+        let provider = emailSummarizerProvider
         let repository = self.repository
         let deviceId = self.deviceId
         Task { @MainActor in
+            let summarizer: (any EmailSummarizer)?
+            if let direct {
+                summarizer = direct
+            } else {
+                summarizer = await provider?()
+            }
+            guard let summarizer else {
+                Diagnostics.log("ai", "email summary unavailable item=\(item.id)")
+                return
+            }
             guard let summary = try? await summarizer.summarize(digest) else {
                 Diagnostics.log("ai", "email summary skipped item=\(item.id)")
                 return

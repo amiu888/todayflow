@@ -48,9 +48,9 @@ public final class CaptureWindowController {
             splitIntoTasks: splitIntoTasks
         )
         currentModel = model
-        Task { @MainActor [weak self, weak model] in
-            guard let self, let model else { return }
-            model.emailSummarizer = await self.environment.ai?.emailSummarizer()
+        model.emailSummarizerProvider = { [weak self] in
+            guard let self, let ai = self.environment.ai else { return nil }
+            return await ai.emailSummarizer()
         }
 
         let host = NSHostingView(rootView: CaptureSheetHost(model: model))

@@ -410,6 +410,15 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 )
             },
             onUndockApp: { [weak self] in self?.undockPanel() },
+            dockedAppProvider: { [weak self] in
+                self?.docking.dockedTarget.map {
+                    AppDockState(
+                        appName: $0.name,
+                        edge: $0.edge.rawValue,
+                        isDocked: true
+                    )
+                }
+            },
             windowActions: WindowMenuActions(
                 toggleDocking: { [weak self] in
                     self?.docking.isEnabled.toggle()

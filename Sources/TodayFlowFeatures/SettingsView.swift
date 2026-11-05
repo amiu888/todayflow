@@ -111,8 +111,18 @@ public struct SettingsView: View {
                             step: 5.0
                         )
                     }
-                    ForEach(AIFeatures.all, id: \.self) { feature in
-                        Toggle(AIFeatures.label(for: feature), isOn: featureBinding(feature))
+                    if model.aiSettings.provider == .apple {
+                        Toggle(
+                            AIFeatures.label(for: AIFeatures.summarizeEmail),
+                            isOn: featureBinding(AIFeatures.summarizeEmail)
+                        )
+                        Text("Apple Intelligence currently powers on-device email summaries.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(AIFeatures.all, id: \.self) { feature in
+                            Toggle(AIFeatures.label(for: feature), isOn: featureBinding(feature))
+                        }
                     }
                 } else {
                     Text("AI is off by default. Enable it to use the AI features.")
