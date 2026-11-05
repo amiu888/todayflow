@@ -98,9 +98,12 @@ public struct TaskRowView: View {
                     quickActions
                 }
             }
-            // The small grip at the leading edge is the drag source; the row
-            // itself stays clickable for opening details and moving with the
-            // chevrons.
+            // Drag the row anywhere to reorder it or drop it on a tray. A
+            // click still opens the task because SwiftUI starts the drag only
+            // after the pointer moves.
+            .onDrag {
+                WorkItemDragPayload.itemProvider(for: model.id)
+            }
             .onDrop(
                 of: [.todayFlowWorkItem],
                 delegate: TaskRowDropDelegate(
@@ -153,17 +156,13 @@ public struct TaskRowView: View {
                 .foregroundStyle(DesignTokens.Palette.textSecondary.opacity(0.7))
                 .frame(width: 14, height: 24)
                 .contentShape(Rectangle())
-                .draggable(WorkItemDragPayload(itemId: model.id))
                 .help("Drag to reorder or into a tray")
                 .accessibilityLabel("Drag \(model.title)")
                 .accessibilityIdentifier("drag-handle-\(model.title)")
 
             completionControl
 
-            Circle()
-                .fill(PriorityColor.color(for: model.priority, in: colorScheme))
-                .frame(width: 8, height: 8)
-                .help("Priority: \(model.priority.label)")
+            priorityPill
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.title)
@@ -428,52 +427,74 @@ public struct TaskRowView: View {
         }
     }
 
+    /// The always-visible, compact priority control. Priority is a frequent
+    /// action, so it should not require hovering (which also used to stretch a
+    /// popup button across the row and block dragging).
     @MainActor
-    private var quickActions: some View {
+    private var priorityPill: some View {
         let id = model.id
         let quick = onQuickAction
         let priority = model.priority
         let scheme = colorScheme
 
-        return HStack(spacing: 4) {
-            Menu {
-                ForEach(Priority.allCases, id: \.self) { priority in
-                    Button(priority.label) {
-                        quick(id, .setPriority(priority))
+        return Menu {
+            ForEach(Priority.allCases, id: \.self) { option in
+                Button {
+                    quick(id, .setPriority(option))
+                } label: {
+                    if option == priority {
+                        Label(option.label, systemImage: "checkmark")
+                    } else {
+                        Text(option.label)
                     }
                 }
-            } label: {
-                HStack(spacing: 2) {
-                    Circle()
-                        .fill(PriorityColor.color(for: priority, in: scheme))
-                        .frame(width: 8, height: 8)
+            }
+        } label: {
+            HStack(spacing: 2) {
+                Circle()
+                    .fill(PriorityColor.color(for: priority, in: scheme))
+                    .frame(width: 7, height: 7)
 
-                    Text("priority")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color.secondary)
+                Text("P\(priority.rawValue)")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minWidth: 24)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Priority: \(priority.label) — click to change")
+        .accessibilityLabel("Priority: \(priority.label)")
+        .accessibilityIdentifier("row-priority-\(model.title)")
+    }
+
+    @MainActor
+    private var quickActions: some View {
+        let id = model.id
+        let quick = onQuickAction
+
+        return HStack(spacing: 2) {
+            if !allTrays.isEmpty, let onAddToTray {
+                Menu {
+                    ForEach(allTrays) { tray in
+                        Button(tray.name) {
+                            onAddToTray(id, tray.id)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "tray.and.arrow.down")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.primary)
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Add to tray")
+                .accessibilityLabel("Add to tray")
+                .accessibilityIdentifier("row-tray-menu-\(model.title)")
             }
-            .help("Change priority")
-
-            Button {
-                quick(id, .focus)
-            } label: {
-                Image(systemName: "scope")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.primary)
-            }
-            .buttonStyle(.plain)
-            .help("Focus for 25 minutes")
-
-            Button {
-                quick(id, .moveToTomorrow)
-            } label: {
-                Image(systemName: "calendar")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.primary)
-            }
-            .buttonStyle(.plain)
-            .help("Move to tomorrow")
 
             Button {
                 quick(id, .open)
@@ -532,15 +553,12 @@ public struct TaskRowView: View {
             let before = info.location.y < DesignTokens.Spacing.rowHeight / 2
             let target = targetId
             let move = onMove
+            let box = WorkItemDragPayload.ProviderBox(provider)
             Task { @MainActor in
-                guard let string = try? await provider.loadItem(
-                    forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
-                    options: nil
-                ) as? String,
-                    let uuid = UUID(uuidString: string),
-                    UUIDv7(uuid) != target
+                guard let payload = await WorkItemDragPayload.load(from: box.provider),
+                      payload.itemId != target
                 else { return }
-                move(UUIDv7(uuid), target, before)
+                move(payload.itemId, target, before)
             }
             return true
         }

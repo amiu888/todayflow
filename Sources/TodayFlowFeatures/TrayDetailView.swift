@@ -42,19 +42,6 @@ public struct TrayDetailView: View {
         ) { providers in
             accept(providers)
         }
-        .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
-            guard !payloads.isEmpty else { return false }
-            for payload in payloads {
-                Task {
-                    if let source = payload.sourceTrayId {
-                        await model.moveToTray(payload.itemId, from: source, to: trayId)
-                    } else {
-                        await model.addToTray(payload.itemId, trayId: trayId)
-                    }
-                }
-            }
-            return true
-        }
         .tint(DesignTokens.Palette.accent)
     }
 
@@ -234,6 +221,22 @@ public struct TrayDetailView: View {
             Button("Move down") {
                 Task { await model.moveTrayItemDown(item.id, trayId: trayId) }
             }
+            let otherTrays = model.trays.filter { $0.id != trayId }
+            if !otherTrays.isEmpty {
+                Menu("Move to tray") {
+                    ForEach(otherTrays) { other in
+                        Button(other.name) {
+                            Task {
+                                await model.moveToTray(
+                                    item.id,
+                                    from: trayId,
+                                    to: other.id
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             Button("Remove from tray") {
                 Task { await model.removeFromTray(item.id, trayId: trayId) }
             }
@@ -244,21 +247,15 @@ public struct TrayDetailView: View {
     private func accept(_ providers: [NSItemProvider]) -> Bool {
         guard !providers.isEmpty else { return false }
         for provider in providers {
+            let box = WorkItemDragPayload.ProviderBox(provider)
             Task { @MainActor in
-                let item = try? await provider.loadItem(
-                    forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
-                    options: nil
-                )
-                let string = (item as? String)
-                    ?? (item as? NSString).map(String.init)
-                guard let string,
-                      let decoded = WorkItemDragPayload.decode(string)
+                guard let payload = await WorkItemDragPayload.load(from: box.provider)
                 else { return }
 
-                if let source = decoded.sourceTray {
-                    await model.moveToTray(decoded.itemId, from: source, to: trayId)
+                if let source = payload.sourceTrayId {
+                    await model.moveToTray(payload.itemId, from: source, to: trayId)
                 } else {
-                    await model.addToTray(decoded.itemId, trayId: trayId)
+                    await model.addToTray(payload.itemId, trayId: trayId)
                 }
             }
         }

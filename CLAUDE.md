@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (no-op).
-- `swift build` is warning-free; `swift test` passes **551 tests**; five XCUITests pass.
+- `swift build` is warning-free; `swift test` passes **554 tests**; nine XCUITests pass.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.

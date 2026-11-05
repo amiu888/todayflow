@@ -241,24 +241,6 @@ public struct TrayStripView: View {
         ) { providers in
             accept(providers, into: column.tray.id)
         }
-        .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
-            // Second path for SwiftUI-native drags.
-            guard !payloads.isEmpty else { return false }
-            for payload in payloads {
-                Task {
-                    if let source = payload.sourceTrayId {
-                        await model.moveToTray(
-                            payload.itemId,
-                            from: source,
-                            to: column.tray.id
-                        )
-                    } else {
-                        await model.addToTray(payload.itemId, trayId: column.tray.id)
-                    }
-                }
-            }
-            return true
-        }
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(
@@ -315,7 +297,9 @@ public struct TrayStripView: View {
         }
         .help(item.descriptionMd.isEmpty ? item.title : item.descriptionMd)
         .accessibilityIdentifier("tray-chip-\(item.title)")
-        .draggable(WorkItemDragPayload(itemId: item.id, sourceTrayId: trayId))
+        .onDrag {
+            WorkItemDragPayload.itemProvider(for: item.id, sourceTray: trayId)
+        }
         .onDrop(of: [.todayFlowWorkItem], isTargeted: nil) { providers in
             accept(providers, into: trayId)
         }
@@ -328,21 +312,15 @@ public struct TrayStripView: View {
         Diagnostics.log("tray", "drop into tray=\(trayId) providers=\(providers.count)")
         guard !providers.isEmpty else { return false }
         for provider in providers {
+            let box = WorkItemDragPayload.ProviderBox(provider)
             Task { @MainActor in
-                let item = try? await provider.loadItem(
-                    forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
-                    options: nil
-                )
-                let string = (item as? String)
-                    ?? (item as? NSString).map(String.init)
-                guard let string,
-                      let decoded = WorkItemDragPayload.decode(string)
+                guard let payload = await WorkItemDragPayload.load(from: box.provider)
                 else { return }
 
-                if let source = decoded.sourceTray {
-                    await model.moveToTray(decoded.itemId, from: source, to: trayId)
+                if let source = payload.sourceTrayId {
+                    await model.moveToTray(payload.itemId, from: source, to: trayId)
                 } else {
-                    await model.addToTray(decoded.itemId, trayId: trayId)
+                    await model.addToTray(payload.itemId, trayId: trayId)
                 }
             }
         }

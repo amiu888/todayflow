@@ -51,6 +51,43 @@ public struct WorkItemDragPayload: Codable, Transferable {
         )
     }
 
+    /// NSItemProvider is not Sendable, but a drop callback hands it to a
+    /// MainActor task exactly once. This box makes that transfer explicit.
+    public struct ProviderBox: @unchecked Sendable {
+        public let provider: NSItemProvider
+
+        public init(_ provider: NSItemProvider) {
+            self.provider = provider
+        }
+    }
+
+    /// Loads a payload from either encoding this app can produce: the string
+    /// provider used by `.onDrag`, or the Codable JSON used by `.draggable`.
+    /// Accepting both keeps every drop target working during migrations.
+    public static func load(from provider: NSItemProvider) async -> WorkItemDragPayload? {
+        let value = try? await provider.loadItem(
+            forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
+            options: nil
+        )
+        if let string = (value as? String) ?? (value as? NSString).map(String.init),
+           let decoded = decode(string)
+        {
+            return WorkItemDragPayload(
+                itemId: decoded.itemId,
+                sourceTrayId: decoded.sourceTray
+            )
+        }
+        if let data = value as? Data,
+           let payload = try? JSONDecoder().decode(
+                WorkItemDragPayload.self,
+                from: data
+           )
+        {
+            return payload
+        }
+        return nil
+    }
+
     /// Parses the provider string into the item and, when the drag started in
     /// a tray, its source tray (for move-between-trays).
     public static func decode(_ value: String) -> (itemId: UUIDv7, sourceTray: UUIDv7?)? {

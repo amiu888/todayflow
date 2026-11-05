@@ -32,6 +32,173 @@ final class TodayFlowUITests: XCTestCase {
         return app
     }
 
+    @discardableResult
+    private func createTask(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        app.activate()
+        app.typeKey("n", modifierFlags: .command)
+        let field = app.textFields["Title"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "Capture sheet missing")
+        app.typeText(title)
+        app.buttons["Add task"].click()
+
+        let deadline = Date().addingTimeInterval(5)
+        while field.exists, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        Thread.sleep(forTimeInterval: 0.4)
+
+        let row = app.descendants(matching: .any)
+            .matching(identifier: "task-row-\(title)").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 8), "Task row missing")
+        return row
+    }
+
+    /// Adding to a tray from the row context menu works without a drag.
+    func testAddingTaskToTrayFromRowMenu() throws {
+        let app = launchApp()
+        let title = "Tray menu \(UUID().uuidString.prefix(6))"
+        let row = createTask(app, title)
+
+        row.rightClick()
+        let addToTray = app.menuItems["Add to tray"]
+        XCTAssertTrue(addToTray.waitForExistence(timeout: 3), "Add to tray menu missing")
+        addToTray.hover()
+
+        let working = app.menuItems["Working tray"]
+        XCTAssertTrue(working.waitForExistence(timeout: 3))
+        working.click()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "tray-chip-\(title)").firstMatch
+                .waitForExistence(timeout: 5),
+            "The task was not added to the tray"
+        )
+    }
+
+    /// The compact hover priority pill changes priority in one menu.
+    func testChangingPriorityFromRowMenu() throws {
+        let app = launchApp()
+        let title = "Priority \(UUID().uuidString.prefix(6))"
+        let row = createTask(app, title)
+
+        let pill = app.descendants(matching: .any)
+            .matching(identifier: "row-priority-\(title)").firstMatch
+        XCTAssertTrue(pill.waitForExistence(timeout: 3), "Priority pill missing")
+        pill.click()
+
+        let urgent = app.menuItems["P1 Critical"]
+        XCTAssertTrue(urgent.waitForExistence(timeout: 3), "Priority menu did not open")
+        urgent.click()
+
+        let updated = app.descendants(matching: .any)
+            .matching(identifier: "row-priority-\(title)").firstMatch
+        let deadline = Date().addingTimeInterval(4)
+        while updated.title != "Priority: P1 Critical", Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertEqual(updated.title, "Priority: P1 Critical")
+    }
+
+    private func addToTray(
+        _ app: XCUIApplication,
+        row: XCUIElement,
+        tray name: String
+    ) {
+        row.rightClick()
+        let addToTray = app.menuItems["Add to tray"]
+        XCTAssertTrue(addToTray.waitForExistence(timeout: 3), "Add to tray menu missing")
+        addToTray.hover()
+        let trayItem = app.menuItems[name]
+        XCTAssertTrue(trayItem.waitForExistence(timeout: 3), "Tray item missing")
+        trayItem.click()
+    }
+
+    /// Two tasks can be added to the same tray in sequence.
+    func testAddingMultipleTasksToTray() throws {
+        let app = launchApp()
+        let suffix = String(UUID().uuidString.prefix(5))
+        let titles = ["Tray add \(suffix) A", "Tray add \(suffix) B"]
+
+        for title in titles {
+            let row = createTask(app, title)
+            addToTray(app, row: row, tray: "Working tray")
+            XCTAssertTrue(
+                app.descendants(matching: .any)
+                    .matching(identifier: "tray-chip-\(title)").firstMatch
+                    .waitForExistence(timeout: 5),
+                "\(title) was not added to the tray"
+            )
+        }
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "tray-chip-\(titles[0])").firstMatch.exists
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "tray-chip-\(titles[1])").firstMatch.exists
+        )
+    }
+
+    /// A task can move from one open tray window to another.
+    func testMovingTaskBetweenTrayWindows() throws {
+        let app = launchApp()
+        let title = "Tray move \(UUID().uuidString.prefix(5))"
+        let row = createTask(app, title)
+        addToTray(app, row: row, tray: "Working tray")
+
+        app.buttons["Add working tray"].click()
+        let name = app.textFields["Tray name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        name.typeText("Second tray")
+        app.buttons["Create"].click()
+        let secondName = app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Second tray").firstMatch
+        XCTAssertTrue(secondName.waitForExistence(timeout: 4))
+
+        // Open Second first so Working is the frontmost window for the click.
+        secondName.doubleClick()
+        XCTAssertTrue(app.windows["Tray · Second tray"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Working tray").firstMatch.doubleClick()
+        XCTAssertTrue(app.windows["Tray · Working tray"].waitForExistence(timeout: 5))
+
+        let workingWindow = app.windows["Tray · Working tray"]
+        let movedRow = workingWindow.descendants(matching: .any)
+            .matching(identifier: "tray-window-row-\(title)").firstMatch
+        XCTAssertTrue(movedRow.waitForExistence(timeout: 4))
+        movedRow.rightClick()
+
+        let moveTo = app.menuItems["Move to tray"]
+        XCTAssertTrue(moveTo.waitForExistence(timeout: 3), "Move to tray menu missing")
+        moveTo.hover()
+        let destination = app.menuItems["Second tray"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 3))
+        destination.click()
+
+        let secondWindow = app.windows["Tray · Second tray"]
+        XCTAssertTrue(
+            secondWindow.descendants(matching: .any)
+                .matching(identifier: "tray-window-row-\(title)").firstMatch
+                .waitForExistence(timeout: 5),
+            "The task did not move to the second tray window"
+        )
+
+        let deadline = Date().addingTimeInterval(4)
+        while workingWindow.descendants(matching: .any)
+            .matching(identifier: "tray-window-row-\(title)").firstMatch.exists,
+            Date() < deadline
+        {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertFalse(
+            workingWindow.descendants(matching: .any)
+                .matching(identifier: "tray-window-row-\(title)").firstMatch.exists,
+            "The task is still in the source tray window"
+        )
+    }
+
     /// Paste a real PNG into the Today panel, then click Add. This exercises
     /// the same NSPasteboard/NSItemProvider → capture sheet → save path as a
     /// drag, without needing cross-process drag automation.
