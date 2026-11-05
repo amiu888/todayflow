@@ -21,6 +21,9 @@ public struct RecognizedObject: Hashable, Sendable, Codable {
     public var metadata: [String: String]
     public var suggestedTitle: String?
     public var previewText: String?
+    /// Populated for `.contact` drops so the capture flow can add the person
+    /// to the contact list without re-parsing the vCard.
+    public var contact: ImportedContact?
 
     public init(
         type: Attachment.Kind,
@@ -32,7 +35,8 @@ public struct RecognizedObject: Hashable, Sendable, Codable {
         localCopyPath: String? = nil,
         metadata: [String: String] = [:],
         suggestedTitle: String? = nil,
-        previewText: String? = nil
+        previewText: String? = nil,
+        contact: ImportedContact? = nil
     ) {
         self.type = type
         self.uti = uti
@@ -44,6 +48,7 @@ public struct RecognizedObject: Hashable, Sendable, Codable {
         self.metadata = metadata
         self.suggestedTitle = suggestedTitle
         self.previewText = previewText
+        self.contact = contact
     }
 
     /// Materializes the `Attachment` row this object will become once its

@@ -75,6 +75,36 @@ public struct DroppedObjectLoader {
             return object
         }
 
+        // vCard data from Contacts/Outlook (some apps do not use a file URL).
+        let vcardType = UTType(importedAs: "public.vcard")
+        if provider.hasItemConformingToTypeIdentifier(vcardType.identifier) {
+            if let data = await loadData(provider, type: vcardType),
+               let text = String(data: data, encoding: .utf8),
+               !text.isEmpty
+            {
+                return DroppedObject(text: text, sourceApp: sourceApp, uti: vcardType)
+            }
+            let text: String? = await withCheckedContinuation { continuation in
+                provider.loadItem(
+                    forTypeIdentifier: vcardType.identifier,
+                    options: nil
+                ) { item, _ in
+                    if let string = item as? String {
+                        continuation.resume(returning: string)
+                    } else if let string = item as? NSString {
+                        continuation.resume(returning: string as String)
+                    } else if let data = item as? Data {
+                        continuation.resume(returning: String(data: data, encoding: .utf8))
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+            if let text, !text.isEmpty {
+                return DroppedObject(text: text, sourceApp: sourceApp, uti: vcardType)
+            }
+        }
+
         // Ask for concrete image types first: a provider may list `public.png`
         // or `public.tiff` but refuse to vend data through the `public.image`
         // supertype. Safari/Preview screenshots commonly take this path.
@@ -256,6 +286,9 @@ public struct DroppedObjectLoader {
         let joined = identifiers.joined(separator: " ").lowercased()
         if joined.contains("teams") { return "teams" }
         if joined.contains("outlook") { return "outlook" }
+        if joined.contains("contacts") || joined.contains("addressbook") {
+            return "contacts"
+        }
         if joined.contains("mail") { return "com.apple.mail" }
         return nil
     }
@@ -304,7 +337,9 @@ public struct DroppedObjectLoader {
         let ext = url.pathExtension.lowercased()
         // Mail/Outlook/Calendar promise files are copied into the container on
         // save; recognizers parse their bytes, so load them now.
-        let fileData = ["eml", "msg", "ics"].contains(ext) ? try? Data(contentsOf: url) : nil
+        let fileData = ["eml", "msg", "ics", "vcf", "vcard"].contains(ext)
+            ? try? Data(contentsOf: url)
+            : nil
 
         return DroppedObject(
             fileURL: url,
@@ -323,6 +358,7 @@ public struct DroppedObjectLoader {
     /// string-backed, so this list can be registered with a view directly.
     public static let pasteboardTypes: [NSPasteboard.PasteboardType] = [
         .fileURL, .URL, .tiff, .png, .string, .html, .rtf,
+        NSPasteboard.PasteboardType(UTType(importedAs: "public.vcard").identifier),
     ]
 
     /// True when a drag contains something the app can turn into an object.
@@ -368,6 +404,20 @@ public struct DroppedObjectLoader {
             if let data = item.data(forType: .tiff) ?? item.data(forType: .png) {
                 return DroppedObject(imageData: data, sourceApp: sourceApp, uti: .image)
             }
+            let vcardPasteboardType = NSPasteboard.PasteboardType(
+                UTType(importedAs: "public.vcard").identifier
+            )
+            if let data = item.data(forType: vcardPasteboardType),
+               let text = String(data: data, encoding: .utf8),
+               !text.isEmpty
+            {
+                return DroppedObject(
+                    text: text,
+                    sourceApp: sourceApp,
+                    uti: UTType(importedAs: "public.vcard")
+                )
+            }
+
             // Rich text (Teams chat cards, Outlook/Mail messages) before the
             // generic plain-text fallback.
             for type in [UTType.html, .rtf] {

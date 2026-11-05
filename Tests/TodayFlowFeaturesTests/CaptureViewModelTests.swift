@@ -87,6 +87,7 @@ private final class CancelLog {
 private struct Fixture {
     let repository = InMemoryWorkItemRepository()
     let attachmentRepository = InMemoryAttachmentRepository()
+    let contactRepository = InMemoryContactRepository()
     let fileAccess = FakeFileAccess()
     let calendar = WorkCalendar(calendar: testCalendar)
     let now = testNow
@@ -103,6 +104,7 @@ private struct Fixture {
         self.vm = CaptureViewModel(
             repository: repository,
             attachmentRepository: attachmentRepository,
+            contactRepository: contactRepository,
             materializer: materializer,
             calendar: calendar,
             clock: { testNow },
@@ -799,4 +801,125 @@ func savingAnEmailResolvesTheSummarizerAtSaveTime() async {
         try? await Task.sleep(for: .milliseconds(20))
     }
     #expect(summary == "Resolved at save time.")
+}
+
+// MARK: - Contact drops
+
+private let vcardText = """
+BEGIN:VCARD
+VERSION:3.0
+N:Smith;Jane;;;
+EMAIL:jane@acme.com
+TEL:+1 555 0100
+ORG:Acme
+END:VCARD
+"""
+
+private func contactObject(
+    firstName: String = "Jane",
+    lastName: String = "Smith",
+    email: String = "jane@acme.com",
+    company: String = "Acme"
+) -> RecognizedObject {
+    RecognizedObject(
+        type: .contact,
+        displayName: "\(firstName) \(lastName)",
+        suggestedTitle: "Follow up with \(firstName) \(lastName)",
+        previewText: email,
+        contact: ImportedContact(
+            firstName: firstName,
+            lastName: lastName,
+            company: company,
+            emails: [email],
+            source: "contacts"
+        )
+    )
+}
+
+@Test @MainActor
+func contactDropAddsToContactsAndLinksTheTask() async {
+    let f = Fixture()
+    f.vm.prepare(
+        dropped: [DroppedObject(text: vcardText, sourceApp: "contacts")],
+        recognized: [contactObject()]
+    )
+    await f.vm.loadContactGroups()
+    #expect(f.vm.contactDrops.count == 1)
+    #expect(f.vm.contactDrops[0].duplicate == nil)
+
+    await f.vm.save()
+    let taskId = try! #require(f.vm.savedItem?.id)
+    let contacts = await f.contactRepository.contacts()
+    #expect(contacts.count == 1)
+    #expect(contacts.first?.firstName == "Jane")
+    #expect(await f.contactRepository.contacts(forTask: taskId).map(\.id) == contacts.map(\.id))
+}
+
+@Test @MainActor
+func contactDropCanBeExcludedFromContacts() async {
+    let f = Fixture()
+    f.vm.prepare(
+        dropped: [DroppedObject(text: vcardText, sourceApp: "contacts")],
+        recognized: [contactObject()]
+    )
+    await f.vm.loadContactGroups()
+    f.vm.contactDrops[0].addToContacts = false
+
+    await f.vm.save()
+    #expect(await f.contactRepository.contacts().isEmpty)
+}
+
+@Test @MainActor
+func contactDropMergesADuplicateByDefault() async {
+    let f = Fixture()
+    let existing = Contact(firstName: "Jane", company: "", emails: ["jane@acme.com"])
+    try? await f.contactRepository.save(existing)
+    f.vm.prepare(
+        dropped: [DroppedObject(text: vcardText, sourceApp: "contacts")],
+        recognized: [contactObject()]
+    )
+    await f.vm.loadContactGroups()
+    #expect(f.vm.contactDrops[0].duplicate?.id == existing.id)
+    #expect(f.vm.contactDrops[0].resolution == .merge)
+
+    await f.vm.save()
+    let contacts = await f.contactRepository.contacts()
+    #expect(contacts.count == 1)
+    #expect(contacts.first?.company == "Acme")
+    #expect(await f.contactRepository.contacts(forTask: f.vm.savedItem!.id).count == 1)
+}
+
+@Test @MainActor
+func contactDropCanKeepASeparateDuplicate() async {
+    let f = Fixture()
+    try? await f.contactRepository.save(
+        Contact(firstName: "Jane", emails: ["jane@acme.com"])
+    )
+    f.vm.prepare(
+        dropped: [DroppedObject(text: vcardText, sourceApp: "contacts")],
+        recognized: [contactObject()]
+    )
+    await f.vm.loadContactGroups()
+    f.vm.contactDrops[0].resolution = .keepSeparate
+
+    await f.vm.save()
+    #expect(await f.contactRepository.contacts().count == 2)
+}
+
+@Test @MainActor
+func contactDropCanBeMappedToAGroup() async {
+    let f = Fixture()
+    let group = ContactGroup(name: "Customers")
+    try? await f.contactRepository.saveGroup(group)
+    f.vm.prepare(
+        dropped: [DroppedObject(text: vcardText, sourceApp: "contacts")],
+        recognized: [contactObject()]
+    )
+    await f.vm.loadContactGroups()
+    #expect(f.vm.contactGroups.map(\.name) == ["Customers"])
+    f.vm.contactDrops[0].groupId = group.id
+
+    await f.vm.save()
+    let contact = try! #require(await f.contactRepository.contacts().first)
+    #expect(await f.contactRepository.groupIds(for: contact.id) == [group.id])
 }

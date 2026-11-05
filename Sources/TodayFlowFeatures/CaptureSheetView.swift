@@ -30,10 +30,14 @@ public struct CaptureSheetView: View {
     /// A failed save (for example an unreadable attachment) to show inline.
     public let errorMessage: String?
     public let isSaving: Bool
+    @Binding public var contactDrops: [CaptureContactDrop]
+    public let contactGroups: [ContactGroup]
 
     public init(
         draft: Binding<CaptureDraft>,
         parents: [CaptureParentOption] = [],
+        contactDrops: Binding<[CaptureContactDrop]> = .constant([]),
+        contactGroups: [ContactGroup] = [],
         onSave: @escaping @Sendable () -> Void,
         onCancel: @escaping @Sendable () -> Void,
         onRemoveObject: @escaping @Sendable (Int) -> Void,
@@ -43,6 +47,8 @@ public struct CaptureSheetView: View {
     ) {
         self._draft = draft
         self.parents = parents
+        self._contactDrops = contactDrops
+        self.contactGroups = contactGroups
         self.onSave = onSave
         self.onCancel = onCancel
         self.onRemoveObject = onRemoveObject
@@ -63,6 +69,9 @@ public struct CaptureSheetView: View {
             VStack(alignment: .leading, spacing: 14) {
                 titleField
                 attachmentSection
+                if !contactDrops.isEmpty {
+                    contactSection
+                }
 
                 if let errorMessage {
                     HStack(spacing: 6) {
@@ -333,6 +342,118 @@ public struct CaptureSheetView: View {
     }
 
     // MARK: - Schedule
+
+    @MainActor
+    private var contactSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text("Contacts")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                Text("\(contactDrops.count)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(DesignTokens.Palette.accent))
+                Spacer()
+                Text("added when you save")
+                    .font(.caption2)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary.opacity(0.8))
+            }
+
+            ForEach($contactDrops) { $drop in
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .foregroundStyle(DesignTokens.Palette.accent)
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(drop.imported.displayName)
+                                .font(.callout.weight(.medium))
+                                .lineLimit(1)
+                            Text(drop.imported.emails.first ?? drop.imported.phones.first ?? "Contact")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer()
+
+                        Toggle("Add to Contacts", isOn: $drop.addToContacts)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .help("Add \(drop.imported.displayName) to Contacts")
+                            .accessibilityLabel("Add to Contacts")
+
+                        if drop.addToContacts, !contactGroups.isEmpty {
+                            Menu {
+                                Button("No group") { drop.groupId = nil }
+                                ForEach(contactGroups) { group in
+                                    Button(group.name) { drop.groupId = group.id }
+                                }
+                            } label: {
+                                Label(groupName(for: drop), systemImage: "folder")
+                                    .font(.caption)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                            .help("Choose a contact group")
+                        }
+                    }
+
+                    if drop.addToContacts {
+                        HStack(spacing: 6) {
+                            if let duplicate = drop.duplicate {
+                                Image(systemName: "person.crop.circle.badge.exclamationmark")
+                                    .font(.caption2)
+                                    .foregroundStyle(DesignTokens.Palette.warning)
+                                Text("Already in Contacts: \(duplicate.displayName)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                Spacer()
+                                Menu {
+                                    ForEach(ContactDuplicateResolution.allCases) { resolution in
+                                        Button(resolution.label) {
+                                            drop.resolution = resolution
+                                        }
+                                    }
+                                } label: {
+                                    Label(drop.resolution.label, systemImage: "arrow.triangle.merge")
+                                        .font(.caption2)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .help(drop.resolution.hint)
+                            } else {
+                                Text("New contact")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                        }
+                    } else {
+                        Text("Task only — not added to Contacts")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(DesignTokens.Palette.surface.opacity(0.55))
+                )
+            }
+        }
+    }
+
+    private func groupName(for drop: CaptureContactDrop) -> String {
+        guard let id = drop.groupId,
+              let group = contactGroups.first(where: { $0.id == id })
+        else { return "No group" }
+        return group.name
+    }
 
     @MainActor
     private var scheduleCard: some View {

@@ -45,6 +45,7 @@ public struct RecognitionPipeline: Sendable {
             recognizers: [
                 OutlookEmailRecognizer(),
                 MailEmailRecognizer(),
+                ContactRecognizer(),
                 CalendarEventRecognizer(),
                 TeamsMessageRecognizer(),
                 FolderRecognizer(),

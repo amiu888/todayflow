@@ -472,3 +472,63 @@ struct TeamsMessageParsingTests {
         #expect(recognized.metadata[MetadataKeys.link] == "https://teams.microsoft.com/l/message/1")
     }
 }
+
+@Suite("ContactRecognizer")
+struct ContactRecognizerTests {
+    private let vcard = """
+        BEGIN:VCARD
+        VERSION:3.0
+        N:Smith;Jane;;;
+        FN:Jane Smith
+        ORG:Acme
+        TITLE:Buyer
+        EMAIL:jane@acme.com
+        TEL:+1 555 0100
+        NOTE:Met at expo
+        END:VCARD
+        """
+
+    @Test func handlesVCardFilesAndContactsText() {
+        let recognizer = ContactRecognizer()
+        #expect(recognizer.canHandle(DroppedObject(
+            fileURL: URL(fileURLWithPath: "/tmp/Jane.vcf")
+        )))
+        #expect(recognizer.canHandle(DroppedObject(
+            text: vcard,
+            sourceApp: "com.apple.AddressBook"
+        )))
+        #expect(recognizer.canHandle(DroppedObject(
+            text: "Jane Smith\njane@acme.com\n+1 555 0100",
+            sourceApp: "com.apple.AddressBook"
+        )))
+        #expect(!recognizer.canHandle(DroppedObject(
+            text: "Just a note",
+            sourceApp: "com.apple.Safari"
+        )))
+    }
+
+    @Test func recognizesVCardIntoAContact() {
+        let recognized = ContactRecognizer().recognize(DroppedObject(
+            text: vcard,
+            sourceApp: "com.apple.AddressBook"
+        ))
+        #expect(recognized.type == .contact)
+        #expect(recognized.displayName == "Jane Smith")
+        #expect(recognized.suggestedTitle == "Follow up with Jane Smith")
+        #expect(recognized.contact?.emails == ["jane@acme.com"])
+        #expect(recognized.contact?.phones == ["+1 555 0100"])
+        #expect(recognized.contact?.company == "Acme")
+        #expect(recognized.previewText?.contains("Jane") == false)
+        #expect(recognized.previewText?.contains("jane@acme.com") == true)
+    }
+
+    @Test func recognizesContactsText() {
+        let recognized = ContactRecognizer().recognize(DroppedObject(
+            text: "Jane Smith\njane@acme.com\n+1 555 0100",
+            sourceApp: "com.apple.AddressBook"
+        ))
+        #expect(recognized.contact?.displayName == "Jane Smith")
+        #expect(recognized.contact?.emails == ["jane@acme.com"])
+        #expect(recognized.contact?.phones == ["+1 555 0100"])
+    }
+}

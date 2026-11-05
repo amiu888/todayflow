@@ -671,6 +671,53 @@ final class TodayFlowUITests: XCTestCase {
     }
 
 
+
+    /// A contact captured from the clipboard becomes both a task and a contact.
+    func testContactClipboardCaptureAddsToContacts() throws {
+        let app = launchApp()
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(
+            """
+            BEGIN:VCARD
+            VERSION:3.0
+            N:Smith;Jane;;;
+            FN:Jane Smith
+            EMAIL:jane@acme.com
+            TEL:+1 555 0100
+            END:VCARD
+            """,
+            forType: .string
+        )
+
+        app.activate()
+        app.menuBars.menuBarItems["File"].click()
+        let capture = app.menuItems["Capture Clipboard"]
+        XCTAssertTrue(capture.waitForExistence(timeout: 3))
+        capture.click()
+
+        let title = app.textFields["Title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["Jane Smith"].waitForExistence(timeout: 4),
+            "The contact card did not appear in the capture sheet"
+        )
+        app.buttons["Add task"].click()
+
+        let deadline = Date().addingTimeInterval(5)
+        while title.exists, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+
+        app.activate()
+        app.typeKey("8", modifierFlags: .command)
+        let contacts = app.windows["Contacts"]
+        XCTAssertTrue(contacts.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            contacts.staticTexts["Jane Smith"].waitForExistence(timeout: 5),
+            "The captured contact was not added to Contacts"
+        )
+    }
+
     /// The Today header opens the contacts window, and a contact can be created.
     func testContactsWindowOpensAndCreatesContact() throws {
         let app = launchApp()

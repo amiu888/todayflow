@@ -74,7 +74,7 @@ public struct Materializer: Sendable {
     /// into the container (driver.md §7 step 2).
     static func isTransientFile(_ source: DroppedObject) -> Bool {
         guard let ext = source.fileURL?.pathExtension.lowercased() else { return false }
-        return ["eml", "msg", "ics"].contains(ext)
+        return ["eml", "msg", "ics", "vcf", "vcard"].contains(ext)
     }
 
     private func copyIntoContainer(

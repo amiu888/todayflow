@@ -434,6 +434,7 @@ public struct TaskRowView: View {
         case "com.apple.mail": return "Mail"
         case "com.microsoft.Outlook": return "Outlook"
         case "com.microsoft.teams2", "com.microsoft.teams": return "Teams"
+        case "com.apple.AddressBook", "com.apple.contacts", "contacts": return "Contacts"
         case "com.apple.Preview": return "Preview"
         default: return bundleId.split(separator: ".").last.map(String.init) ?? bundleId
         }

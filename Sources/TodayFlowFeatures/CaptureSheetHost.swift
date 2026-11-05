@@ -25,6 +25,8 @@ public struct CaptureSheetHost: View {
         CaptureSheetView(
             draft: $model.draft,
             parents: viewModel.parents,
+            contactDrops: $model.contactDrops,
+            contactGroups: viewModel.contactGroups,
             onSave: {
                 Task { @MainActor in
                     await viewModel.save()
@@ -44,6 +46,9 @@ public struct CaptureSheetHost: View {
             errorMessage: viewModel.lastError,
             isSaving: viewModel.isSaving
         )
-        .task { await model.loadParents() }
+        .task {
+            await model.loadParents()
+            await model.loadContactGroups()
+        }
     }
 }

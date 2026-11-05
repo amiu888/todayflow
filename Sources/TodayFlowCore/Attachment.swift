@@ -12,6 +12,7 @@ public struct Attachment: Identifiable, Hashable, Sendable, Codable {
         case file
         case folder
         case email
+        case contact
         case calendarEvent
         case teamsMessage
         case url

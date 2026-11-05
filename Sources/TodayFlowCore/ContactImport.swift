@@ -257,6 +257,15 @@ public extension Contact {
 }
 
 public extension ImportedContact {
+    var canonicalEmails: [String] {
+        emails.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+    }
+
+    var canonicalPhones: [String] {
+        phones.map { $0.filter(\.isNumber) }.filter { !$0.isEmpty }
+    }
+
     func contact(deviceId: String, at now: Date) -> Contact {
         Contact(
             firstName: firstName.trimmingCharacters(in: .whitespacesAndNewlines),

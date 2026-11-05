@@ -47,6 +47,7 @@ public struct AttachmentIconStyle: Sendable, Equatable {
     // One fixed style per row of the driver.md §4 icon table.
 
     static let email = AttachmentIconStyle(symbolName: "envelope.fill", accessibilityName: "Email")
+    static let contact = AttachmentIconStyle(symbolName: "person.crop.circle.fill", accessibilityName: "Contact", tintHex: "#34D399")
     static let calendar = AttachmentIconStyle(symbolName: "calendar", accessibilityName: "Calendar event", tintHex: "#2a78d6")
     static let teams = AttachmentIconStyle(symbolName: "message.fill", accessibilityName: "Teams message", tintHex: "#6250d6")
     static let pdf = AttachmentIconStyle(symbolName: "doc.fill", accessibilityName: "PDF document", tintHex: "#d03b3b")
@@ -73,6 +74,7 @@ public struct AttachmentIconStyle: Sendable, Equatable {
         }
         switch kind {
         case .email: return .email
+        case .contact: return .contact
         case .calendarEvent: return .calendar
         case .teamsMessage: return .teams
         case .url: return .url
@@ -87,6 +89,8 @@ public struct AttachmentIconStyle: Sendable, Equatable {
         switch uti {
         case "org.rfc822-message", "x-outlook-message":
             return .email
+        case "public.vcard", "com.apple.contacts.vcard":
+            return .contact
         case "com.apple.ics":
             return .calendar
         case "com.adobe.pdf":
@@ -118,6 +122,8 @@ public struct AttachmentIconStyle: Sendable, Equatable {
         switch fileExtension {
         case "eml", "msg":
             return .email
+        case "vcf", "vcard":
+            return .contact
         case "ics":
             return .calendar
         case "pdf":

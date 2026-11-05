@@ -123,7 +123,7 @@ public struct ContactGroup: Identifiable, Hashable, Sendable, Codable {
 }
 
 /// A normalized contact from an import source, before it becomes a Contact.
-public struct ImportedContact: Hashable, Sendable {
+public struct ImportedContact: Hashable, Sendable, Codable {
     public var firstName: String
     public var lastName: String
     public var company: String
@@ -157,5 +157,17 @@ public struct ImportedContact: Hashable, Sendable {
         self.groupNames = groupNames
         self.source = source
         self.externalId = externalId
+    }
+
+    public var displayName: String {
+        let name = [firstName, lastName]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        if !name.isEmpty { return name }
+        if !company.isEmpty { return company }
+        if let email = emails.first, !email.isEmpty { return email }
+        if let phone = phones.first, !phone.isEmpty { return phone }
+        return "Unnamed contact"
     }
 }

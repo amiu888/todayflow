@@ -138,3 +138,43 @@ struct GRDBContactRepositoryTests {
     #expect(await db.contacts.groups().map(\.name) == ["Customers"])
     #expect(await db.contacts.contacts(inGroup: group.id).map(\.id) == [contact.id])
 }
+
+@Test func groupMembershipsReturnsOneDictionaryForAllContacts() async throws {
+    let db = try TestDB.inMemory()
+    let first = Contact(firstName: "Jane", emails: ["jane@acme.com"])
+    let second = Contact(firstName: "Bob", emails: ["bob@acme.com"])
+    let groupA = ContactGroup(name: "A")
+    let groupB = ContactGroup(name: "B")
+    try await db.contacts.save(first)
+    try await db.contacts.save(second)
+    try await db.contacts.saveGroup(groupA)
+    try await db.contacts.saveGroup(groupB)
+    try await db.contacts.setGroups([groupA.id, groupB.id], for: first.id)
+
+    let memberships = await db.contacts.groupMemberships()
+
+    #expect(Set(memberships[first.id] ?? []) == [groupA.id, groupB.id])
+    #expect(memberships[second.id] == nil)
+}
+
+@Test func applyImportPreservesExistingGroupMemberships() async throws {
+    let db = try TestDB.inMemory()
+    let contact = Contact(firstName: "Jane", emails: ["jane@acme.com"])
+    let existingGroup = ContactGroup(name: "Existing")
+    let importedGroup = ContactGroup(name: "Imported")
+    try await db.contacts.save(contact)
+    try await db.contacts.saveGroup(existingGroup)
+    try await db.contacts.setGroups([existingGroup.id], for: contact.id)
+
+    var updated = contact
+    updated.lastName = "Smith"
+    let plan = ContactImportPlan(
+        contacts: [updated],
+        newGroups: [importedGroup],
+        groupAssignments: [contact.id: [importedGroup.id]]
+    )
+    try await db.contacts.applyImport(plan)
+
+    let groupIds = Set(await db.contacts.groupIds(for: contact.id))
+    #expect(groupIds == [existingGroup.id, importedGroup.id])
+}

@@ -97,6 +97,7 @@ public final class CaptureWindowController {
         CaptureViewModel(
             repository: environment.workItems,
             attachmentRepository: environment.attachments,
+            contactRepository: environment.contacts,
             materializer: environment.materializer,
             calendar: environment.workCalendar,
             deviceId: "local",

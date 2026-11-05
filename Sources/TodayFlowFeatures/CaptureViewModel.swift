@@ -56,6 +56,7 @@ public final class CaptureViewModel {
 
     @ObservationIgnored private let repository: any WorkItemRepository
     @ObservationIgnored private let attachmentRepository: any AttachmentRepository
+    @ObservationIgnored private let contactRepository: (any ContactRepository)?
     @ObservationIgnored private let materializer: Materializer
     @ObservationIgnored private let calendar: WorkCalendar
     @ObservationIgnored private let deviceId: String
@@ -63,8 +64,14 @@ public final class CaptureViewModel {
     @ObservationIgnored private let onSaved: (@MainActor (UUIDv7) -> Void)?
     @ObservationIgnored private let onCancel: (@MainActor () -> Void)?
 
+    /// Contacts detected in this capture. The sheet renders one card per
+    /// contact with an opt-out, group picker, and duplicate resolution.
+    public var contactDrops: [CaptureContactDrop] = []
+    public private(set) var contactGroups: [ContactGroup] = []
+
     /// Raw drops, index-aligned with `draft.objects`.
     @ObservationIgnored private var droppedObjects: [DroppedObject] = []
+    @ObservationIgnored private var savedContactDropIds: Set<UUID> = []
     /// Suppresses the natural-language re-parse while AI fills in a suggestion.
     @ObservationIgnored private var isApplyingSuggestion = false
     /// Attachments already persisted by a partially failed save, so retrying
@@ -74,6 +81,7 @@ public final class CaptureViewModel {
     public init(
         repository: any WorkItemRepository,
         attachmentRepository: any AttachmentRepository,
+        contactRepository: (any ContactRepository)? = nil,
         materializer: Materializer,
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
@@ -83,6 +91,7 @@ public final class CaptureViewModel {
     ) {
         self.repository = repository
         self.attachmentRepository = attachmentRepository
+        self.contactRepository = contactRepository
         self.materializer = materializer
         self.calendar = calendar
         self.deviceId = deviceId
@@ -155,10 +164,46 @@ public final class CaptureViewModel {
         self.splitsIntoTasks = splitIntoTasks
             && recognized.count > 1
             && dropped.count == recognized.count
+        self.contactDrops = recognized.compactMap(\.contact).map {
+            CaptureContactDrop(imported: $0)
+        }
+        self.savedContactDropIds = []
         self.savedItem = nil
         self.lastError = nil
         self.isSaving = false
         self.savedAttachmentCount = 0
+    }
+
+    /// Loads the user's groups and checks each dropped contact for an existing
+    /// match. The match is shown to the user; nothing is merged until Save.
+    public func loadContactGroups() async {
+        guard let contactRepository else { return }
+        contactGroups = await contactRepository.groups()
+        let existing = await contactRepository.contacts()
+        for index in contactDrops.indices {
+            contactDrops[index].duplicate = Self.duplicate(
+                for: contactDrops[index].imported,
+                in: existing
+            )
+        }
+    }
+
+    private static func duplicate(
+        for imported: ImportedContact,
+        in existing: [Contact]
+    ) -> Contact? {
+        let emails = Set(imported.canonicalEmails)
+        let phones = Set(imported.canonicalPhones)
+        return existing.first { contact in
+            if let externalId = imported.externalId,
+               contact.externalId == externalId,
+               contact.source == imported.source
+            {
+                return true
+            }
+            return !emails.isDisjoint(with: Set(contact.canonicalEmails))
+                || !phones.isDisjoint(with: Set(contact.canonicalPhones))
+        }
     }
 
     /// Removes a draft object (the sheet's chip × button), keeping the raw
@@ -277,6 +322,11 @@ public final class CaptureViewModel {
                         )
                     )
                     try await saveAttachment(object, source: dropped, for: item.id, at: now)
+                    await saveContacts(
+                        for: item,
+                        drops: contactDrops(for: object),
+                        at: now
+                    )
                     scheduleEmailSummary(for: item, object: object, source: dropped, at: now)
                     savedItem = item
                 }
@@ -310,6 +360,8 @@ public final class CaptureViewModel {
                 try await saveAttachment(object, source: dropped, for: item.id, at: now)
                 savedAttachmentCount += 1
             }
+
+            await saveContacts(for: item, drops: contactDrops, at: now)
 
             if let email = zip(droppedObjects, draft.objects)
                 .first(where: { $0.1.type == .email })
@@ -360,6 +412,80 @@ public final class CaptureViewModel {
             sourceApp: object.sourceApp ?? source.sourceApp,
             receivedAt: received
         )
+    }
+
+    private func contactDrops(for object: RecognizedObject) -> [CaptureContactDrop] {
+        guard let imported = object.contact else { return [] }
+        let emails = Set(imported.canonicalEmails)
+        let phones = Set(imported.canonicalPhones)
+        return contactDrops.filter { drop in
+            guard !savedContactDropIds.contains(drop.id) else { return false }
+            return !emails.isDisjoint(with: Set(drop.imported.canonicalEmails))
+                || !phones.isDisjoint(with: Set(drop.imported.canonicalPhones))
+                || drop.imported.displayName == imported.displayName
+        }
+    }
+
+    /// Best-effort contact persistence: the task is already saved, so a
+    /// contact failure must not turn a successful capture into an error.
+    private func saveContacts(
+        for item: WorkItem,
+        drops: [CaptureContactDrop],
+        at now: Date
+    ) async {
+        guard let repository = contactRepository else { return }
+        for drop in drops where !savedContactDropIds.contains(drop.id) {
+            guard drop.addToContacts else {
+                savedContactDropIds.insert(drop.id)
+                continue
+            }
+            do {
+                let incoming = drop.imported.contact(deviceId: deviceId, at: now)
+                let contact: Contact
+                if let duplicate = drop.duplicate {
+                    switch drop.resolution {
+                    case .useExisting:
+                        contact = await repository.contact(duplicate.id) ?? duplicate
+                    case .merge:
+                        let current = await repository.contact(duplicate.id) ?? duplicate
+                        let merged = ContactMerger.merge(
+                            [current, incoming],
+                            primary: current,
+                            at: now
+                        )
+                        try await repository.save(merged)
+                        contact = merged
+                    case .keepSeparate:
+                        var separate = incoming
+                        separate.source = "drag"
+                        separate.externalId = nil
+                        try await repository.save(separate)
+                        contact = separate
+                    }
+                } else {
+                    var created = incoming
+                    created.source = "drag"
+                    try await repository.save(created)
+                    contact = created
+                }
+
+                if let groupId = drop.groupId {
+                    let existing = Set(await repository.groupIds(for: contact.id))
+                    try await repository.setGroups(
+                        Array(existing.union([groupId])),
+                        for: contact.id
+                    )
+                }
+                try await repository.addContact(contact.id, toTask: item.id)
+                savedContactDropIds.insert(drop.id)
+                Diagnostics.log(
+                    "contacts",
+                    "drop contact=\(contact.id) task=\(item.id) resolution=\(drop.resolution.rawValue)"
+                )
+            } catch {
+                Diagnostics.log("contacts", "drop save failed: \(error)")
+            }
+        }
     }
 
     /// Summarizes in the background so saving never waits on the network (or

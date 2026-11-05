@@ -145,3 +145,42 @@ struct DroppedObjectLoaderRichTextTests {
         #expect(objects.first?.sourceApp == "teams")
     }
 }
+
+@Suite("DroppedObjectLoader vCard")
+@MainActor
+struct DroppedObjectLoaderVCardTests {
+    @Test func providerVCard_loadsTextAndType() async {
+        let vcard = "BEGIN:VCARD\nN:Smith;Jane;;;\nEMAIL:jane@acme.com\nEND:VCARD"
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(
+            forTypeIdentifier: "public.vcard",
+            visibility: .all
+        ) { completion in
+            completion(Data(vcard.utf8), nil)
+            return nil
+        }
+
+        let objects = await DroppedObjectLoader().load(from: [provider])
+
+        #expect(objects.count == 1)
+        #expect(objects.first?.text?.contains("BEGIN:VCARD") == true)
+        #expect(objects.first?.uti?.identifier == "public.vcard")
+    }
+
+    @Test func pasteboardVCard_readsText() {
+        let pasteboard = NSPasteboard(
+            name: NSPasteboard.Name("TodayFlowVCard-\(UUID().uuidString)")
+        )
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setData(
+            Data("BEGIN:VCARD\nN:Smith;Jane;;;\nEND:VCARD".utf8),
+            forType: NSPasteboard.PasteboardType("public.vcard")
+        )
+        pasteboard.writeObjects([item])
+
+        let objects = DroppedObjectLoader.objects(from: pasteboard)
+        #expect(objects.count == 1)
+        #expect(objects.first?.text?.contains("BEGIN:VCARD") == true)
+    }
+}

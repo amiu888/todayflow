@@ -9,6 +9,7 @@ extension Attachment.Kind {
         case .file: return "file"
         case .folder: return "folder"
         case .email: return "email"
+        case .contact: return "contact"
         case .calendarEvent: return "calendar_event"
         case .teamsMessage: return "teams_message"
         case .url: return "url"
