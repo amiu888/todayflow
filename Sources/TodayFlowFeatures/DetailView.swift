@@ -12,6 +12,9 @@ import TodayFlowDesign
 /// belong to the 6 Mac app layer, which swaps them in around this view.
 public struct DetailView: View {
     public let model: DetailViewModel
+    private let onOpenAttachment: (@MainActor (Attachment) -> Void)?
+    private let onQuickLookAttachment: (@MainActor (Attachment) -> Void)?
+    private let onRevealAttachment: (@MainActor (Attachment) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -28,8 +31,16 @@ public struct DetailView: View {
         Motion(preference: reduceMotion ? .reduced : .full)
     }
 
-    public init(model: DetailViewModel) {
+    public init(
+        model: DetailViewModel,
+        onOpenAttachment: (@MainActor (Attachment) -> Void)? = nil,
+        onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
+        onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil
+    ) {
         self.model = model
+        self.onOpenAttachment = onOpenAttachment
+        self.onQuickLookAttachment = onQuickLookAttachment
+        self.onRevealAttachment = onRevealAttachment
     }
 
     /// Convenience for hosts that only know the item id and their
@@ -40,7 +51,10 @@ public struct DetailView: View {
         repository: any WorkItemRepository,
         linkRepository: any LinkRepository,
         attachmentRepository: any AttachmentRepository,
-        onClosed: (@MainActor () -> Void)? = nil
+        onClosed: (@MainActor () -> Void)? = nil,
+        onOpenAttachment: (@MainActor (Attachment) -> Void)? = nil,
+        onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
+        onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil
     ) {
         self.model = DetailViewModel(
             itemId: itemId,
@@ -49,6 +63,9 @@ public struct DetailView: View {
             attachmentRepository: attachmentRepository,
             onClosed: onClosed
         )
+        self.onOpenAttachment = onOpenAttachment
+        self.onQuickLookAttachment = onQuickLookAttachment
+        self.onRevealAttachment = onRevealAttachment
     }
 
     // MARK: Body
@@ -407,8 +424,18 @@ public struct DetailView: View {
             ForEach(model.attachments) { attachment in
                 HStack(spacing: 8) {
                     AttachmentIconView(attachment: attachment, size: 14)
-                    Text(attachment.displayName)
+
+                    Button {
+                        onOpenAttachment?(attachment)
+                    } label: {
+                        Text(attachment.displayName)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open \(attachment.displayName)")
+
                     Spacer()
+
                     Button {
                         Task { await model.removeAttachment(attachment.id) }
                     } label: {
@@ -419,23 +446,55 @@ public struct DetailView: View {
                     .disabled(model.isSaving)
                 }
                 .frame(height: DesignTokens.Spacing.rowHeight)
+                .contextMenu {
+                    Button("Open") { onOpenAttachment?(attachment) }
+                    Button("Quick Look") { onQuickLookAttachment?(attachment) }
+                    Button("Reveal in Finder") { onRevealAttachment?(attachment) }
+                }
             }
         }
     }
 
     @MainActor
-    @ViewBuilder
     private var linksSection: some View {
-        // FR-20: links are display-only in 5c; adding and removing them
-        // comes with 5d Hierarchy / 6 Mac.
-        if !model.blockers.isEmpty {
-            linkGroup("Blocked by", items: model.blockers)
-        }
-        if !model.blockings.isEmpty {
-            linkGroup("Blocks", items: model.blockings)
-        }
-        if !model.related.isEmpty {
-            linkGroup("Related", items: model.related)
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap) {
+            HStack {
+                Text("Links")
+                    .font(.headline)
+
+                Spacer()
+
+                if !model.linkCandidates.isEmpty {
+                    Menu("Add link") {
+                        Menu("Blocked by") {
+                            ForEach(model.linkCandidates) { candidate in
+                                Button(candidate.title) {
+                                    Task { await model.addLink(to: candidate.id, kind: .blocks) }
+                                }
+                            }
+                        }
+                        Menu("Related") {
+                            ForEach(model.linkCandidates) { candidate in
+                                Button(candidate.title) {
+                                    Task { await model.addLink(to: candidate.id, kind: .relatesTo) }
+                                }
+                            }
+                        }
+                    }
+                    .disabled(model.isSaving)
+                    .accessibilityLabel("Add a link")
+                }
+            }
+
+            if !model.blockers.isEmpty {
+                linkGroup("Blocked by", items: model.blockers)
+            }
+            if !model.blockings.isEmpty {
+                linkGroup("Blocks", items: model.blockings)
+            }
+            if !model.related.isEmpty {
+                linkGroup("Related", items: model.related)
+            }
         }
     }
 

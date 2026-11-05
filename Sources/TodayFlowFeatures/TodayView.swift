@@ -77,6 +77,8 @@ public struct TodayView: View {
             FilterChipsView(
                 filter: model.filter,
                 sort: model.sort,
+                projects: model.projects,
+                projectFilter: model.projectFilter,
                 onFilterChange: { filter in
                     Task { @MainActor in
                         model.filter = filter
@@ -85,6 +87,11 @@ public struct TodayView: View {
                 onSortChange: { sort in
                     Task { @MainActor in
                         await model.setSort(sort)
+                    }
+                },
+                onProjectChange: { projectId in
+                    Task { @MainActor in
+                        model.projectFilter = projectId
                     }
                 },
                 onSearch: {
@@ -130,7 +137,35 @@ public struct TodayView: View {
                 await model.load()
             }
         }
+        .overlay(alignment: .bottom) { undoBar }
         .task { await model.observe() }
+    }
+
+    /// The short-lived "Completed · Undo" bar (FR-14).
+    @MainActor
+    @ViewBuilder
+    private var undoBar: some View {
+        if model.completionUndo != nil {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color(hex: "#0ca30c"))
+                Text("Task completed")
+                    .font(.caption)
+                Spacer()
+                Button("Undo") {
+                    Task { @MainActor in await model.undoComplete() }
+                }
+                .buttonStyle(.borderless)
+                .font(.caption.weight(.semibold))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().stroke(Color.primary.opacity(0.08)))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
     }
 
     #if canImport(AppKit)
@@ -180,6 +215,25 @@ public struct TodayView: View {
                 Task { @MainActor in await model.moveDown(id) }
             }
             .keyboardShortcut(.downArrow, modifiers: [.option])
+
+            Button("Undo complete") {
+                Task { @MainActor in await model.undoComplete() }
+            }
+            .keyboardShortcut("z", modifiers: .command)
+
+            if !isSearching {
+                Button("Complete selected") {
+                    guard let id = model.selectedId else { return }
+                    Task { @MainActor in await model.toggle(id) }
+                }
+                .keyboardShortcut(.space, modifiers: [])
+
+                Button("Open selected") {
+                    guard let id = model.selectedId else { return }
+                    Task { @MainActor in await model.quickAction(id, .open) }
+                }
+                .keyboardShortcut(.return, modifiers: [])
+            }
         }
         .frame(width: 0, height: 0)
         .opacity(0)

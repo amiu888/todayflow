@@ -140,8 +140,9 @@ public final class SettingsViewModel {
         }
     }
 
-    /// Lists the endpoint's models (driver.md §8 "Fetch models"). The current
-    /// edits are used so the button works before Save.
+    /// Lists the saved endpoint's models (driver.md §8 "Fetch models"). The
+    /// catalog reads Settings + Keychain, so Save first after changing the
+    /// base URL or API key.
     public func fetchModels() async {
         guard let modelCatalog, !isFetchingModels else { return }
         isFetchingModels = true

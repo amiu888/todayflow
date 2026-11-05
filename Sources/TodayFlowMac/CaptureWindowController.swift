@@ -35,10 +35,15 @@ public final class CaptureWindowController {
     /// on screen, so a slow network never delays the sheet.
     public func present(
         dropped: [DroppedObject] = [],
-        recognized: [RecognizedObject] = []
+        recognized: [RecognizedObject] = [],
+        splitIntoTasks: Bool = false
     ) {
         let model = makeModel()
-        model.prepare(dropped: dropped, recognized: recognized)
+        model.prepare(
+            dropped: dropped,
+            recognized: recognized,
+            splitIntoTasks: splitIntoTasks
+        )
         currentModel = model
 
         let host = NSHostingView(rootView: CaptureSheetHost(model: model))

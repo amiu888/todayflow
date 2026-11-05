@@ -16,6 +16,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private var windows: [WindowKind: NSWindow] = [:]
     private let capture: CaptureWindowController
     private let dropLoader = DroppedObjectLoader()
+    private let attachmentActions = AttachmentActions()
 
     /// The shared summary model (driver.md FR-40); the delegate assigns it
     /// after construction. The slim bar reads it in `body` so it stays live.
@@ -33,13 +34,18 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     }
 
     /// Opens the quick-add panel seeded with dropped objects (FR-01/FR-06).
-    public func showCapture(dropped: [DroppedObject]) {
+    /// `splitIntoTasks` is the ⌥-drop behavior: one task per object.
+    public func showCapture(dropped: [DroppedObject], splitIntoTasks: Bool = false) {
         guard !dropped.isEmpty else {
             showCapture()
             return
         }
         let recognized = dropped.map { environment.pipeline.recognize($0) }
-        capture.present(dropped: dropped, recognized: recognized)
+        capture.present(
+            dropped: dropped,
+            recognized: recognized,
+            splitIntoTasks: splitIntoTasks
+        )
     }
 
     /// Converts an AppKit drop and routes it: onto a row, it becomes
@@ -49,6 +55,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     @discardableResult
     public func handleDrop(_ providers: [NSItemProvider], onto itemId: UUIDv7? = nil) -> Bool {
         guard !providers.isEmpty else { return false }
+        // Read the modifier at drop time, before the async provider loads.
+        let splitIntoTasks = NSEvent.modifierFlags.contains(.option)
         Task { @MainActor [weak self] in
             guard let self else { return }
             let objects = await self.dropLoader.load(from: providers)
@@ -56,7 +64,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             if let itemId {
                 await self.attach(objects, to: itemId)
             } else {
-                self.showCapture(dropped: objects)
+                self.showCapture(dropped: objects, splitIntoTasks: splitIntoTasks)
             }
         }
         return true
@@ -64,8 +72,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
 
     /// Handles objects that were already converted (menu-bar drags and
     /// `application(_:open:)` file drops).
-    public func receiveDrop(_ objects: [DroppedObject]) {
-        showCapture(dropped: objects)
+    public func receiveDrop(_ objects: [DroppedObject], splitIntoTasks: Bool = false) {
+        showCapture(dropped: objects, splitIntoTasks: splitIntoTasks)
     }
 
     /// Adds the dropped objects to an existing task (FR-04).
@@ -208,6 +216,17 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 calendar: environment.workCalendar,
                 onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
             )
+        case .upcoming:
+            UpcomingView(
+                repository: environment.workItems,
+                calendar: environment.workCalendar,
+                onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
+            )
+        case .completed:
+            CompletedHistoryView(
+                repository: environment.workItems,
+                onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
+            )
         case .settings:
             SettingsView(
                 repository: environment.settings,
@@ -235,7 +254,13 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 onClosed: { [weak self] in self?.close(.detail(id)) }
             )
             let _ = attachAssistant(to: model)
-            DetailView(model: model)
+            let actions = attachmentActions
+            DetailView(
+                model: model,
+                onOpenAttachment: { actions.open($0) },
+                onQuickLookAttachment: { actions.quickLook($0) },
+                onRevealAttachment: { actions.reveal($0) }
+            )
         }
     }
 }

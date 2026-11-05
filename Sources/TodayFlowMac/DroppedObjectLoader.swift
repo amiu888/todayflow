@@ -14,6 +14,9 @@ import TodayFlowRecognition
 /// that hopping actors would only delay the 300 ms sheet budget (NFR-01).
 @MainActor
 public struct DroppedObjectLoader {
+    /// The pasteboard UTI an `NSFilePromiseProvider` advertises.
+    static let promisedFileType = "com.apple.pasteboard.promised-file-url"
+
     public init() {}
 
     /// Loads every provider in order. A provider that yields nothing is
@@ -38,6 +41,18 @@ public struct DroppedObjectLoader {
            url.isFileURL
         {
             return Self.object(forFileURL: url)
+        }
+
+        // File promises (Outlook/Mail messages and calendar events) only exist
+        // until the receiver copies them. Ask AppKit to materialize the
+        // promised file now; `isFilePromise` tells the Materializer to keep a
+        // copy in the app container.
+        if provider.registeredTypeIdentifiers.contains(Self.promisedFileType),
+           let url = await loadInPlaceFile(provider)
+        {
+            var object = Self.object(forFileURL: url)
+            object.isFilePromise = true
+            return object
         }
 
         if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
@@ -112,6 +127,21 @@ public struct DroppedObjectLoader {
                 continuation.resume(returning: data)
             }
         }
+    }
+
+    /// Materializes a promised file (or an in-place file representation) and
+    /// returns its temporary URL. Tries each registered type because promise
+    /// providers list the concrete type before the generic promise type.
+    private func loadInPlaceFile(_ provider: NSItemProvider) async -> URL? {
+        for type in provider.registeredTypeIdentifiers {
+            let url: URL? = await withCheckedContinuation { continuation in
+                provider.loadInPlaceFileRepresentation(forTypeIdentifier: type) { url, _, _ in
+                    continuation.resume(returning: url)
+                }
+            }
+            if let url { return url }
+        }
+        return nil
     }
 
     /// `public.file-url` / `public.url` data is normally the UTF-8 URL string,

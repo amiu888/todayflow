@@ -44,19 +44,17 @@ public final class AskViewModel {
         lastError = nil
         isAsking = true
 
-        let clock = self.clock
-        let calendar = self.calendar
         let repository = self.repository
         let assistant = self.assistant
 
         task = Task { @MainActor [weak self] in
-            let now = clock()
-            let day = calendar.calendar.startOfDay(for: now)
-            let result = await TodayQuery(repository: repository, calendar: calendar)
-                .execute(on: day, at: now)
+            // Ask spans the whole local store, not just today: questions like
+            // "What's left for the Q3 project?" need older open items too.
+            let context = await repository.allItems()
+                .filter { !$0.status.isTerminal }
 
             do {
-                let stream = try await assistant.ask(text, context: result.all + result.doneToday)
+                let stream = try await assistant.ask(text, context: context)
                 for try await chunk in stream {
                     if Task.isCancelled { break }
                     self?.answer += chunk

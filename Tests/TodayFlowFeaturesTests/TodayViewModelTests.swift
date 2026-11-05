@@ -565,3 +565,61 @@ func observe_reactsToExternalSaves() async throws {
     await expectEventually { f.vm.visibleRows.first?.title == "Alpha (edited)" }
     task.cancel()
 }
+
+// MARK: - Completion undo (FR-14)
+
+@Test @MainActor
+func undoComplete_restoresThePreviousStatus() async {
+    let f = Fixture()
+    let item = f.item("Ship it", status: .inProgress, displayOrder: "a1")
+    await f.seed(item)
+    await f.vm.load()
+
+    await f.vm.toggle(item.id)
+    #expect(f.vm.completionUndo?.id == item.id)
+    #expect(f.vm.completionUndo?.previousStatus == .inProgress)
+    #expect(await f.repository.item(item.id)?.status == .done)
+
+    await f.vm.undoComplete()
+
+    let restored = await f.repository.item(item.id)
+    #expect(restored?.status == .inProgress)
+    #expect(restored?.completedAt == nil)
+    #expect(f.vm.completionUndo == nil)
+}
+
+@Test @MainActor
+func toggle_completingAgainReplacesTheUndoEntry() async {
+    let f = Fixture()
+    let first = f.item("First", displayOrder: "a1")
+    let second = f.item("Second", displayOrder: "a2")
+    await f.seed(first)
+    await f.seed(second)
+    await f.vm.load()
+
+    await f.vm.toggle(first.id)
+    await f.vm.toggle(second.id)
+
+    #expect(f.vm.completionUndo?.id == second.id)
+}
+
+// MARK: - Project filter (FR-15)
+
+@Test @MainActor
+func projectFilter_limitsRowsToTheProjectsAncestry() async {
+    let f = Fixture()
+    let project = f.item("Website", kind: .project, displayOrder: "a0")
+    let task = f.item("Write copy", displayOrder: "a1", parentId: project.id)
+    let subtask = f.item("Draft hero", displayOrder: "a2", parentId: task.id)
+    let standalone = f.item("Standalone", displayOrder: "a3")
+    for item in [project, task, subtask, standalone] { await f.seed(item) }
+    await f.vm.load()
+
+    #expect(f.vm.projects.map(\.title) == ["Website"])
+
+    f.vm.projectFilter = project.id
+    #expect(Set(f.vm.visibleRows.map(\.title)) == Set(["Website", "Write copy", "Draft hero"]))
+
+    f.vm.projectFilter = nil
+    #expect(f.vm.visibleRows.count == 4)
+}

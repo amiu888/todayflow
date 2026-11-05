@@ -71,7 +71,10 @@ public final class StatusItemController: NSObject {
             guard let self else { return false }
             let objects = DroppedObjectLoader.objects(from: pasteboard)
             guard !objects.isEmpty else { return false }
-            self.windowManager.receiveDrop(objects)
+            self.windowManager.receiveDrop(
+                objects,
+                splitIntoTasks: NSEvent.modifierFlags.contains(.option)
+            )
             return true
         }
         dropView.onClick = { [weak self] isRightClick in
@@ -138,6 +141,8 @@ public final class StatusItemController: NSObject {
         menu.addItem(item("Ask about tasks…", #selector(openAskAI)))
         menu.addItem(.separator())
         menu.addItem(item("Slim bar", #selector(toggleSlimBar)))
+        menu.addItem(item("Upcoming", #selector(openUpcoming)))
+        menu.addItem(item("Completed", #selector(openCompleted)))
         menu.addItem(item("Hierarchy", #selector(openHierarchy)))
         menu.addItem(item("Settings", #selector(openSettings)))
         menu.addItem(.separator())
@@ -168,6 +173,10 @@ public final class StatusItemController: NSObject {
             windowManager.show(.slimBar)
         }
     }
+
+    @objc private func openUpcoming() { windowManager.show(.upcoming) }
+
+    @objc private func openCompleted() { windowManager.show(.completed) }
 
     @objc private func openHierarchy() { windowManager.show(.hierarchy) }
 

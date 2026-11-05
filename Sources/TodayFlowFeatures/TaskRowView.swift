@@ -54,6 +54,7 @@ public struct TaskRowView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture { onSelect(model.id) }
+            .onTapGesture(count: 2) { onQuickAction(model.id, .open) }
             .onHover { isHovering = $0 }
             .overlay(alignment: .trailing) {
                 if isHovering {

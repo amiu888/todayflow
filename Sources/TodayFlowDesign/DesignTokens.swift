@@ -14,6 +14,8 @@ public enum DesignTokens {
         public static let capture = CGSize(width: 360, height: 360)
         public static let detail = CGSize(width: 720, height: 640)
         public static let hierarchy = CGSize(width: 640, height: 560)
+        public static let upcoming = CGSize(width: 420, height: 520)
+        public static let completed = CGSize(width: 420, height: 520)
         public static let settings = CGSize(width: 480, height: 560)
     }
 

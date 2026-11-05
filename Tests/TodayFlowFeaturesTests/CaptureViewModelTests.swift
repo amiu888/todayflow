@@ -578,3 +578,58 @@ func applySuggestion_doesNotReparseDatesFromSummary() {
     #expect(f.vm.draft.startAt == start)
     #expect(f.vm.draft.endAt == end)
 }
+
+// MARK: - ⌥-drop splitting (FR-01)
+
+@Test @MainActor
+func splitDrop_createsOneTaskPerObjectWithItsOwnAttachment() async {
+    let f = Fixture()
+    let first = RecognizedObject(
+        type: .file,
+        displayName: "report.pdf",
+        suggestedTitle: "report"
+    )
+    let second = RecognizedObject(
+        type: .file,
+        displayName: "notes.txt",
+        suggestedTitle: "notes"
+    )
+    f.vm.prepare(
+        dropped: [
+            DroppedObject(fileURL: URL(fileURLWithPath: "/tmp/report.pdf")),
+            DroppedObject(fileURL: URL(fileURLWithPath: "/tmp/notes.txt")),
+        ],
+        recognized: [first, second],
+        splitIntoTasks: true
+    )
+    #expect(f.vm.splitsIntoTasks)
+
+    await f.vm.save()
+
+    #expect(f.vm.lastError == nil)
+    let items = await f.repository.allItems()
+    #expect(items.count == 2)
+    #expect(Set(items.map(\.title)) == Set(["report", "notes"]))
+
+    let attachments = await f.attachmentRepository.all
+    #expect(attachments.count == 2)
+    #expect(Set(attachments.map(\.itemId)) == Set(items.map(\.id)))
+    #expect(Set(attachments.map(\.displayName)) == Set(["report.pdf", "notes.txt"]))
+}
+
+@Test @MainActor
+func singleObjectDrop_ignoresSplitFlag() async {
+    let f = Fixture()
+    f.vm.prepare(
+        dropped: [DroppedObject(fileURL: URL(fileURLWithPath: "/tmp/report.pdf"))],
+        recognized: [
+            RecognizedObject(type: .file, displayName: "report.pdf", suggestedTitle: "report")
+        ],
+        splitIntoTasks: true
+    )
+    #expect(!f.vm.splitsIntoTasks)
+
+    await f.vm.save()
+
+    #expect(await f.repository.allItems().count == 1)
+}

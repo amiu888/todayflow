@@ -39,8 +39,11 @@ public final class CaptureViewModel {
     /// The user-facing error from the last failed action.
     public private(set) var lastError: String?
 
-    /// The item `save()` created, if it succeeded.
+    /// The item `save()` created, if it succeeded (the last one when an
+    /// ⌥-drop was split into one task per object).
     public private(set) var savedItem: WorkItem?
+    /// True when the drop should create one task per object (FR-01, ⌥ held).
+    public private(set) var splitsIntoTasks = false
 
     // MARK: Dependencies
 
@@ -108,12 +111,16 @@ public final class CaptureViewModel {
     public func prepare(
         dropped: [DroppedObject],
         recognized: [RecognizedObject],
-        parentId: UUIDv7? = nil
+        parentId: UUIDv7? = nil,
+        splitIntoTasks: Bool = false
     ) {
         let now = clock()
         self.draft = CaptureDraftBuilder(calendar: calendar)
             .build(objects: recognized, at: now, parentId: parentId)
         self.droppedObjects = dropped
+        self.splitsIntoTasks = splitIntoTasks
+            && recognized.count > 1
+            && dropped.count == recognized.count
         self.savedItem = nil
         self.lastError = nil
         self.isSaving = false
@@ -204,32 +211,51 @@ public final class CaptureViewModel {
 
         let now = clock()
         do {
-            let input = CreateTask.Input(
-                kind: .task,
-                title: draft.title,
-                descriptionMd: draft.descriptionMd,
-                parentId: draft.parentId,
-                startAt: draft.startAt,
-                endAt: draft.endAt,
-                priority: draft.priority
-            )
-            let item = try await CreateTask(
+            let create = CreateTask(
                 repository: repository,
                 calendar: calendar,
                 deviceId: deviceId
-            ).execute(input)
+            )
+
+            if splitsIntoTasks {
+                // FR-01 ⌥-drop: one task per object, each with its own
+                // attachment. The sheet's shared dates/priority still apply.
+                for (dropped, object) in zip(droppedObjects, draft.objects) {
+                    let suggested = object.suggestedTitle?
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    let title = suggested.isEmpty ? object.displayName : suggested
+                    let item = try await create.execute(
+                        CreateTask.Input(
+                            kind: .task,
+                            title: title,
+                            descriptionMd: object.type == .text ? object.previewText ?? "" : "",
+                            parentId: draft.parentId,
+                            startAt: draft.startAt,
+                            endAt: draft.endAt,
+                            priority: draft.priority
+                        )
+                    )
+                    try await saveAttachment(object, source: dropped, for: item.id, at: now)
+                    savedItem = item
+                }
+                if let savedItem { onSaved?(savedItem.id) }
+                return
+            }
+
+            let item = try await create.execute(
+                CreateTask.Input(
+                    kind: .task,
+                    title: draft.title,
+                    descriptionMd: draft.descriptionMd,
+                    parentId: draft.parentId,
+                    startAt: draft.startAt,
+                    endAt: draft.endAt,
+                    priority: draft.priority
+                )
+            )
 
             for (dropped, object) in zip(droppedObjects, draft.objects) {
-                // The recognition pipeline already materialized this object
-                // (a transient copy or a bookmark). Materializing again would
-                // duplicate transient files; only do it when the caller handed
-                // us bare recognized objects.
-                let materialized = object.localCopyPath == nil && object.bookmark == nil
-                    ? materializer.materialize(object, source: dropped)
-                    : object
-                var attachment = materialized.attachment(for: item.id, at: now)
-                attachment.deviceId = deviceId
-                try await attachmentRepository.save(attachment)
+                try await saveAttachment(object, source: dropped, for: item.id, at: now)
             }
 
             savedItem = item
@@ -237,6 +263,22 @@ public final class CaptureViewModel {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    /// Persists one attachment, using the pipeline's copy/bookmark when present
+    /// so transient files are never copied twice.
+    private func saveAttachment(
+        _ object: RecognizedObject,
+        source: DroppedObject,
+        for itemId: UUIDv7,
+        at date: Date
+    ) async throws {
+        let materialized = object.localCopyPath == nil && object.bookmark == nil
+            ? materializer.materialize(object, source: source)
+            : object
+        var attachment = materialized.attachment(for: itemId, at: date)
+        attachment.deviceId = deviceId
+        try await attachmentRepository.save(attachment)
     }
 
     /// Discards the draft and closes the sheet.

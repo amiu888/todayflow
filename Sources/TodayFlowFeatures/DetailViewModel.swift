@@ -101,6 +101,8 @@ public final class DetailViewModel {
     public private(set) var blockings: [WorkItem] = []
     /// Soft associations (`.relatesTo`), both directions, de-duplicated.
     public private(set) var related: [WorkItem] = []
+    /// Items the "Add link" menu can point at (FR-30).
+    public private(set) var linkCandidates: [WorkItem] = []
     public private(set) var parent: WorkItem?
     public private(set) var progress: RollUpProgress.Result =
         .init(done: 0, total: 0, fraction: 0)
@@ -192,11 +194,15 @@ public final class DetailViewModel {
         async let loadedChildren = repository.children(of: item.id)
         async let linksTo = linkRepository.links(to: item.id)
         async let linksFrom = linkRepository.links(from: item.id)
-        let (atts, kids, toLinks, fromLinks) =
-            await (loadedAttachments, loadedChildren, linksTo, linksFrom)
+        async let loadedAllItems = repository.allItems()
+        let (atts, kids, toLinks, fromLinks, allItems) =
+            await (loadedAttachments, loadedChildren, linksTo, linksFrom, loadedAllItems)
 
         attachments = atts
         children = kids
+        linkCandidates = allItems
+            .filter { $0.id != item.id && !$0.isDeleted }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
 
         let blockerLinks = toLinks.filter { $0.kind == .blocks }
         let blockingLinks = fromLinks.filter { $0.kind == .blocks }
@@ -402,6 +408,32 @@ public final class DetailViewModel {
             self.item = nil
             isDeleted = true
             onClosed?()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    // MARK: Links (driver.md FR-30)
+
+    /// Adds a `.blocks` or `.relatesTo` link through the Core use case, which
+    /// enforces the linked-list shape and rejects cycles.
+    public func addLink(to otherId: UUIDv7, kind: ItemLink.Kind) async {
+        guard let item, otherId != item.id else { return }
+        do {
+            let from = kind == .blocks ? otherId : item.id
+            let to = kind == .blocks ? item.id : otherId
+            try await LinkTasks(
+                linkRepository: linkRepository,
+                itemRepository: repository,
+                deviceId: deviceId
+            ).execute(from: from, to: to, kind: kind, at: clock())
+            await reloadRelated()
+        } catch LinkTasks.Error.wouldCreateLoop {
+            lastError = "This would create a loop."
+        } catch LinkTasks.Error.chainFull {
+            lastError = "One of these tasks already has a chain neighbour."
+        } catch LinkTasks.Error.duplicate {
+            lastError = "These tasks are already linked."
         } catch {
             lastError = error.localizedDescription
         }

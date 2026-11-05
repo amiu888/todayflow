@@ -69,13 +69,31 @@ public final class TodayViewModel {
 
     /// Referenced parents / blocker prerequisites that are not on today's list.
     private var extraItems: [UUIDv7: WorkItem] = [:]
+    /// Every live item, for project-ancestry filtering (FR-15).
+    private var allItemsById: [UUIDv7: WorkItem] = [:]
 
     public var filter: TodayFilter = .all
     public var sort: TodaySort = .manual
     public var searchText: String = ""
+    /// FR-15 "by project": `nil` means all projects.
+    public var projectFilter: UUIDv7?
+    /// Projects offered by the filter menu.
+    public private(set) var projects: [WorkItem] = []
 
     /// The row selected by a single tap (drives ⌥↑/⌥↓ reordering, FR-12).
     public var selectedId: UUIDv7?
+
+    /// The most recent completion, for the 5-second Undo affordance (FR-14).
+    public struct CompletionUndo: Hashable, Sendable {
+        public let id: UUIDv7
+        public let previousStatus: Status
+
+        public init(id: UUIDv7, previousStatus: Status) {
+            self.id = id
+            self.previousStatus = previousStatus
+        }
+    }
+    public private(set) var completionUndo: CompletionUndo?
 
     public private(set) var isLoading: Bool = false
     public private(set) var lastError: String?
@@ -136,10 +154,20 @@ public final class TodayViewModel {
 
         async let dayResult = query.execute(on: day, at: now)
         async let loadedLinks = linkRepository.allLinks()
-        let (r, allLinks) = await (dayResult, loadedLinks)
+        async let loadedItems = repository.allItems()
+        let (r, allLinks, allItems) = await (dayResult, loadedLinks, loadedItems)
 
         self.result = r
         self.links = allLinks
+        self.allItemsById = Dictionary(uniqueKeysWithValues: allItems.map { ($0.id, $0) })
+        self.projects = allItems
+            .filter { $0.kind == .project && !$0.isDeleted }
+            .sorted {
+                if $0.displayOrder != $1.displayOrder {
+                    return FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder)
+                }
+                return $0.title < $1.title
+            }
 
         // Resolve references that are not on today's list: parents (color
         // strip) and blocker prerequisites (the lock).
@@ -285,11 +313,28 @@ public final class TodayViewModel {
     }
 
     private func matchesFilter(_ row: TaskRowModel) -> Bool {
+        if let projectFilter,
+           !belongsToProject(row.id, projectId: projectFilter)
+        {
+            return false
+        }
         switch filter {
         case .all: return true
         case .blocked: return row.isBlocked
         case .p1p2: return row.priority <= .high
         }
+    }
+
+    /// Walks the parent chain so a task inside a project's subtasks still
+    /// matches that project's filter.
+    private func belongsToProject(_ itemId: UUIDv7, projectId: UUIDv7) -> Bool {
+        var current: UUIDv7? = itemId
+        var visited = Set<UUIDv7>()
+        while let id = current, visited.insert(id).inserted {
+            if id == projectId { return true }
+            current = allItemsById[id]?.parentId
+        }
+        return false
     }
 
     private func matchesSearch(_ row: TaskRowModel) -> Bool {
@@ -343,10 +388,27 @@ public final class TodayViewModel {
     public func toggle(_ id: UUIDv7) async {
         guard let item = await repository.item(id) else { return }
         let target: Status = item.status.isComplete ? .todo : .done
+        let previous = item.status
         do {
             try await SetStatus(repository: repository, deviceId: deviceId)
                 .execute(id, to: target, at: clock())
+            completionUndo = target == .done
+                ? CompletionUndo(id: id, previousStatus: previous)
+                : nil
             if selectedId == id { selectedId = nil } // the row left its section
+            await load()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Reverts the most recent completion (FR-14: ⌘Z, and the 5-second bar).
+    public func undoComplete() async {
+        guard let undo = completionUndo else { return }
+        do {
+            try await SetStatus(repository: repository, deviceId: deviceId)
+                .execute(undo.id, to: undo.previousStatus, at: clock())
+            completionUndo = nil
             await load()
         } catch {
             lastError = error.localizedDescription

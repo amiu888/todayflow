@@ -478,3 +478,35 @@ func removeAttachment_removesIt() async {
     #expect(f.vm.attachments.map(\.id) == [keep.id])
     #expect((await f.attachmentRepository.all).map(\.id) == [keep.id])
 }
+
+// MARK: - Links (FR-30)
+
+@Test @MainActor
+func addLink_createsBlockerAndRefreshesSections() async {
+    let item = WorkItem(title: "Ship it", startAt: date(2026, 11, 3, hour: 9), endAt: date(2026, 11, 3, hour: 17))
+    let prerequisite = WorkItem(title: "Get approval", startAt: date(2026, 11, 3, hour: 9), endAt: date(2026, 11, 3, hour: 12))
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.repository.seed(prerequisite)
+    await f.vm.load()
+
+    await f.vm.addLink(to: prerequisite.id, kind: .blocks)
+
+    #expect(f.vm.lastError == nil)
+    #expect(f.vm.blockers.map(\.title) == ["Get approval"])
+    let links = await f.linkRepository.allLinks()
+    #expect(links.contains { $0.fromId == prerequisite.id && $0.toId == item.id && $0.kind == .blocks })
+}
+
+@Test @MainActor
+func addLink_rejectsASelfLinkImplicitly() async {
+    let item = WorkItem(title: "Ship it", startAt: date(2026, 11, 3, hour: 9), endAt: date(2026, 11, 3, hour: 17))
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.vm.load()
+
+    await f.vm.addLink(to: item.id, kind: .blocks)
+
+    #expect(f.vm.blockers.isEmpty)
+    #expect(f.vm.related.isEmpty)
+}

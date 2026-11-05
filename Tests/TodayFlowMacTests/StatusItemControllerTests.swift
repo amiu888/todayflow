@@ -90,7 +90,7 @@ struct StatusItemControllerTests {
         let titles = controller.menu.items.map(\.title)
         for expected in [
             "Open Today", "End-of-day review…", "Plan my day…", "Ask about tasks…",
-            "Slim bar", "Hierarchy", "Settings", "Quit TodayFlow",
+            "Slim bar", "Upcoming", "Completed", "Hierarchy", "Settings", "Quit TodayFlow",
         ] {
             #expect(titles.contains(expected), "missing menu item \(expected)")
         }
