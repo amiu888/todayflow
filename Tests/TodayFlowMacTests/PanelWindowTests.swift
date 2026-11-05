@@ -17,6 +17,7 @@ struct PanelWindowTests {
         #expect(!window.hidesOnDeactivate)
         #expect(window.canBecomeKey)
         #expect(!window.canBecomeMain)
+        #expect(!window.isMovableByWindowBackground)
         #expect(window.styleMask.contains(.titled))
         #expect(window.styleMask.contains(.resizable))
         // A titled window is by definition not borderless. (Do not assert on

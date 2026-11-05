@@ -45,7 +45,10 @@ public final class PanelWindow: NSPanel {
         switch style {
         case .panel:
             titleVisibility = .visible
-            isMovableByWindowBackground = true
+            // Drag the panel by its title bar only. Dragging the content
+            // background makes an ordinary click with a tiny mouse movement
+            // shove the whole UI a few pixels.
+            isMovableByWindowBackground = false
         case .slimBar, .capture:
             isMovableByWindowBackground = true
             // Let the SwiftUI material card define the shape instead of
