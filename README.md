@@ -45,8 +45,8 @@ Verification: `swift build` is warning-free and `swift test` passes **501 tests*
 
 Known follow-ups before shipping a signed build (outside the eight build increments):
 
-- A real `.app` bundle with Info.plist, entitlements, signing/notarization, and the
-  Dock icon (the SwiftPM executable has no Dock presence yet; file-open handling is wired).
+- Developer ID signing, hardened-runtime entitlements, and notarization for distribution
+  (the local bundle script does ad-hoc signing).
 - XCUITest coverage for the critical flows and the NFR-01…05 performance gates.
 - Live Markdown rendering and pasted-image attachments inside the detail description.
 - CloudKit sync (v2, per `driver.md` §6); v1 is intentionally local-only.
@@ -56,9 +56,15 @@ Known follow-ups before shipping a signed build (outside the eight build increme
 ```sh
 swift build          # build all targets
 swift test           # run all tests
+
+./scripts/build-app.sh
+open build/TodayFlow.app
 ```
 
-Requires Swift 6 / Xcode 16+. Minimum deployment: macOS 14 Sonoma.
+`scripts/build-app.sh` wraps the SwiftPM executable in a minimal ad-hoc-signed
+`.app` bundle (Info.plist + Dock icon). Distribution still needs a Developer ID,
+hardened runtime, and notarization. Requires Swift 6 / Xcode 16+. Minimum
+deployment: macOS 14 Sonoma.
 
 ## Conventions
 
