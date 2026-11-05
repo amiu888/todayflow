@@ -51,17 +51,19 @@ public struct TrayStripView: View {
             }
             .padding(.horizontal, 12)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 8) {
-                    ForEach(model.trayColumns) { column in
-                        trayCard(column)
-                    }
-
-                    addTrayCard
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 120), spacing: 8)],
+                alignment: .leading,
+                spacing: 8
+            ) {
+                ForEach(model.trayColumns) { column in
+                    trayCard(column)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 2)
+
+                addTrayCard
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 2)
         }
         .alert("New working tray", isPresented: $isAddingTray) {
             TextField("Tray name", text: $newTrayName)
@@ -209,7 +211,7 @@ public struct TrayStripView: View {
             }
         }
         .padding(8)
-        .frame(width: 190, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(DesignTokens.Palette.surface)

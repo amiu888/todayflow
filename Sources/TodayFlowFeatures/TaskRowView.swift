@@ -21,6 +21,9 @@ public struct TaskRowView: View {
     /// All trays, for the “Add to tray” context-menu fallback.
     public let allTrays: [WorkTray]
     public let onAddToTray: (@Sendable (UUIDv7, UUIDv7) -> Void)?
+    /// Narrow-panel layout: the trailing metadata moves under the title so
+    /// every control stays visible instead of being clipped.
+    public let isCompact: Bool
 
     public init(
         model: TaskRowModel,
@@ -31,7 +34,8 @@ public struct TaskRowView: View {
         onSelect: @escaping @Sendable (UUIDv7) -> Void = { _ in },
         onMove: @escaping @Sendable (UUIDv7, UUIDv7, Bool) -> Void = { _, _, _ in },
         allTrays: [WorkTray] = [],
-        onAddToTray: (@Sendable (UUIDv7, UUIDv7) -> Void)? = nil
+        onAddToTray: (@Sendable (UUIDv7, UUIDv7) -> Void)? = nil,
+        isCompact: Bool = false
     ) {
         self.model = model
         self.onToggle = onToggle
@@ -42,6 +46,7 @@ public struct TaskRowView: View {
         self.onMove = onMove
         self.allTrays = allTrays
         self.onAddToTray = onAddToTray
+        self.isCompact = isCompact
     }
 
     @Environment(\.colorScheme) private var colorScheme
@@ -55,8 +60,14 @@ public struct TaskRowView: View {
     public var body: some View {
         let dueTime = Self.formatDueTime(model.dueAt)
 
-        row(dueTime: dueTime)
-            .frame(height: DesignTokens.Spacing.rowHeight)
+        Group {
+            if isCompact {
+                compactRow(dueTime: dueTime)
+            } else {
+                row(dueTime: dueTime)
+            }
+        }
+        .frame(minHeight: DesignTokens.Spacing.rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(
@@ -94,7 +105,7 @@ public struct TaskRowView: View {
             }
             .onHover { isHovering = $0 }
             .overlay(alignment: .trailing) {
-                if isHovering {
+                if isHovering && !isCompact {
                     quickActions
                 }
             }
@@ -145,121 +156,167 @@ public struct TaskRowView: View {
     @MainActor
     private func row(dueTime: String) -> some View {
         HStack(spacing: 8) {
-            if let parentColorHex = model.parentColorHex {
-                Rectangle()
-                    .fill(Color(hex: parentColorHex))
-                    .frame(width: 3)
-            }
-
-            Image(systemName: "line.3.horizontal")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(DesignTokens.Palette.textSecondary.opacity(0.7))
-                .frame(width: 14, height: 24)
-                .contentShape(Rectangle())
-                .help("Drag to reorder or into a tray")
-                .accessibilityLabel("Drag \(model.title)")
-                .accessibilityIdentifier("drag-handle-\(model.title)")
-
+            parentColorBar
+            dragHandle
             completionControl
-
             priorityPill
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(model.title)
-                    .font(.callout)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .strikethrough(model.isDone)
-                    .foregroundStyle(model.isDone ? Color.secondary : Color.primary)
-                    .accessibilityLabel(accessibilityLabel(dueTime: dueTime))
-                    .help(model.descriptionPreview ?? "Open “\(model.title)”")
-
-                HStack(spacing: 4) {
-                    if model.isDueSoon {
-                        Image(systemName: "clock.fill")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(DesignTokens.Palette.warning)
-                            .help("Due soon: \(dueTime)")
-                            .accessibilityHidden(true)
-                    }
-
-                    Text(dueTime)
-                        .font(.system(size: 10))
-                        .foregroundStyle(
-                            model.isOverdue
-                                ? DesignTokens.Palette.danger
-                                : DesignTokens.Palette.textSecondary
-                        )
-                        .help(model.isOverdue ? "Overdue — was due \(dueTime)" : "Due at \(dueTime)")
-
-                    if model.isBlocked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 8))
-                            .foregroundStyle(Color.secondary)
-                            .help("Blocked by an unfinished task")
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay {
-                TaskDragSource(
-                    itemId: model.id,
-                    title: model.title,
-                    tooltip: model.descriptionPreview ?? "Open “\(model.title)”",
-                    onClick: {
-                        onSelect(model.id)
-                        onQuickAction(model.id, .open)
-                    },
-                    menuActions: dragMenuActions
-                )
-            }
-
-            ForEach(model.trays.prefix(2)) { tray in
-                Image(systemName: DesignTokens.TrayPalette.iconName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color(hex: tray.colorHex))
-                    .help("Tray: \(tray.name)")
-                    .accessibilityLabel("In tray \(tray.name)")
-            }
-
-            if model.trays.count > 2 {
-                Text("+\(model.trays.count - 2)")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .help(model.trays.dropFirst(2).map(\.name).joined(separator: ", "))
-            }
-
+            titleBlock(dueTime: dueTime, compact: false)
+            trayBadges
             attachmentCluster
-
-            VStack(spacing: 0) {
-                Button {
-                    onQuickAction(model.id, .moveUp)
-                } label: {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(DesignTokens.Palette.textSecondary)
-                        .frame(width: 18, height: 16)
-                }
-                .buttonStyle(.plain)
-                .help("Move up")
-                .accessibilityLabel("Move \(model.title) up")
-                .accessibilityIdentifier("move-up-\(model.title)")
-
-                Button {
-                    onQuickAction(model.id, .moveDown)
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(DesignTokens.Palette.textSecondary)
-                        .frame(width: 18, height: 16)
-                }
-                .buttonStyle(.plain)
-                .help("Move down")
-                .accessibilityLabel("Move \(model.title) down")
-                .accessibilityIdentifier("move-down-\(model.title)")
-            }
-            .fixedSize()
+            moveControls
         }
+    }
+
+    @MainActor
+    private func compactRow(dueTime: String) -> some View {
+        HStack(spacing: 8) {
+            parentColorBar
+            dragHandle
+            completionControl
+            priorityPill
+            titleBlock(dueTime: dueTime, compact: true)
+        }
+    }
+
+    @ViewBuilder
+    private var parentColorBar: some View {
+        if let parentColorHex = model.parentColorHex {
+            Rectangle()
+                .fill(Color(hex: parentColorHex))
+                .frame(width: 3)
+        }
+    }
+
+    @MainActor
+    private var dragHandle: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(DesignTokens.Palette.textSecondary.opacity(0.7))
+            .frame(width: 14, height: 24)
+            .contentShape(Rectangle())
+            .help("Drag to reorder or into a tray")
+            .accessibilityLabel("Drag \(model.title)")
+            .accessibilityIdentifier("drag-handle-\(model.title)")
+    }
+
+    @MainActor
+    private func titleBlock(dueTime: String, compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(model.title)
+                .font(.callout)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .strikethrough(model.isDone)
+                .foregroundStyle(model.isDone ? Color.secondary : Color.primary)
+                .accessibilityLabel(accessibilityLabel(dueTime: dueTime))
+                .help(model.descriptionPreview ?? "Open “\(model.title)”")
+
+            if compact {
+                HStack(spacing: 4) {
+                    dueLine(dueTime)
+                    trayBadges
+                    attachmentCluster
+                    Spacer(minLength: 0)
+                    compactMoveControls
+                }
+            } else {
+                dueLine(dueTime)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+        .overlay {
+            TaskDragSource(
+                itemId: model.id,
+                title: model.title,
+                tooltip: model.descriptionPreview ?? "Open “\(model.title)”",
+                onClick: {
+                    onSelect(model.id)
+                    onQuickAction(model.id, .open)
+                },
+                menuActions: dragMenuActions
+            )
+        }
+    }
+
+    @MainActor
+    private func dueLine(_ dueTime: String) -> some View {
+        HStack(spacing: 4) {
+            if model.isDueSoon {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(DesignTokens.Palette.warning)
+                    .help("Due soon: \(dueTime)")
+                    .accessibilityHidden(true)
+            }
+
+            Text(dueTime)
+                .font(.system(size: 10))
+                .foregroundStyle(
+                    model.isOverdue
+                        ? DesignTokens.Palette.danger
+                        : DesignTokens.Palette.textSecondary
+                )
+                .help(model.isOverdue ? "Overdue — was due \(dueTime)" : "Due at \(dueTime)")
+
+            if model.isBlocked {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(Color.secondary)
+                    .help("Blocked by an unfinished task")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var trayBadges: some View {
+        ForEach(model.trays.prefix(2)) { tray in
+            Image(systemName: DesignTokens.TrayPalette.iconName)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color(hex: tray.colorHex))
+                .help("Tray: \(tray.name)")
+                .accessibilityLabel("In tray \(tray.name)")
+        }
+
+        if model.trays.count > 2 {
+            Text("+\(model.trays.count - 2)")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.secondary)
+                .help(model.trays.dropFirst(2).map(\.name).joined(separator: ", "))
+        }
+    }
+
+    @MainActor
+    private var moveControls: some View {
+        VStack(spacing: 0) {
+            moveButton(up: true)
+            moveButton(up: false)
+        }
+        .fixedSize()
+    }
+
+    @MainActor
+    private var compactMoveControls: some View {
+        HStack(spacing: 2) {
+            moveButton(up: true, compact: true)
+            moveButton(up: false, compact: true)
+        }
+    }
+
+    @MainActor
+    private func moveButton(up: Bool, compact: Bool = false) -> some View {
+        Button {
+            onQuickAction(model.id, up ? .moveUp : .moveDown)
+        } label: {
+            Image(systemName: up ? "chevron.up" : "chevron.down")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                .frame(width: compact ? 14 : 18, height: compact ? 14 : 16)
+        }
+        .buttonStyle(.plain)
+        .help(up ? "Move up" : "Move down")
+        .accessibilityLabel(up ? "Move \(model.title) up" : "Move \(model.title) down")
+        .accessibilityIdentifier(up ? "move-up-\(model.title)" : "move-down-\(model.title)")
     }
 
     @ViewBuilder

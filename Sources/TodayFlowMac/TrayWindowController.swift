@@ -127,7 +127,8 @@ public final class TrayWindowController: NSObject, NSWindowDelegate {
         // tray size before placement so layout math and following are stable.
         window.setContentSize(NSSize(width: 420, height: 520))
         window.isReleasedWhenClosed = false
-        window.isMovableByWindowBackground = true
+        // Title-bar dragging only: content clicks must not nudge the tray.
+        window.isMovableByWindowBackground = false
         window.animationBehavior = .none
         window.delegate = self
         // Attach to the right of the main panel, then to the right of the

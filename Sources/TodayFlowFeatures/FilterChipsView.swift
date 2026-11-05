@@ -35,34 +35,52 @@ public struct FilterChipsView: View {
     }
 
     public var body: some View {
-        HStack(spacing: 6) {
-            ForEach(TodayFilter.allCases) { filterCase in
-                chip(for: filterCase)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                filterChips
+                Spacer(minLength: 4)
+                projectMenuIfAny
+                sortMenu
+                searchButton
             }
-
-            Spacer(minLength: 4)
-
-            if !projects.isEmpty {
-                projectMenu
+            ChipFlowLayout(spacing: 6, lineSpacing: 4) {
+                filterChips
+                projectMenuIfAny
+                sortMenu
+                searchButton
             }
-
-            sortMenu
-
-            Button {
-                onSearch()
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(DesignTokens.Palette.textSecondary)
-                    .frame(width: 26, height: 26)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut("f", modifiers: .command)
-            .help("Search")
-            .accessibilityLabel("Search")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var filterChips: some View {
+        ForEach(TodayFilter.allCases) { filterCase in
+            chip(for: filterCase)
+        }
+    }
+
+    @ViewBuilder
+    private var projectMenuIfAny: some View {
+        if !projects.isEmpty {
+            projectMenu
+        }
+    }
+
+    private var searchButton: some View {
+        Button {
+            onSearch()
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("f", modifiers: .command)
+        .help("Search")
+        .accessibilityLabel("Search")
     }
 
     @ViewBuilder
@@ -176,5 +194,64 @@ public struct FilterChipsView: View {
         .buttonStyle(.plain)
         .fixedSize()
         .accessibilityLabel(candidate.label)
+    }
+}
+
+
+/// Wraps filter chips onto a second row when the panel is narrow. Every
+/// control stays visible instead of clipping or hiding behind an overflow.
+private struct ChipFlowLayout: Layout {
+    var spacing: CGFloat = 6
+    var lineSpacing: CGFloat = 4
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var usedWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                x = 0
+                y += rowHeight + lineSpacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+            usedWidth = max(usedWidth, x - spacing)
+        }
+        return CGSize(width: proposal.width ?? usedWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + lineSpacing
+                rowHeight = 0
+            }
+            subview.place(
+                at: CGPoint(x: x, y: y),
+                proposal: ProposedViewSize(size)
+            )
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }

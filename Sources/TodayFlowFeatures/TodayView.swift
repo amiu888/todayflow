@@ -6,6 +6,8 @@ import TodayFlowDesign
 import AppKit
 #endif
 
+
+
 /// The Today panel: progress header, filter chips, optional search row,
 /// and the task list (overdue / today / done sections).
 ///
@@ -43,6 +45,7 @@ public struct TodayView: View {
     @State private var dockAppBundle = ""
     @State private var dockEdge = "left"
     @State private var localDockedName: String?
+    @State private var isCompact = false
     @State private var showingNewProject = false
     @State private var newProjectName = ""
 
@@ -156,6 +159,20 @@ public struct TodayView: View {
 
     @MainActor
     public var body: some View {
+        GeometryReader { proxy in
+            panelBody
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .onAppear {
+                    isCompact = proxy.size.width < 340
+                }
+                .onChange(of: proxy.size.width) { _, width in
+                    isCompact = width < 340
+                }
+        }
+    }
+
+    @MainActor
+    private var panelBody: some View {
         VStack(spacing: 0) {
             VStack(spacing: 6) {
                 dateHeader
@@ -577,7 +594,8 @@ public struct TodayView: View {
                 Task { @MainActor in
                     await model.addToTray(itemId, trayId: trayId)
                 }
-            }
+            },
+            isCompact: isCompact
         )
 
         #if canImport(AppKit)
@@ -615,6 +633,37 @@ public struct TodayView: View {
 
     @MainActor
     private var dateHeader: some View {
+        Group {
+            if isCompact {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    titleAndDate
+                    Spacer(minLength: 4)
+                    if !model.isViewingToday {
+                        backToTodayButton
+                    }
+                }
+                    HStack(spacing: 9) {
+                        Spacer(minLength: 0)
+                        headerActionIcons
+                    }
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    titleAndDate
+                    Spacer(minLength: 6)
+                    if !model.isViewingToday {
+                        backToTodayButton
+                    }
+                    headerActionIcons
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @MainActor
+    private var titleAndDate: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Text(model.isViewingToday
                 ? "Today"
@@ -626,20 +675,24 @@ public struct TodayView: View {
             Text(model.activeDay.formatted(.dateTime.month(.wide).day()))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(DesignTokens.Palette.textSecondary)
+        }
+    }
 
-            Spacer(minLength: 6)
+    @MainActor
+    private var backToTodayButton: some View {
+        Button("Back to today") {
+            Task { @MainActor in await model.goToToday() }
+        }
+        .buttonStyle(.borderless)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(DesignTokens.Palette.accent)
+        .help("Return to today")
+    }
 
-            HStack(spacing: 9) {
-            if !model.isViewingToday {
-                Button("Back to today") {
-                    Task { @MainActor in await model.goToToday() }
-                }
-                .buttonStyle(.borderless)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Palette.accent)
-                .help("Return to today")
-            }
-
+    @MainActor
+    @ViewBuilder
+    private var headerActionIcons: some View {
+        HStack(spacing: 9) {
             if let onShowMiniCalendar {
                 Button {
                     onShowMiniCalendar()
@@ -741,9 +794,7 @@ public struct TodayView: View {
                 .help("Window docking, desktops, and mini-calendar corners")
                 .accessibilityLabel("Window options")
             }
-            }
         }
-        .padding(.horizontal, 4)
     }
 
     private var dockHelp: String {
