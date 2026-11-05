@@ -68,6 +68,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         self.todayModel.onFocusTask = { [weak self] id in self?.presentFocus(id) }
         self.contactsModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
         self.trayWindows.panelFrame = { [weak self] in self?.windows[.panel]?.frame }
+        self.trayWindows.panelWindow = { [weak self] in self?.windows[.panel] }
         self.miniCalendar.onOpenDetail = { [weak self] id in self?.show(.detail(id)) }
         self.miniCalendar.onOpenMain = { [weak self] in
             self?.show(.panel)
