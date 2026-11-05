@@ -114,6 +114,73 @@ final class TodayFlowUITests: XCTestCase {
         trayItem.click()
     }
 
+    /// Dragging the AppKit title area starts a real dragging session.
+    func testDraggingTaskTitleIntoTray() throws {
+        let app = launchApp()
+        let title = "Title drag \(UUID().uuidString.prefix(5))"
+        _ = createTask(app, title)
+
+        let dragArea = app.descendants(matching: .any)
+            .matching(identifier: "task-drag-area-\(title)").firstMatch
+        XCTAssertTrue(dragArea.waitForExistence(timeout: 5), "Drag area missing")
+
+        let tray = app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Working tray").firstMatch
+        XCTAssertTrue(tray.waitForExistence(timeout: 5))
+
+        dragArea.press(forDuration: 0.6, thenDragTo: tray)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "tray-chip-\(title)").firstMatch
+                .waitForExistence(timeout: 6),
+            "The dragged task did not land in the tray"
+        )
+    }
+
+    /// Dragging a title from one tray window to another moves it.
+    func testDraggingBetweenTrayWindows() throws {
+        let app = launchApp()
+        let title = "Window drag \(UUID().uuidString.prefix(5))"
+        let row = createTask(app, title)
+        addToTray(app, row: row, tray: "Working tray")
+
+        app.buttons["Add working tray"].click()
+        let name = app.textFields["Tray name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        name.typeText("Second tray")
+        app.buttons["Create"].click()
+
+        let secondName = app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Second tray").firstMatch
+        XCTAssertTrue(secondName.waitForExistence(timeout: 4))
+        secondName.doubleClick()
+        let secondWindow = app.windows["Tray · Second tray"]
+        XCTAssertTrue(secondWindow.waitForExistence(timeout: 5))
+
+        app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Working tray").firstMatch.doubleClick()
+        let workingWindow = app.windows["Tray · Working tray"]
+        XCTAssertTrue(workingWindow.waitForExistence(timeout: 5))
+
+        let dragArea = workingWindow.descendants(matching: .any)
+            .matching(identifier: "task-drag-area-\(title)").firstMatch
+        XCTAssertTrue(dragArea.waitForExistence(timeout: 4))
+        dragArea.press(
+            forDuration: 0.6,
+            thenDragTo: secondWindow.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)
+            )
+        )
+
+        XCTAssertTrue(
+            secondWindow.descendants(matching: .any)
+                .matching(identifier: "tray-window-row-\(title)").firstMatch
+                .waitForExistence(timeout: 6),
+            "The task did not move to the second tray window"
+        )
+    }
+
     /// Two tasks can be added to the same tray in sequence.
     func testAddingMultipleTasksToTray() throws {
         let app = launchApp()
