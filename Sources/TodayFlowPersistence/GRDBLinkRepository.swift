@@ -12,9 +12,11 @@ import TodayFlowCore
 ///   `"delete"` outbox row in the same transaction.
 public final class GRDBLinkRepository: LinkRepository, Sendable {
     private let queue: DatabaseQueue
+    private let actor: String
 
-    public init(queue: DatabaseQueue) {
+    public init(queue: DatabaseQueue, actor: String = ActivityActor.current) {
         self.queue = queue
+        self.actor = actor
     }
 
     // MARK: - Reads (non-throwing per the port contract)
@@ -85,12 +87,61 @@ public final class GRDBLinkRepository: LinkRepository, Sendable {
                 payloadJson: (try? Json.encode(link)) ?? "{}",
                 at: link.createdAt
             )
+
+            let fromTitle = try ActivityLog.title(db, for: link.fromId)
+            let toTitle = try ActivityLog.title(db, for: link.toId)
+            let common: [String: String] = [
+                "link_id": link.id.uuid.uuidString,
+                "other_from": link.fromId.uuid.uuidString,
+                "other_to": link.toId.uuid.uuidString,
+                "link_kind": link.kind.dbValue,
+            ]
+            let fromSummary: String
+            let toSummary: String
+            switch link.kind {
+            case .blocks:
+                fromSummary = "Now blocks “\(toTitle)”"
+                toSummary = "Blocked by “\(fromTitle)”"
+            case .relatesTo:
+                fromSummary = "Linked as related to “\(toTitle)”"
+                toSummary = "Linked as related to “\(fromTitle)”"
+            }
+            try ActivityLog.append(
+                db,
+                ActivityEvent(
+                    itemId: link.fromId,
+                    kind: .linkAdded,
+                    summary: fromSummary,
+                    actor: actor,
+                    occurredAt: link.createdAt,
+                    metadata: common,
+                    deviceId: link.deviceId
+                )
+            )
+            try ActivityLog.append(
+                db,
+                ActivityEvent(
+                    itemId: link.toId,
+                    kind: .linkAdded,
+                    summary: toSummary,
+                    actor: actor,
+                    occurredAt: link.createdAt,
+                    metadata: common,
+                    deviceId: link.deviceId
+                )
+            )
         }
     }
 
     public func delete(_ id: UUIDv7) async throws {
+        let actor = self.actor
         try await queue.write { db in
             let idString = id.uuid.uuidString
+            let row = try Row.fetchOne(
+                db,
+                sql: "SELECT * FROM item_link WHERE id = ?",
+                arguments: [idString]
+            )
             try db.execute(
                 sql: "DELETE FROM item_link WHERE id = ?",
                 arguments: [idString]
@@ -103,6 +154,28 @@ public final class GRDBLinkRepository: LinkRepository, Sendable {
                 payloadJson: "{}",
                 at: .now
             )
+
+            if let row {
+                let link = ItemLinkRecord(row: row).model
+                for itemId in [link.fromId, link.toId] {
+                    try ActivityLog.append(
+                        db,
+                        ActivityEvent(
+                            itemId: itemId,
+                            kind: .linkRemoved,
+                            summary: "Removed a \(link.kind == .blocks ? "blocking" : "related") link",
+                            actor: actor,
+                            occurredAt: .now,
+                            metadata: [
+                                "link_id": link.id.uuid.uuidString,
+                                "from": link.fromId.uuid.uuidString,
+                                "to": link.toId.uuid.uuidString,
+                            ],
+                            deviceId: link.deviceId
+                        )
+                    )
+                }
+            }
         }
     }
 }

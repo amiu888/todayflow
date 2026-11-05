@@ -20,9 +20,11 @@ import TodayFlowCore
 ///   lands in a later increment.
 public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
     private let queue: DatabaseQueue
+    private let actor: String
 
-    public init(queue: DatabaseQueue) {
+    public init(queue: DatabaseQueue, actor: String = ActivityActor.current) {
         self.queue = queue
+        self.actor = actor
     }
 
     // MARK: - Reads (non-throwing per the port contract: nil/empty on failure)
@@ -134,7 +136,14 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
     // MARK: - Mutations (throwing per the port contract)
 
     public func save(_ item: WorkItem) async throws {
+        let actor = self.actor
         try await queue.write { db in
+            let old = try Row.fetchOne(
+                db,
+                sql: "SELECT * FROM work_item WHERE id = ?",
+                arguments: [item.id.uuid.uuidString]
+            ).map { WorkItemRecord(row: $0).model }
+
             try db.execute(
                 sql: """
                     INSERT INTO work_item (
@@ -189,7 +198,140 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
                 payloadJson: (try? Json.encode(item)) ?? "{}",
                 at: item.updatedAt
             )
+
+            for event in Self.events(old: old, new: item, actor: actor) {
+                try ActivityLog.append(db, event)
+            }
         }
+    }
+
+    /// Diffs an upsert into human-readable activity events. Only changes are
+    /// emitted, so a no-op save does not spam the log.
+    private static func events(
+        old: WorkItem?,
+        new: WorkItem,
+        actor: String
+    ) -> [ActivityEvent] {
+        let at = new.updatedAt
+        let device = new.deviceId
+        func event(
+            _ kind: ActivityEvent.Kind,
+            _ summary: String,
+            metadata: [String: String] = [:]
+        ) -> ActivityEvent {
+            ActivityEvent(
+                itemId: new.id,
+                kind: kind,
+                summary: summary,
+                actor: actor,
+                occurredAt: at,
+                metadata: metadata,
+                deviceId: device
+            )
+        }
+
+        guard let old else {
+            return [
+                event(
+                    .created,
+                    "Created “\(new.title)”",
+                    metadata: [
+                        "kind": new.kind.rawValue,
+                        "priority": new.priority.label,
+                        "due": ISO8601DateFormatter().string(from: new.endAt),
+                        "parent_id": new.parentId?.uuid.uuidString ?? "",
+                    ].filter { !$0.value.isEmpty }
+                )
+            ]
+        }
+
+        var events: [ActivityEvent] = []
+
+        if old.deletedAt == nil, new.deletedAt != nil {
+            events.append(event(.deleted, "Deleted “\(old.title)”"))
+        } else if old.deletedAt != nil, new.deletedAt == nil {
+            events.append(event(.other, "Restored “\(new.title)”"))
+        }
+
+        if old.status != new.status {
+            if new.status == .done {
+                events.append(event(.completed, "Completed “\(new.title)”"))
+            } else if old.status == .done {
+                events.append(event(.reopened, "Reopened “\(new.title)”"))
+            } else {
+                events.append(
+                    event(
+                        .statusChanged,
+                        "Status: \(old.status.label) → \(new.status.label)",
+                        metadata: ["old": old.status.rawValue, "new": new.status.rawValue]
+                    )
+                )
+            }
+        }
+
+        if old.priority != new.priority {
+            events.append(
+                event(
+                    .priorityChanged,
+                    "Priority: \(old.priority.label) → \(new.priority.label)",
+                    metadata: [
+                        "old": old.priority.label,
+                        "new": new.priority.label,
+                    ]
+                )
+            )
+        }
+
+        if old.startAt != new.startAt || old.endAt != new.endAt {
+            events.append(
+                event(
+                    .scheduled,
+                    "Dates: \(Self.range(old)) → \(Self.range(new))",
+                    metadata: [
+                        "old_start": ISO8601DateFormatter().string(from: old.startAt),
+                        "old_end": ISO8601DateFormatter().string(from: old.endAt),
+                        "new_start": ISO8601DateFormatter().string(from: new.startAt),
+                        "new_end": ISO8601DateFormatter().string(from: new.endAt),
+                    ]
+                )
+            )
+        }
+
+        if old.parentId != new.parentId {
+            events.append(
+                event(
+                    .reparented,
+                    new.parentId == nil ? "Moved to top level" : "Moved under another item",
+                    metadata: [
+                        "old_parent": old.parentId?.uuid.uuidString ?? "",
+                        "new_parent": new.parentId?.uuid.uuidString ?? "",
+                    ]
+                )
+            )
+        } else if old.displayOrder != new.displayOrder {
+            events.append(event(.reordered, "Reordered"))
+        }
+
+        if old.title != new.title {
+            events.append(
+                event(
+                    .edited,
+                    "Renamed to “\(new.title)”",
+                    metadata: ["old_title": old.title]
+                )
+            )
+        } else if old.descriptionMd != new.descriptionMd {
+            events.append(event(.edited, "Edited description"))
+        }
+
+        return events
+    }
+
+    private static func range(_ item: WorkItem) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return "\(formatter.string(from: item.startAt))–\(formatter.string(from: item.endAt))"
     }
 
     public func softDelete(_ id: UUIDv7, at: Date) async throws {
@@ -221,6 +363,17 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
                 op: "upsert",
                 payloadJson: (try? Json.encode(tombstone)) ?? "{}",
                 at: at
+            )
+            try ActivityLog.append(
+                db,
+                ActivityEvent(
+                    itemId: id,
+                    kind: .deleted,
+                    summary: "Deleted “\(tombstone.title)”",
+                    actor: actor,
+                    occurredAt: at,
+                    deviceId: tombstone.deviceId
+                )
             )
         }
     }
@@ -260,6 +413,24 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
                 op: "upsert",
                 payloadJson: (try? Json.encode(moved)) ?? "{}",
                 at: at
+            )
+
+            let reparented = moved.parentId != (row["parent_id"] as String?).map { UUIDv7(databaseString: $0) }
+            try ActivityLog.append(
+                db,
+                ActivityEvent(
+                    itemId: id,
+                    kind: reparented ? .reparented : .reordered,
+                    summary: reparented ? "Moved under another item" : "Reordered",
+                    actor: actor,
+                    occurredAt: at,
+                    metadata: [
+                        "old_parent": (row["parent_id"] as String?) ?? "",
+                        "new_parent": toParent?.uuid.uuidString ?? "",
+                        "display_order": displayOrder,
+                    ],
+                    deviceId: moved.deviceId
+                )
             )
         }
     }

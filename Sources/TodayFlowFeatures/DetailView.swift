@@ -149,6 +149,10 @@ public struct DetailView: View {
 
                     linksSection
 
+                    if !model.activity.isEmpty {
+                        activitySection
+                    }
+
                     if let error = model.lastError {
                         Text(error)
                             .font(.callout)
@@ -522,6 +526,100 @@ public struct DetailView: View {
                 linkGroup("Related", items: model.related)
             }
         }
+    }
+
+    /// The complete audit trail (FR-20): every create/edit/status/link/drop,
+    /// with who, when, which app, and the file path or URL involved.
+    @MainActor
+    private var activitySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Activity")
+                .font(.headline)
+
+            ForEach(model.activity) { event in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: activitySymbol(event.kind))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(event.summary)
+                                .font(.callout)
+
+                            Spacer()
+
+                            Text(
+                                event.occurredAt,
+                                format: .dateTime.month(.abbreviated).day().hour().minute()
+                            )
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 6) {
+                            Text(event.actor)
+                            if let app = event.sourceApp {
+                                Text("via \(appDisplayName(app))")
+                            }
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                        if let location = event.location, !location.isEmpty {
+                            Text(location)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(location)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(activityAccessibilityLabel(event))
+            }
+        }
+    }
+
+    private func activitySymbol(_ kind: ActivityEvent.Kind) -> String {
+        switch kind {
+        case .dropped, .attachmentAdded: return "paperclip"
+        case .created: return "plus.circle"
+        case .completed: return "checkmark.circle.fill"
+        case .reopened: return "arrow.counterclockwise"
+        case .deleted, .attachmentRemoved, .linkRemoved: return "trash"
+        case .linkAdded: return "link"
+        case .priorityChanged: return "exclamationmark.circle"
+        case .scheduled: return "calendar"
+        case .reordered: return "arrow.up.arrow.down"
+        case .reparented: return "arrow.triangle.branch"
+        case .aiSuggested: return "sparkles"
+        case .edited, .statusChanged, .other: return "pencil"
+        }
+    }
+
+    private func appDisplayName(_ bundleId: String) -> String {
+        switch bundleId {
+        case "com.apple.finder": return "Finder"
+        case "com.apple.Safari": return "Safari"
+        case "com.apple.mail": return "Mail"
+        case "com.microsoft.Outlook": return "Outlook"
+        case "com.microsoft.teams2", "com.microsoft.teams": return "Teams"
+        case "com.apple.Preview": return "Preview"
+        case "com.apple.Photos": return "Photos"
+        default: return bundleId
+        }
+    }
+
+    private func activityAccessibilityLabel(_ event: ActivityEvent) -> String {
+        var parts = [event.summary, "by \(event.actor)"]
+        if let app = event.sourceApp { parts.append("from \(appDisplayName(app))") }
+        if let location = event.location, !location.isEmpty { parts.append(location) }
+        parts.append(event.occurredAt.formatted(date: .abbreviated, time: .shortened))
+        return parts.joined(separator: ", ")
     }
 
     @MainActor

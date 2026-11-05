@@ -279,6 +279,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 repository: environment.workItems,
                 linkRepository: environment.links,
                 attachmentRepository: environment.attachments,
+                activityRepository: environment.activities,
                 calendar: environment.workCalendar,
                 onClosed: { [weak self] in self?.close(.detail(id)) }
             )

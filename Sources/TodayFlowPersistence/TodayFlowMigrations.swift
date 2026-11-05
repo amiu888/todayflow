@@ -7,7 +7,7 @@ import GRDB
 /// migration" (driver.md §6). Schema v1 is the full driver.md §6 schema, applied
 /// as a single multi-statement `execute`.
 public enum TodayFlowMigrations {
-    /// The v1 migrator. Register this before opening any production database.
+    /// The v1 migrator. Kept for migration tests and historical clarity.
     public static var v1: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration("v1") { db in
@@ -15,6 +15,37 @@ public enum TodayFlowMigrations {
         }
         return migrator
     }
+
+    /// All migrations through the current schema. New databases and upgrades
+    /// both use this; shipped migrations are never edited.
+    public static var current: DatabaseMigrator {
+        var migrator = DatabaseMigrator()
+        migrator.registerMigration("v1") { db in
+            try db.execute(sql: schemaV1)
+        }
+        migrator.registerMigration("v2") { db in
+            try db.execute(sql: schemaV2)
+        }
+        return migrator
+    }
+
+    /// v2 adds the append-only activity/audit log (FR-20).
+    static let schemaV2 = """
+        CREATE TABLE activity (
+          id TEXT PRIMARY KEY,
+          work_item_id TEXT NOT NULL REFERENCES work_item(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          actor TEXT NOT NULL,
+          source_app TEXT,
+          location TEXT,
+          occurred_at TEXT NOT NULL,
+          metadata_json TEXT NOT NULL DEFAULT '{}',
+          device_id TEXT NOT NULL
+        );
+        CREATE INDEX idx_activity_item_time ON activity(work_item_id, occurred_at);
+        CREATE INDEX idx_activity_time ON activity(occurred_at);
+        """
 
     /// The full v1 schema: 8 tables + 6 FTS sync triggers.
     ///
@@ -142,14 +173,14 @@ public enum TodayFlowDatabase {
             try db.execute(sql: "PRAGMA journal_mode = WAL")
         }
         let queue = try DatabaseQueue(path: url.path, configuration: config)
-        try TodayFlowMigrations.v1.migrate(queue)
+        try TodayFlowMigrations.current.migrate(queue)
         return queue
     }
 
     /// An in-memory database with all migrations applied (for tests).
     public static func makeInMemory() throws -> DatabaseQueue {
         let queue = try DatabaseQueue()
-        try TodayFlowMigrations.v1.migrate(queue)
+        try TodayFlowMigrations.current.migrate(queue)
         return queue
     }
 }

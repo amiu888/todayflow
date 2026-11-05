@@ -34,16 +34,22 @@ Build increments land in the order from `driver.md` §11. All eight are complete
 - [x] **3. TodayFlowRecognition** — eleven recognizers, materializer, enricher, pipeline
 - [x] **4. TodayFlowDesign** — priority colors, icons, progress ring, motion, tokens
 - [x] **5. TodayFlowFeatures** — Today, Capture, Detail, Hierarchy, Settings, end-of-day
-      review, Upcoming, Completed, project filter, undo, drag reorder, JSON/CSV export
+      review, Upcoming, Completed, project filter, undo, drag reorder, JSON/CSV export,
+      and a full per-task activity/audit log
 - [x] **6. TodayFlowMac** — composition root, floating panel, menu bar, slim bar,
       global hotkey, drag-and-drop + paste, notifications, Quick Look / open / reveal
 - [x] **7. TodayFlowAI** — OpenAI-compatible client (JSON-schema fallback, retries,
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free and `swift test` passes **512 tests**.
+Verification: `swift build` is warning-free and `swift test` passes **519 tests**.
 The app also makes a daily database snapshot (`VACUUM INTO`) and keeps the last 7
 in `Application Support/TodayFlow/Backups/` (NFR-09).
+
+Every task keeps an append-only activity log: creation, edits, status/priority/date
+changes, reorder/reparent, completion/reopen, link add/remove, and attachment add/
+remove, including the dropping app, file path/URL, actor, and timestamp. It is
+visible at the bottom of the task detail window.
 
 Known follow-ups before shipping a signed build (outside the eight build increments):
 

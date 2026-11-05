@@ -24,6 +24,7 @@ struct MigrationsTests {
         #expect(tables.contains("reminder"))
         #expect(tables.contains("change_outbox"))
         #expect(tables.contains("setting"))
+        #expect(tables.contains("activity"))
         #expect(tables.contains("search_index"))
 
         let triggers = try queue.read { db in

@@ -58,6 +58,13 @@ public struct TaskAttachmentImporter: Sendable {
 
             var attachment = object.attachment(for: itemId, at: now)
             attachment.deviceId = deviceId
+            attachment.metadata["origin"] = "drop"
+            if let sourceApp = source.sourceApp {
+                attachment.sourceApp = sourceApp
+            }
+            if let uti = source.uti {
+                attachment.metadata["drop_uti"] = uti.identifier
+            }
             try await attachmentRepository.save(attachment)
             saved.append(attachment)
         }

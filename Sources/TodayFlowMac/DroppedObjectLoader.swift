@@ -36,11 +36,12 @@ public struct DroppedObjectLoader {
     /// images over text. That keeps a file dragged from Finder a file (rather
     /// than its filename string) while still accepting a plain-text drag.
     public func load(_ provider: NSItemProvider) async -> DroppedObject? {
+        let sourceApp = Self.externalSourceApp()
         if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
            let url = await loadURL(provider, type: .fileURL),
            url.isFileURL
         {
-            return Self.object(forFileURL: url)
+            return Self.object(forFileURL: url, sourceApp: sourceApp)
         }
 
         // File promises (Outlook/Mail messages and calendar events) only exist
@@ -50,7 +51,7 @@ public struct DroppedObjectLoader {
         if provider.registeredTypeIdentifiers.contains(Self.promisedFileType),
            let url = await loadInPlaceFile(provider)
         {
-            var object = Self.object(forFileURL: url)
+            var object = Self.object(forFileURL: url, sourceApp: sourceApp)
             object.isFilePromise = true
             return object
         }
@@ -59,8 +60,8 @@ public struct DroppedObjectLoader {
            let url = await loadURL(provider, type: .url)
         {
             // Some providers only advertise public.url even for a file.
-            if url.isFileURL { return Self.object(forFileURL: url) }
-            return DroppedObject(url: url, uti: .url)
+            if url.isFileURL { return Self.object(forFileURL: url, sourceApp: sourceApp) }
+            return DroppedObject(url: url, sourceApp: sourceApp, uti: .url)
         }
 
         // Ask for concrete image types first: a provider may list `public.png`
@@ -70,11 +71,11 @@ public struct DroppedObjectLoader {
             guard provider.hasItemConformingToTypeIdentifier(type.identifier),
                   let data = await loadData(provider, type: type)
             else { continue }
-            return DroppedObject(imageData: data, uti: type)
+            return DroppedObject(imageData: data, sourceApp: sourceApp, uti: type)
         }
 
         if let (text, type) = await loadText(provider) {
-            return DroppedObject(text: text, uti: type)
+            return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
         }
 
         return nil
@@ -163,6 +164,16 @@ public struct DroppedObjectLoader {
         return nil
     }
 
+    /// The app the user dragged from. Returns nil when TodayFlow itself is
+    /// frontmost (for example ⌘V paste), so the log never claims TodayFlow
+    /// supplied its own clipboard content.
+    private static func externalSourceApp() -> String? {
+        guard let identifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+              identifier != Bundle.main.bundleIdentifier
+        else { return nil }
+        return identifier
+    }
+
     /// `public.file-url` / `public.url` data is normally the UTF-8 URL string,
     /// but older providers may hand back an archived `URL`. Accept both.
     nonisolated static func url(from data: Data) -> URL? {
@@ -178,7 +189,10 @@ public struct DroppedObjectLoader {
     /// Builds a `DroppedObject` with the resource metadata recognizers use
     /// (folder flag, UTI, size, modification date) and in-memory bytes for the
     /// small transient formats that may disappear after the drop.
-    public static func object(forFileURL url: URL) -> DroppedObject {
+    public static func object(
+        forFileURL url: URL,
+        sourceApp: String? = nil
+    ) -> DroppedObject {
         let values = try? url.resourceValues(forKeys: [
             .isDirectoryKey,
             .contentTypeKey,
@@ -194,6 +208,7 @@ public struct DroppedObjectLoader {
             fileURL: url,
             isDirectory: values?.isDirectory,
             fileData: fileData,
+            sourceApp: sourceApp,
             uti: values?.contentType ?? UTType(filenameExtension: ext),
             fileSize: values?.fileSize.map { Int64($0) },
             modificationDate: values?.contentModificationDate
@@ -225,23 +240,24 @@ public struct DroppedObjectLoader {
     /// or dragged. Files win over images and text within one item.
     public static func objects(from pasteboard: NSPasteboard) -> [DroppedObject] {
         guard let items = pasteboard.pasteboardItems else { return [] }
+        let sourceApp = externalSourceApp()
         return items.compactMap { item in
             if let string = item.string(forType: .fileURL),
                let url = URL(string: string),
                url.isFileURL
             {
-                return object(forFileURL: url)
+                return object(forFileURL: url, sourceApp: sourceApp)
             }
             if let string = item.string(forType: .URL),
                let url = URL(string: string)
             {
-                return DroppedObject(url: url, uti: .url)
+                return DroppedObject(url: url, sourceApp: sourceApp, uti: .url)
             }
             if let data = item.data(forType: .tiff) ?? item.data(forType: .png) {
-                return DroppedObject(imageData: data, uti: .image)
+                return DroppedObject(imageData: data, sourceApp: sourceApp, uti: .image)
             }
             if let text = item.string(forType: .string) {
-                return DroppedObject(text: text, uti: .plainText)
+                return DroppedObject(text: text, sourceApp: sourceApp, uti: .plainText)
             }
             return nil
         }

@@ -10,9 +10,11 @@ import TodayFlowCore
 ///   `"delete"` outbox row in the same transaction.
 public final class GRDBAttachmentRepository: AttachmentRepository, Sendable {
     private let queue: DatabaseQueue
+    private let actor: String
 
-    public init(queue: DatabaseQueue) {
+    public init(queue: DatabaseQueue, actor: String = ActivityActor.current) {
         self.queue = queue
+        self.actor = actor
     }
 
     // MARK: - Reads (non-throwing per the port contract)
@@ -82,12 +84,43 @@ public final class GRDBAttachmentRepository: AttachmentRepository, Sendable {
                 payloadJson: (try? Json.encode(attachment)) ?? "{}",
                 at: attachment.createdAt
             )
+
+            // The drop provenance lives here: which app supplied the object,
+            // its path/URL, the UTI/kind, and the local copy (if any).
+            let isDrop = attachment.metadata["origin"] == "drop"
+            var metadata = attachment.metadata
+            metadata["attachment_kind"] = attachment.kind.rawValue
+            if let uti = attachment.uti { metadata["uti"] = uti }
+            if let copy = attachment.localCopyPath { metadata["local_copy"] = copy }
+
+            try ActivityLog.append(
+                db,
+                ActivityEvent(
+                    itemId: attachment.itemId,
+                    kind: isDrop ? .dropped : .attachmentAdded,
+                    summary: isDrop
+                        ? "Dropped “\(attachment.displayName)”"
+                        : "Attached “\(attachment.displayName)”",
+                    actor: actor,
+                    sourceApp: attachment.sourceApp,
+                    location: attachment.reference,
+                    occurredAt: attachment.createdAt,
+                    metadata: metadata,
+                    deviceId: attachment.deviceId
+                )
+            )
         }
     }
 
     public func delete(_ id: UUIDv7) async throws {
+        let actor = self.actor
         try await queue.write { db in
             let idString = id.uuid.uuidString
+            let row = try Row.fetchOne(
+                db,
+                sql: "SELECT * FROM attachment WHERE id = ?",
+                arguments: [idString]
+            )
             try db.execute(
                 sql: "DELETE FROM attachment WHERE id = ?",
                 arguments: [idString]
@@ -100,6 +133,23 @@ public final class GRDBAttachmentRepository: AttachmentRepository, Sendable {
                 payloadJson: "{}",
                 at: .now
             )
+
+            if let row {
+                let attachment = AttachmentRecord(row: row).model
+                try ActivityLog.append(
+                    db,
+                    ActivityEvent(
+                        itemId: attachment.itemId,
+                        kind: .attachmentRemoved,
+                        summary: "Removed “\(attachment.displayName)”",
+                        actor: actor,
+                        sourceApp: attachment.sourceApp,
+                        location: attachment.reference,
+                        occurredAt: .now,
+                        deviceId: attachment.deviceId
+                    )
+                )
+            }
         }
     }
 }

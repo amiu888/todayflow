@@ -42,6 +42,7 @@ private struct Fixture {
     let repository: InMemoryWorkItemRepository
     let linkRepository: InMemoryLinkRepository
     let attachmentRepository: InMemoryAttachmentRepository
+    let activityRepository = InMemoryActivityRepository()
     let vm: DetailViewModel
 
     init(
@@ -59,6 +60,7 @@ private struct Fixture {
             repository: repository,
             linkRepository: linkRepository,
             attachmentRepository: attachmentRepository,
+            activityRepository: activityRepository,
             calendar: WorkCalendar(calendar: testCalendar),
             clock: { testNow },
             onClosed: onClosed
@@ -509,4 +511,42 @@ func addLink_rejectsASelfLinkImplicitly() async {
 
     #expect(f.vm.blockers.isEmpty)
     #expect(f.vm.related.isEmpty)
+}
+
+// MARK: - Activity log (FR-20)
+
+@Test @MainActor
+func load_readsNewestActivityFirst() async {
+    let item = WorkItem(title: "Ship it", startAt: date(2026, 11, 3, hour: 9), endAt: date(2026, 11, 3, hour: 17))
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.activityRepository.seed(
+        ActivityEvent(
+            itemId: item.id,
+            kind: .created,
+            summary: "Created “Ship it”",
+            actor: "tester",
+            occurredAt: date(2026, 11, 3, hour: 9)
+        )
+    )
+    await f.activityRepository.seed(
+        ActivityEvent(
+            itemId: item.id,
+            kind: .dropped,
+            summary: "Dropped “shot.png”",
+            actor: "tester",
+            sourceApp: "com.apple.finder",
+            location: "/tmp/shot.png",
+            occurredAt: date(2026, 11, 3, hour: 10)
+        )
+    )
+
+    await f.vm.load()
+
+    #expect(f.vm.activity.map(\.summary) == [
+        "Dropped “shot.png”",
+        "Created “Ship it”",
+    ])
+    #expect(f.vm.activity.first?.sourceApp == "com.apple.finder")
+    #expect(f.vm.activity.first?.location == "/tmp/shot.png")
 }

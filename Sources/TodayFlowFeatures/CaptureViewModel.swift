@@ -291,6 +291,19 @@ public final class CaptureViewModel {
             : object
         var attachment = materialized.attachment(for: itemId, at: date)
         attachment.deviceId = deviceId
+        // Provenance for the activity log: a dropped object is distinguishable
+        // from an attachment added later in the detail view.
+        if source.fileURL != nil || source.url != nil
+            || source.text != nil || source.imageData != nil
+        {
+            attachment.metadata["origin"] = "drop"
+            if let sourceApp = source.sourceApp {
+                attachment.sourceApp = sourceApp
+            }
+            if let uti = source.uti {
+                attachment.metadata["drop_uti"] = uti.identifier
+            }
+        }
         try await attachmentRepository.save(attachment)
     }
 

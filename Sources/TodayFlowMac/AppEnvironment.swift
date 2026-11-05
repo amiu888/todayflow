@@ -14,6 +14,8 @@ public final class AppEnvironment {
     public let attachments: any AttachmentRepository
     public let settings: any SettingRepository
     public let keychain: any KeychainStore
+    /// Append-only audit trail (FR-20 activity log).
+    public let activities: any ActivityRepository
     public let pipeline: RecognitionPipeline
     /// Copies transient drops into the app container and bookmarks files
     /// (driver.md §7 step 2); the capture sheet uses it on save.
@@ -35,6 +37,7 @@ public final class AppEnvironment {
         attachments: any AttachmentRepository,
         settings: any SettingRepository,
         keychain: any KeychainStore,
+        activities: (any ActivityRepository)? = nil,
         pipeline: RecognitionPipeline,
         materializer: Materializer = Materializer(
             fileAccess: FileManagerFileAccess(),
@@ -50,6 +53,7 @@ public final class AppEnvironment {
         self.attachments = attachments
         self.settings = settings
         self.keychain = keychain
+        self.activities = activities ?? InMemoryActivityRepository()
         self.pipeline = pipeline
         self.materializer = materializer
         self.workCalendar = workCalendar
@@ -71,6 +75,7 @@ public final class AppEnvironment {
             attachments: GRDBAttachmentRepository(queue: queue),
             settings: settings,
             keychain: keychain,
+            activities: GRDBActivityRepository(queue: queue),
             pipeline: .standard,
             ai: AIEnvironment(settingsRepository: settings, keychain: keychain),
             databaseURL: url,

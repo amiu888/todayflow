@@ -103,6 +103,8 @@ public final class DetailViewModel {
     public private(set) var related: [WorkItem] = []
     /// Items the "Add link" menu can point at (FR-30).
     public private(set) var linkCandidates: [WorkItem] = []
+    /// Newest-first audit trail for the Activity section (FR-20).
+    public private(set) var activity: [ActivityEvent] = []
     public private(set) var parent: WorkItem?
     public private(set) var progress: RollUpProgress.Result =
         .init(done: 0, total: 0, fraction: 0)
@@ -132,6 +134,7 @@ public final class DetailViewModel {
     @ObservationIgnored private let repository: any WorkItemRepository
     @ObservationIgnored private let linkRepository: any LinkRepository
     @ObservationIgnored private let attachmentRepository: any AttachmentRepository
+    @ObservationIgnored private let activityRepository: (any ActivityRepository)?
     @ObservationIgnored private let calendar: WorkCalendar
     @ObservationIgnored private let deviceId: String
     @ObservationIgnored private let clock: @Sendable () -> Date
@@ -146,6 +149,7 @@ public final class DetailViewModel {
         repository: any WorkItemRepository,
         linkRepository: any LinkRepository,
         attachmentRepository: any AttachmentRepository,
+        activityRepository: (any ActivityRepository)? = nil,
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         clock: @escaping @Sendable () -> Date = { .now },
@@ -155,6 +159,7 @@ public final class DetailViewModel {
         self.repository = repository
         self.linkRepository = linkRepository
         self.attachmentRepository = attachmentRepository
+        self.activityRepository = activityRepository
         self.calendar = calendar
         self.deviceId = deviceId
         self.clock = clock
@@ -235,6 +240,9 @@ public final class DetailViewModel {
 
         displayStatus = StatusDeriver().derive(stored: item.status, blockers: blockers)
         progress = await RollUpProgress(repository: repository).execute(item.id)
+        if let activityRepository {
+            activity = await activityRepository.events(for: item.id)
+        }
     }
 
     // MARK: Persistence
