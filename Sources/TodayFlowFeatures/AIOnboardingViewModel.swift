@@ -232,7 +232,7 @@ public final class AIOnboardingViewModel {
         let saved = await save(
             provider: .apple,
             baseURL: "",
-            model: "",
+            model: localModel.ollamaName,
             features: [AIFeatures.summarizeEmail],
             timeout: 20
         )
