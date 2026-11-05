@@ -33,6 +33,29 @@ struct WindowManagerTests {
     }
 
     @Test @MainActor
+    func contacts_opensBesideThePanel() {
+        let manager = WindowManager(environment: makeEnvironment())
+        manager.show(.panel)
+        let panel = manager.window(for: .panel)!
+        panel.setFrame(NSRect(x: 100, y: 100, width: 360, height: 640), display: false)
+
+        manager.show(.contacts)
+        let contacts = manager.window(for: .contacts)!
+
+        #expect(!contacts.frame.intersects(panel.frame))
+        #expect(contacts.frame.minX >= panel.frame.minX)
+    }
+
+    @Test @MainActor
+    func contacts_canShrinkToTheResponsiveMinimum() {
+        let manager = WindowManager(environment: makeEnvironment())
+        manager.show(.contacts)
+        let contacts = manager.window(for: .contacts)!
+        #expect(contacts.contentMinSize == DesignTokens.Window.contactsMinimum)
+        #expect(DesignTokens.Window.contactsMinimum.width <= 600)
+    }
+
+    @Test @MainActor
     func show_twice_reusesTheSameWindow() {
         let manager = WindowManager(environment: makeEnvironment())
         manager.show(.panel)

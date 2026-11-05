@@ -97,6 +97,7 @@ public enum DesignTokens {
         public static let completed = CGSize(width: 420, height: 520)
         public static let settings = CGSize(width: 480, height: 560)
         public static let contacts = CGSize(width: 900, height: 620)
+        public static let contactsMinimum = CGSize(width: 580, height: 420)
     }
 
     /// Header progress ring geometry — a thin mark: 2.5pt stroke on a 28pt ring.

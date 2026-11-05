@@ -311,12 +311,34 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         let window = makeWindow(for: kind)
         windows[kind] = window
         window.delegate = self
-        window.center()
+        place(window, for: kind)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
         if kind == .panel {
             docking.restoreIfNeeded(panel: window)
         }
+    }
+
+    /// Contacts open beside the Today panel instead of covering it. Other
+    /// windows keep their centered first-use placement.
+    private func place(_ window: NSWindow, for kind: WindowKind) {
+        guard kind == .contacts else {
+            window.center()
+            return
+        }
+        let panel = windows[.panel]
+        let screen = panel?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
+        guard let screen else {
+            window.center()
+            return
+        }
+        let frame = TrayWindowLayout.frame(
+            size: window.frame.size,
+            panel: panel?.frame,
+            existing: [],
+            screen: screen
+        )
+        window.setFrame(frame, display: false)
     }
 
     /// Closes the window for `kind`. The reference is dropped defensively as
@@ -379,6 +401,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         if case .slimBar = kind {
             window.contentMinSize = DesignTokens.Window.slimBar
             window.contentMaxSize = DesignTokens.Window.slimBar
+        }
+        if case .contacts = kind {
+            window.contentMinSize = DesignTokens.Window.contactsMinimum
         }
         window.contentView = NSHostingView(rootView: content(for: kind))
         window.isReleasedWhenClosed = false

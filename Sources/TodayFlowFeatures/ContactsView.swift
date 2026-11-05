@@ -60,7 +60,7 @@ public struct ContactsView: View {
                 detail
             }
         }
-        .frame(minWidth: 840, minHeight: 560)
+        .frame(minWidth: 580, minHeight: 420)
         .sheet(item: $editorContact) { contact in
             ContactEditorView(
                 contact: contact,
@@ -125,50 +125,93 @@ public struct ContactsView: View {
 
     @MainActor
     private var header: some View {
-        HStack(spacing: 10) {
-            TextField("Search contacts", text: $model.searchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 220)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                searchField
+                    .frame(width: 220)
+                Spacer()
+                headerActions(labeled: true)
+            }
+            HStack(spacing: 8) {
+                searchField
+                    .frame(minWidth: 120, maxWidth: .infinity)
+                Spacer(minLength: 0)
+                headerActions(labeled: false)
+                    .buttonStyle(.borderless)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
 
-            Spacer()
+    private var searchField: some View {
+        TextField("Search contacts", text: $model.searchText)
+            .textFieldStyle(.roundedBorder)
+    }
 
+    @MainActor
+    @ViewBuilder
+    private func headerActions(labeled: Bool) -> some View {
+        HStack(spacing: 8) {
             Button {
                 editorContact = Contact()
             } label: {
-                Label("New Contact", systemImage: "person.badge.plus")
+                if labeled {
+                    Label("New Contact", systemImage: "person.badge.plus")
+                } else {
+                    Image(systemName: "person.badge.plus")
+                }
             }
             .help("Create a contact")
+            .accessibilityLabel("New Contact")
 
             Button {
                 showingImport = true
             } label: {
-                Label("Import", systemImage: "square.and.arrow.down")
+                if labeled {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                } else {
+                    Image(systemName: "square.and.arrow.down")
+                }
             }
             .help("Import from Contacts, Outlook vCard, or CSV")
+            .accessibilityLabel("Import contacts")
 
             Button {
-                Task {
-                    guard await requestContactsAccess() else { return }
-                    if let records = try? await onImportFromContacts() {
-                        model.prepareImport(records, source: "macOS Contacts")
-                        showingImport = true
-                    }
-                }
+                syncContacts()
             } label: {
-                Label("Sync Contacts", systemImage: "arrow.triangle.2.circlepath")
+                if labeled {
+                    Label("Sync Contacts", systemImage: "arrow.triangle.2.circlepath")
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                }
             }
             .help("Sync from macOS Contacts")
+            .accessibilityLabel("Sync Contacts")
 
             Button {
                 model.refreshDuplicates()
                 showingDuplicates = true
             } label: {
-                Label("Duplicates", systemImage: "person.2.badge.key")
+                if labeled {
+                    Label("Duplicates", systemImage: "person.2.badge.key")
+                } else {
+                    Image(systemName: "person.2.badge.key")
+                }
             }
             .help("Review possible duplicate contacts")
+            .accessibilityLabel("Duplicates")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+    }
+
+    private func syncContacts() {
+        Task {
+            guard await requestContactsAccess() else { return }
+            if let records = try? await onImportFromContacts() {
+                model.prepareImport(records, source: "macOS Contacts")
+                showingImport = true
+            }
+        }
     }
 
     private func messageBanner(_ message: String) -> some View {
@@ -243,7 +286,7 @@ public struct ContactsView: View {
             .buttonStyle(.plain)
             .padding(10)
         }
-        .navigationSplitViewColumnWidth(min: 190, ideal: 220)
+        .navigationSplitViewColumnWidth(min: 150, ideal: 200, max: 260)
     }
 
     @MainActor
@@ -252,6 +295,7 @@ public struct ContactsView: View {
         Label {
             HStack {
                 Text(group.name)
+                    .lineLimit(1)
                 Spacer()
                 Text("\(model.contactCount(in: group))")
                     .foregroundStyle(.secondary)
@@ -343,7 +387,7 @@ public struct ContactsView: View {
         .onChange(of: model.selectedContactID) { _, newValue in
             Task { await model.selectContact(newValue) }
         }
-        .navigationSplitViewColumnWidth(min: 260, ideal: 300)
+        .navigationSplitViewColumnWidth(min: 200, ideal: 280)
     }
 
     /// Internal contact drags move or add; anything else is treated as an
@@ -448,32 +492,15 @@ private struct ContactDetailPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 14) {
-                    ZStack {
-                        Circle()
-                            .fill(DesignTokens.Palette.accent.opacity(0.16))
-                        Text(contact.initials)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(DesignTokens.Palette.accent)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 14) {
+                        identity
+                        Spacer(minLength: 8)
+                        actions
                     }
-                    .frame(width: 64, height: 64)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(contact.displayName)
-                            .font(.title2.weight(.semibold))
-                        if !contact.jobTitle.isEmpty || !contact.company.isEmpty {
-                            Text([contact.jobTitle, contact.company]
-                                .filter { !$0.isEmpty }
-                                .joined(separator: " · "))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    Button("Edit", action: onEdit)
-                    Button("Delete", role: .destructive) {
-                        confirmingDelete = true
+                    VStack(alignment: .leading, spacing: 12) {
+                        identity
+                        actions
                     }
                 }
 
@@ -559,6 +586,41 @@ private struct ContactDetailPane: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes the contact and its group and task links.")
+        }
+    }
+
+    private var identity: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(DesignTokens.Palette.accent.opacity(0.16))
+                Text(contact.initials)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(DesignTokens.Palette.accent)
+            }
+            .frame(width: 64, height: 64)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(contact.displayName)
+                    .font(.title2.weight(.semibold))
+                    .lineLimit(2)
+                if !contact.jobTitle.isEmpty || !contact.company.isEmpty {
+                    Text([contact.jobTitle, contact.company]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " · "))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 8) {
+            Button("Edit", action: onEdit)
+            Button("Delete", role: .destructive) {
+                confirmingDelete = true
+            }
         }
     }
 
