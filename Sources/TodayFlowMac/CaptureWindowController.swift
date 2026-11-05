@@ -56,6 +56,16 @@ public final class CaptureWindowController {
             let enriched = await Enricher(fetcher: URLSessionFetcher()).enrich(model.draft)
             guard let self, self.currentModel === model, self.isPresenting else { return }
             model.applyEnrichment(enriched)
+
+            // Smart title/summary is the last, optional enrichment step. It
+            // runs after the panel is already usable, and a failure simply
+            // leaves the recognized title in place (driver.md §8).
+            guard let ai = self.environment.ai,
+                  let assistant = await ai.assistant(for: AIFeatures.suggest)
+            else { return }
+            guard self.currentModel === model, self.isPresenting else { return }
+            model.assistant = assistant
+            await model.requestAISuggestion()
         }
     }
 

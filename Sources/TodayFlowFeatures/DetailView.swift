@@ -16,6 +16,7 @@ public struct DetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var focusedField: Field?
+    @State private var selectedSuggestions: Set<String> = []
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -67,6 +68,9 @@ public struct DetailView: View {
         }
         .frame(width: DesignTokens.Window.detail.width, height: DesignTokens.Window.detail.height)
         .task { await model.load() }
+        .onChange(of: model.subtaskSuggestions) { _, new in
+            selectedSuggestions = Set(new.map(\.title))
+        }
         .onChange(of: focusedField) { old, _ in
             // FR-22: inline edits commit on interaction — here, on focus loss.
             if old == .description {
@@ -88,6 +92,10 @@ public struct DetailView: View {
                     pillsRow(item)
                     datesRow
                     descriptionSection
+
+                    if model.assistant != nil {
+                        aiBreakdownSection
+                    }
 
                     if !model.children.isEmpty {
                         childrenSection
@@ -282,6 +290,89 @@ public struct DetailView: View {
                     .fill(.quaternary.opacity(0.5))
             )
             .focused($focusedField, equals: .description)
+    }
+
+    /// "Break down" (driver.md §8): AI suggestions checked by default, then
+    /// added only when the user explicitly chooses "Add selected".
+    @MainActor
+    private var aiBreakdownSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Break down with AI", systemImage: "sparkles")
+                    .font(.headline)
+
+                Spacer()
+
+                Button(model.subtaskSuggestions.isEmpty ? "Suggest subtasks" : "Try again") {
+                    Task { await model.requestBreakdown() }
+                }
+                .disabled(model.isSuggestingSubtasks || model.isSaving)
+            }
+
+            if model.isSuggestingSubtasks {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Thinking…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if !model.subtaskSuggestions.isEmpty {
+                ForEach(model.subtaskSuggestions) { suggestion in
+                    Toggle(isOn: selectionBinding(suggestion.title)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(suggestion.title)
+                            if !suggestion.details.isEmpty {
+                                Text(suggestion.details)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let minutes = suggestion.estimatedMinutes {
+                                Text("\(minutes) min")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .toggleStyle(.checkbox)
+                }
+
+                HStack {
+                    Button("Add selected (\(selectedSuggestions.count))") {
+                        let chosen = model.subtaskSuggestions.filter {
+                            selectedSuggestions.contains($0.title)
+                        }
+                        Task { await model.addSubtasks(chosen) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(selectedSuggestions.isEmpty || model.isSaving)
+
+                    Button("Dismiss") {
+                        model.dismissSubtaskSuggestions()
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.Spacing.cornerRadius)
+                .fill(.quaternary.opacity(0.35))
+        )
+    }
+
+    private func selectionBinding(_ title: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedSuggestions.contains(title) },
+            set: { isOn in
+                if isOn {
+                    selectedSuggestions.insert(title)
+                } else {
+                    selectedSuggestions.remove(title)
+                }
+            }
+        )
     }
 
     @MainActor

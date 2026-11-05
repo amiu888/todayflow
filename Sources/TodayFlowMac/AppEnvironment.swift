@@ -23,6 +23,9 @@ public final class AppEnvironment {
     /// settings store by `loadSettings()`.
     public var workCalendar: WorkCalendar
 
+    /// Optional AI clients (driver.md §8); `nil` in tests/previews.
+    public let ai: AIEnvironment?
+
     public init(
         workItems: any WorkItemRepository,
         links: any LinkRepository,
@@ -34,7 +37,8 @@ public final class AppEnvironment {
             fileAccess: FileManagerFileAccess(),
             attachmentsDirectory: AppEnvironment.defaultAttachmentsDirectory()
         ),
-        workCalendar: WorkCalendar = .standard
+        workCalendar: WorkCalendar = .standard,
+        ai: AIEnvironment? = nil
     ) {
         self.workItems = workItems
         self.links = links
@@ -44,6 +48,7 @@ public final class AppEnvironment {
         self.pipeline = pipeline
         self.materializer = materializer
         self.workCalendar = workCalendar
+        self.ai = ai
     }
 
     /// Production wiring: one SQLite file in Application Support
@@ -51,13 +56,16 @@ public final class AppEnvironment {
     public static func makeProduction(databaseURL: URL? = nil) throws -> AppEnvironment {
         let url = databaseURL ?? defaultDatabaseURL()
         let queue = try TodayFlowDatabase.make(at: url)
+        let settings = GRDBSettingRepository(queue: queue)
+        let keychain = SecurityKeychainStore()
         return AppEnvironment(
             workItems: GRDBWorkItemRepository(queue: queue),
             links: GRDBLinkRepository(queue: queue),
             attachments: GRDBAttachmentRepository(queue: queue),
-            settings: GRDBSettingRepository(queue: queue),
-            keychain: SecurityKeychainStore(),
-            pipeline: .standard
+            settings: settings,
+            keychain: keychain,
+            pipeline: .standard,
+            ai: AIEnvironment(settingsRepository: settings, keychain: keychain)
         )
     }
 

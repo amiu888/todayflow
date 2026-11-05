@@ -503,3 +503,78 @@ func applyEnrichment_ignoresMismatchedDrafts() {
     #expect(f.vm.draft.objects.isEmpty)
     #expect(f.vm.draft.title == "Keep me")
 }
+
+// MARK: - AI suggestions (driver.md §8)
+
+@Test @MainActor
+func applySuggestion_fillsUntouchedFields() {
+    let f = Fixture()
+    f.vm.prepare(
+        dropped: [],
+        recognized: [
+            RecognizedObject(
+                type: .file,
+                displayName: "notes.txt",
+                suggestedTitle: "notes"
+            )
+        ]
+    )
+
+    f.vm.applySuggestion(
+        TaskSuggestion(
+            title: "Review notes",
+            summary: "Skim the notes before standup.",
+            priority: .urgent,
+            actions: ["Open the file", "Reply to Sam"]
+        )
+    )
+
+    #expect(f.vm.draft.title == "Review notes")
+    #expect(f.vm.draft.descriptionMd.contains("Skim the notes"))
+    #expect(f.vm.draft.descriptionMd.contains("- [ ] Open the file"))
+    #expect(f.vm.draft.priority == .urgent)
+}
+
+@Test @MainActor
+func applySuggestion_preservesUserEdits() {
+    let f = Fixture()
+    f.vm.prepare(
+        dropped: [],
+        recognized: [
+            RecognizedObject(
+                type: .file,
+                displayName: "notes.txt",
+                suggestedTitle: "notes"
+            )
+        ]
+    )
+    f.vm.draft.title = "My title"
+    f.vm.draft.descriptionMd = "My notes"
+    f.vm.draft.priority = .low
+
+    f.vm.applySuggestion(
+        TaskSuggestion(title: "AI title", summary: "AI summary", priority: .urgent)
+    )
+
+    #expect(f.vm.draft.title == "My title")
+    #expect(f.vm.draft.descriptionMd == "My notes")
+    #expect(f.vm.draft.priority == .low)
+}
+
+@Test @MainActor
+func applySuggestion_doesNotReparseDatesFromSummary() {
+    let f = Fixture()
+    f.vm.prepare(dropped: [], recognized: [])
+    let start = f.vm.draft.startAt
+    let end = f.vm.draft.endAt
+
+    f.vm.applySuggestion(
+        TaskSuggestion(
+            title: "Plan the launch",
+            summary: "This is due tomorrow at 3pm."
+        )
+    )
+
+    #expect(f.vm.draft.startAt == start)
+    #expect(f.vm.draft.endAt == end)
+}

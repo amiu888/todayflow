@@ -108,6 +108,13 @@ public final class DetailViewModel {
     public private(set) var isLoading = false
     public private(set) var isSaving = false
     public private(set) var lastError: String?
+
+    /// Optional AI client, set by the host only when AI and the "Break down"
+    /// feature are enabled (driver.md §8). Suggestions are never persisted
+    /// until the user chooses them.
+    public var assistant: (any AIAssistant)?
+    public private(set) var subtaskSuggestions: [SubtaskSuggestion] = []
+    public private(set) var isSuggestingSubtasks = false
     /// True once `delete()` succeeded; the host should close the window.
     public private(set) var isDeleted = false
 
@@ -398,6 +405,84 @@ public final class DetailViewModel {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    // MARK: AI breakdown (driver.md §8)
+
+    /// Asks the AI for a set of subtasks. The result is shown for approval and
+    /// thrown away if the user dismisses it.
+    public func requestBreakdown() async {
+        guard let assistant, let item, !isSuggestingSubtasks else { return }
+        isSuggestingSubtasks = true
+        defer { isSuggestingSubtasks = false }
+        lastError = nil
+
+        do {
+            subtaskSuggestions = try await assistant.breakDown(item)
+        } catch {
+            subtaskSuggestions = []
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Creates the chosen suggestions as children of the current item. Existing
+    /// items are untouched; AI output still requires this explicit approval.
+    public func addSubtasks(_ suggestions: [SubtaskSuggestion]) async {
+        guard let item, !suggestions.isEmpty, !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+
+        let kind: WorkItem.Kind
+        let parentId: UUIDv7?
+        switch item.kind {
+        case .epic:
+            kind = .project
+            parentId = item.id
+        case .project:
+            kind = .task
+            parentId = item.id
+        case .task:
+            kind = .subtask
+            parentId = item.id
+        case .subtask:
+            kind = .subtask
+            parentId = item.parentId
+        }
+
+        let create = CreateTask(
+            repository: repository,
+            calendar: calendar,
+            deviceId: deviceId
+        )
+        do {
+            for suggestion in suggestions {
+                var description = suggestion.details
+                if let minutes = suggestion.estimatedMinutes {
+                    description += description.isEmpty ? "" : "\n\n"
+                    description += "Estimated: \(minutes) min"
+                }
+                try await create.execute(
+                    CreateTask.Input(
+                        kind: kind,
+                        title: suggestion.title,
+                        descriptionMd: description,
+                        parentId: parentId,
+                        startAt: clock(),
+                        priority: item.priority
+                    )
+                )
+            }
+            subtaskSuggestions = []
+            await reloadRelated()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Closes the suggestion list without creating anything.
+    public func dismissSubtaskSuggestions() {
+        subtaskSuggestions = []
     }
 
     /// Removes an attachment from the item.

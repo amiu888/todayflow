@@ -178,6 +178,14 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         return window
     }
 
+    /// Assigns the optional breakdown assistant once Settings/Keychain resolve.
+    private func attachAssistant(to model: DetailViewModel) {
+        guard let ai = environment.ai else { return }
+        Task { @MainActor in
+            model.assistant = await ai.assistant(for: AIFeatures.breakDown)
+        }
+    }
+
     @ViewBuilder
     private func content(for kind: WindowKind) -> some View {
         switch kind {
@@ -204,7 +212,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             SettingsView(
                 repository: environment.settings,
                 keychain: environment.keychain,
-                calendar: environment.workCalendar.calendar
+                calendar: environment.workCalendar.calendar,
+                modelCatalog: environment.ai
             )
         case .slimBar:
             if let summary {
@@ -217,16 +226,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 EmptyView()
             }
         case .detail(let id):
-            DetailView(
-                model: DetailViewModel(
-                    itemId: id,
-                    repository: environment.workItems,
-                    linkRepository: environment.links,
-                    attachmentRepository: environment.attachments,
-                    calendar: environment.workCalendar,
-                    onClosed: { [weak self] in self?.close(.detail(id)) }
-                )
+            let model = DetailViewModel(
+                itemId: id,
+                repository: environment.workItems,
+                linkRepository: environment.links,
+                attachmentRepository: environment.attachments,
+                calendar: environment.workCalendar,
+                onClosed: { [weak self] in self?.close(.detail(id)) }
             )
+            let _ = attachAssistant(to: model)
+            DetailView(model: model)
         }
     }
 }

@@ -19,6 +19,9 @@ public final class StatusItemController: NSObject {
 
     /// Presents the end-of-day review (FR-43); assigned by the app delegate.
     public var onEndOfDayReview: (() -> Void)?
+    /// Presents the AI plan/ask sheets (driver.md §8).
+    public var onPlanDay: (() -> Void)?
+    public var onAskAI: (() -> Void)?
 
     public init(
         environment: AppEnvironment,
@@ -130,6 +133,10 @@ public final class StatusItemController: NSObject {
         menu.addItem(.separator())
         menu.addItem(item("Open Today", #selector(openPanel)))
         menu.addItem(item("End-of-day review…", #selector(openEndOfDayReview)))
+        menu.addItem(.separator())
+        menu.addItem(item("Plan my day…", #selector(openPlanDay)))
+        menu.addItem(item("Ask about tasks…", #selector(openAskAI)))
+        menu.addItem(.separator())
         menu.addItem(item("Slim bar", #selector(toggleSlimBar)))
         menu.addItem(item("Hierarchy", #selector(openHierarchy)))
         menu.addItem(item("Settings", #selector(openSettings)))
@@ -149,6 +156,10 @@ public final class StatusItemController: NSObject {
     @objc private func openPanel() { windowManager.show(.panel) }
 
     @objc private func openEndOfDayReview() { onEndOfDayReview?() }
+
+    @objc private func openPlanDay() { onPlanDay?() }
+
+    @objc private func openAskAI() { onAskAI?() }
 
     @objc private func toggleSlimBar() {
         if windowManager.isOpen(.slimBar) {

@@ -18,12 +18,17 @@ public final class CaptureViewModel {
     /// sheet's bindings) triggers the NL date re-parse.
     public var draft: CaptureDraft {
         didSet {
+            guard !isApplyingSuggestion else { return }
             guard oldValue.title != draft.title
                 || oldValue.descriptionMd != draft.descriptionMd
             else { return }
             reparseDates()
         }
     }
+
+    /// Optional AI client; set by the host only when AI and the "suggest"
+    /// feature are enabled (driver.md §8). Capture works without it.
+    @ObservationIgnored public var assistant: (any AIAssistant)?
 
     /// Projects the sheet's parent (project) picker offers.
     public private(set) var parents: [CaptureParentOption] = []
@@ -50,6 +55,8 @@ public final class CaptureViewModel {
 
     /// Raw drops, index-aligned with `draft.objects`.
     @ObservationIgnored private var droppedObjects: [DroppedObject] = []
+    /// Suppresses the natural-language re-parse while AI fills in a suggestion.
+    @ObservationIgnored private var isApplyingSuggestion = false
 
     public init(
         repository: any WorkItemRepository,
@@ -146,6 +153,45 @@ public final class CaptureViewModel {
             else { continue }
             draft.title = suggestion
             break
+        }
+    }
+
+    /// Asks the optional AI client for a smarter title/summary (driver.md §8
+    /// "Smart title and summary"). Failures are silent: AI must never block
+    /// capture, and the user can always save the draft as-is.
+    public func requestAISuggestion() async {
+        guard let assistant, !draft.objects.isEmpty else { return }
+        guard let suggestion = try? await assistant.suggestTask(from: draft.objects) else {
+            return
+        }
+        applySuggestion(suggestion)
+    }
+
+    /// Applies a suggestion without overwriting fields the user already
+    /// edited. The summary goes into the description only when it is empty.
+    public func applySuggestion(_ suggestion: TaskSuggestion) {
+        let inferred = draft.objects
+            .compactMap { $0.suggestedTitle?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+            ?? draft.objects.first?.displayName
+        let titleIsInferred = draft.title.isEmpty || draft.title == inferred
+
+        isApplyingSuggestion = true
+        defer { isApplyingSuggestion = false }
+
+        if titleIsInferred, !suggestion.title.isEmpty {
+            draft.title = suggestion.title
+        }
+        if draft.descriptionMd.isEmpty {
+            var parts: [String] = []
+            if !suggestion.summary.isEmpty { parts.append(suggestion.summary) }
+            if !suggestion.actions.isEmpty {
+                parts.append(suggestion.actions.map { "- [ ] \($0)" }.joined(separator: "\n"))
+            }
+            draft.descriptionMd = parts.joined(separator: "\n\n")
+        }
+        if draft.priority == .default {
+            draft.priority = suggestion.priority
         }
     }
 

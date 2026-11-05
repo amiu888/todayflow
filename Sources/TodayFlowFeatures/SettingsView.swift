@@ -16,9 +16,15 @@ public struct SettingsView: View {
     public init(
         repository: any SettingRepository,
         keychain: any KeychainStore,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        modelCatalog: (any AIModelCatalog)? = nil
     ) {
-        model = SettingsViewModel(repository: repository, keychain: keychain, calendar: calendar)
+        model = SettingsViewModel(
+            repository: repository,
+            keychain: keychain,
+            calendar: calendar,
+            modelCatalog: modelCatalog
+        )
     }
 
     @MainActor
@@ -57,7 +63,26 @@ public struct SettingsView: View {
                     }
                     TextField("Base URL", text: $model.aiSettings.baseURL)
                     TextField("API key", text: $model.aiSettings.apiKey)
-                    TextField("Model", text: $model.aiSettings.model)
+
+                    HStack {
+                        TextField("Model", text: $model.aiSettings.model)
+
+                        if model.modelCatalogAvailable {
+                            Button(model.isFetchingModels ? "Fetching…" : "Fetch models") {
+                                Task { @MainActor in await model.fetchModels() }
+                            }
+                            .disabled(model.isFetchingModels)
+                        }
+                    }
+
+                    if !model.availableModels.isEmpty {
+                        Picker("Available models", selection: $model.aiSettings.model) {
+                            ForEach(model.availableModels, id: \.self) { identifier in
+                                Text(identifier).tag(identifier)
+                            }
+                        }
+                    }
+
                     Toggle("Send attachment text", isOn: $model.aiSettings.sendAttachmentText)
                     Stepper(
                         "Timeout \(Int(model.aiSettings.timeoutSeconds)) s",

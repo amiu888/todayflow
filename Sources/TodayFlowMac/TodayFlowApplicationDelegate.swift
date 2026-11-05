@@ -18,6 +18,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     public private(set) var notifications: NotificationController?
     /// The automatic end-of-day review (FR-43).
     public private(set) var endOfDayReview: EndOfDayReviewController?
+    /// AI planning and Q&A windows (driver.md §8).
+    public private(set) var dayPlan: DayPlanWindowController?
+    public private(set) var askAI: AskWindowController?
 
     public override init() {}
 
@@ -35,12 +38,20 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             self.windows = windowManager
             let review = EndOfDayReviewController(environment: environment)
             self.endOfDayReview = review
+            let dayPlan = DayPlanWindowController(environment: environment)
+            dayPlan.onOpenSettings = { [weak windowManager] in windowManager?.show(.settings) }
+            self.dayPlan = dayPlan
+            let askAI = AskWindowController(environment: environment)
+            askAI.onOpenSettings = { [weak windowManager] in windowManager?.show(.settings) }
+            self.askAI = askAI
             let controller = StatusItemController(
                 environment: environment,
                 windowManager: windowManager,
                 summary: summary
             )
             controller.onEndOfDayReview = { [weak review] in review?.present() }
+            controller.onPlanDay = { [weak dayPlan] in dayPlan?.present() }
+            controller.onAskAI = { [weak askAI] in askAI?.present() }
             self.statusItem = controller
             summary.onRefreshed = { [weak controller, weak self] progress in
                 controller?.apply(progress: progress)

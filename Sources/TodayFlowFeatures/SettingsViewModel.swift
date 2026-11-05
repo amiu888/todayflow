@@ -37,12 +37,16 @@ public final class SettingsViewModel {
     public private(set) var isLoading = false
     public private(set) var isSaving = false
     public private(set) var lastError: String?
+    /// Models reported by the endpoint's `GET /models` (driver.md §8).
+    public private(set) var availableModels: [String] = []
+    public private(set) var isFetchingModels = false
 
     // MARK: Dependencies
 
     @ObservationIgnored private let repository: any SettingRepository
     @ObservationIgnored private let keychain: any KeychainStore
     @ObservationIgnored private let calendar: Calendar
+    @ObservationIgnored private let modelCatalog: (any AIModelCatalog)?
 
     /// True while `load()`/`resetToDefaults()` are applying stored values —
     /// suppresses the provider didSet side effect for programmatic writes.
@@ -51,12 +55,17 @@ public final class SettingsViewModel {
     public init(
         repository: any SettingRepository,
         keychain: any KeychainStore,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        modelCatalog: (any AIModelCatalog)? = nil
     ) {
         self.repository = repository
         self.keychain = keychain
         self.calendar = calendar
+        self.modelCatalog = modelCatalog
     }
+
+    /// True when the host supplied a model catalog (the production app does).
+    public var modelCatalogAvailable: Bool { modelCatalog != nil }
 
     /// The `WorkCalendar` derived from the current business-hours settings —
     /// what hosts (the Today list, capture) use to compute default end dates.
@@ -127,6 +136,22 @@ public final class SettingsViewModel {
                 for: SettingKeys.aiEndpoint
             )
         } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Lists the endpoint's models (driver.md §8 "Fetch models"). The current
+    /// edits are used so the button works before Save.
+    public func fetchModels() async {
+        guard let modelCatalog, !isFetchingModels else { return }
+        isFetchingModels = true
+        defer { isFetchingModels = false }
+        lastError = nil
+
+        do {
+            availableModels = try await modelCatalog.listModels()
+        } catch {
+            availableModels = []
             lastError = error.localizedDescription
         }
     }
