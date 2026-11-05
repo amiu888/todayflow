@@ -356,14 +356,8 @@ public struct TrayStripView: View {
 
     @MainActor
     private func apply(_ payloads: [WorkItemDragPayload], into trayId: UUIDv7) {
-        for payload in payloads {
-            Task { @MainActor in
-                if let source = payload.sourceTrayId {
-                    await model.moveToTray(payload.itemId, from: source, to: trayId)
-                } else {
-                    await model.addToTray(payload.itemId, trayId: trayId)
-                }
-            }
+        Task { @MainActor in
+            await model.applyDrop(payloads, to: trayId)
         }
     }
 

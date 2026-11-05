@@ -811,3 +811,76 @@ func addingMultipleItemsToOneTrayKeepsEveryItem() async {
 
     #expect(f.vm.trayItems(trayId: trayId).map(\.id) == [first.id, second.id])
 }
+
+// MARK: - Tray metadata and drop application
+
+@Test @MainActor
+func trays_supportRenameColorReorderAndDelete() async {
+    let f = Fixture()
+    await f.vm.load()
+    let first = f.vm.trays[0].id
+
+    await f.vm.renameTray(first, to: "  Client A  ")
+    #expect(f.vm.trays.map(\.name) == ["Client A"])
+
+    // Blank names are ignored.
+    await f.vm.renameTray(first, to: "   ")
+    #expect(f.vm.trays.map(\.name) == ["Client A"])
+
+    await f.vm.setTrayColor(first, colorHex: "#3B82F6")
+    #expect(f.vm.trays.first?.colorHex == "#3B82F6")
+
+    await f.vm.addTray(name: "Second")
+    let second = try! #require(f.vm.trays.last?.id)
+    #expect(f.vm.trays.map(\.name) == ["Client A", "Second"])
+
+    await f.vm.moveTrayLeft(second)
+    #expect(f.vm.trays.map(\.name) == ["Second", "Client A"])
+
+    await f.vm.moveTrayRight(second)
+    #expect(f.vm.trays.map(\.name) == ["Client A", "Second"])
+
+    await f.vm.deleteTray(second)
+    #expect(f.vm.trays.map(\.name) == ["Client A"])
+    #expect(f.vm.tray(id: second) == nil)
+}
+
+@Test @MainActor
+func applyDrop_addsFromTodayAndMovesFromAnotherTray() async {
+    let f = Fixture()
+    await f.vm.load()
+    let source = f.vm.trays[0].id
+    await f.vm.addTray(name: "Dest")
+    let destination = try! #require(f.vm.trays.first { $0.name == "Dest" }?.id)
+
+    let fromToday = f.item("From Today", displayOrder: "c1")
+    let fromTray = f.item("From Tray", displayOrder: "c2")
+    await f.seed(fromToday)
+    await f.seed(fromTray)
+    await f.vm.load()
+    await f.vm.addToTray(fromTray.id, trayId: source)
+
+    await f.vm.applyDrop(
+        [
+            WorkItemDragPayload(itemId: fromToday.id),
+            WorkItemDragPayload(itemId: fromTray.id, sourceTrayId: source),
+        ],
+        to: destination
+    )
+
+    #expect(f.vm.trayItems(trayId: source).isEmpty)
+    #expect(
+        f.vm.trayItems(trayId: destination).map(\.title)
+            == ["From Today", "From Tray"]
+    )
+
+    // Re-applying the same payloads does not duplicate anything.
+    await f.vm.applyDrop(
+        [
+            WorkItemDragPayload(itemId: fromToday.id),
+            WorkItemDragPayload(itemId: fromTray.id, sourceTrayId: source),
+        ],
+        to: destination
+    )
+    #expect(f.vm.trayItems(trayId: destination).count == 2)
+}

@@ -199,6 +199,7 @@ public struct TrayDetailView: View {
             .buttonStyle(.plain)
             .disabled(index == 0)
             .help("Move up in tray")
+            .accessibilityIdentifier("tray-window-up-\(item.title)")
 
             Button {
                 Task { await model.moveTrayItemDown(item.id, trayId: trayId) }
@@ -209,6 +210,7 @@ public struct TrayDetailView: View {
             .buttonStyle(.plain)
             .disabled(index == items.count - 1)
             .help("Move down in tray")
+            .accessibilityIdentifier("tray-window-down-\(item.title)")
 
             Button {
                 Task { await model.removeFromTray(item.id, trayId: trayId) }
@@ -293,14 +295,8 @@ public struct TrayDetailView: View {
 
     @MainActor
     private func apply(_ payloads: [WorkItemDragPayload]) {
-        for payload in payloads {
-            Task { @MainActor in
-                if let source = payload.sourceTrayId {
-                    await model.moveToTray(payload.itemId, from: source, to: trayId)
-                } else {
-                    await model.addToTray(payload.itemId, trayId: trayId)
-                }
-            }
+        Task { @MainActor in
+            await model.applyDrop(payloads, to: trayId)
         }
     }
 }

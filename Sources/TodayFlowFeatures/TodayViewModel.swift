@@ -443,6 +443,18 @@ public final class TodayViewModel {
         await persistTrays()
     }
 
+    /// Applies a completed drag. Payloads with a source tray are moves;
+    /// payloads from Today are adds. Safe for multiple items and repeats.
+    public func applyDrop(_ payloads: [WorkItemDragPayload], to trayId: UUIDv7) async {
+        for payload in payloads {
+            if let source = payload.sourceTrayId {
+                await moveToTray(payload.itemId, from: source, to: trayId)
+            } else {
+                await addToTray(payload.itemId, trayId: trayId)
+            }
+        }
+    }
+
     public func removeFromTray(_ itemId: UUIDv7, trayId: UUIDv7) async {
         guard let index = trays.firstIndex(where: { $0.id == trayId }) else { return }
         trays[index].itemIds.removeAll { $0 == itemId }

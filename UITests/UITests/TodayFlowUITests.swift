@@ -455,4 +455,143 @@ final class TodayFlowUITests: XCTestCase {
             "The new task did not appear in the Today list"
         )
     }
+
+    /// Renaming a tray from its menu updates the card.
+    func testRenamingTrayFromMenu() throws {
+        let app = launchApp()
+        let actions = app.menuButtons["Actions for Working tray"].firstMatch
+        XCTAssertTrue(actions.waitForExistence(timeout: 5))
+        actions.click()
+
+        let rename = app.menuItems.matching(
+            NSPredicate(format: "title BEGINSWITH 'Rename'")
+        ).firstMatch
+        XCTAssertTrue(rename.waitForExistence(timeout: 3))
+        rename.click()
+
+        let field = app.textFields["Tray name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.click()
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText("Client A")
+        app.buttons["Rename"].click()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "tray-name-Client A").firstMatch
+                .waitForExistence(timeout: 4),
+            "The tray was not renamed"
+        )
+    }
+
+    /// Deleting a tray from its menu removes the card.
+    func testDeletingTrayFromMenu() throws {
+        let app = launchApp()
+        app.buttons["Add working tray"].click()
+        let name = app.textFields["Tray name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        name.typeText("Delete me")
+        app.buttons["Create"].click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "tray-name-Delete me").firstMatch
+                .waitForExistence(timeout: 4)
+        )
+
+        let actions = app.menuButtons["Actions for Delete me"].firstMatch
+        XCTAssertTrue(actions.waitForExistence(timeout: 4))
+        actions.click()
+        let delete = app.menuItems["Delete tray"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 3))
+        delete.click()
+
+        let deadline = Date().addingTimeInterval(4)
+        let card = app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Delete me").firstMatch
+        while card.exists, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertFalse(card.exists, "The tray card was not removed")
+    }
+
+    /// The tray window reorders and removes tasks.
+    func testTrayWindowReordersAndRemovesTasks() throws {
+        let app = launchApp()
+        let suffix = String(UUID().uuidString.prefix(5))
+        let first = "Window item \(suffix) A"
+        let second = "Window item \(suffix) B"
+
+        for title in [first, second] {
+            let row = createTask(app, title)
+            addToTray(app, row: row, tray: "Working tray")
+        }
+
+        app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Working tray").firstMatch.doubleClick()
+        let window = app.windows["Tray · Working tray"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+
+        let rowA = window.descendants(matching: .any)
+            .matching(identifier: "tray-window-row-\(first)").firstMatch
+        let rowB = window.descendants(matching: .any)
+            .matching(identifier: "tray-window-row-\(second)").firstMatch
+        XCTAssertTrue(rowA.waitForExistence(timeout: 4))
+        XCTAssertTrue(rowB.waitForExistence(timeout: 4))
+        let startedBelow = rowB.frame.minY > rowA.frame.minY
+
+        window.descendants(matching: .any)
+            .matching(identifier: "tray-window-up-\(second)").firstMatch.click()
+
+        var movedAbove = false
+        let deadline = Date().addingTimeInterval(4)
+        while Date() < deadline {
+            if rowB.exists, rowA.exists, rowB.frame.minY < rowA.frame.minY {
+                movedAbove = true
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertTrue(startedBelow && movedAbove, "Move up did not reorder the tray window")
+
+        window.descendants(matching: .any)
+            .matching(identifier: "tray-window-remove-\(second)").firstMatch.click()
+        let removeDeadline = Date().addingTimeInterval(4)
+        while rowB.exists, Date() < removeDeadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertFalse(rowB.exists, "Remove did not take the task out of the tray")
+    }
+
+    /// Dragging a task from Today into an open tray window adds it there.
+    func testDraggingTaskIntoOpenTrayWindow() throws {
+        let app = launchApp()
+        let title = "Window drop \(UUID().uuidString.prefix(5))"
+        _ = createTask(app, title)
+
+        app.buttons["Add working tray"].click()
+        let name = app.textFields["Tray name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        name.typeText("Drop target")
+        app.buttons["Create"].click()
+
+        let trayName = app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Drop target").firstMatch
+        XCTAssertTrue(trayName.waitForExistence(timeout: 4))
+        trayName.doubleClick()
+        let window = app.windows["Tray · Drop target"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+
+        let dragArea = app.descendants(matching: .any)
+            .matching(identifier: "task-drag-area-\(title)").firstMatch
+        XCTAssertTrue(dragArea.waitForExistence(timeout: 4))
+        dragArea.press(forDuration: 0.6, thenDragTo: window)
+
+        XCTAssertTrue(
+            window.descendants(matching: .any)
+                .matching(identifier: "tray-window-row-\(title)").firstMatch
+                .waitForExistence(timeout: 6),
+            "The task was not added to the open tray window"
+        )
+    }
+
 }
