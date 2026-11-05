@@ -71,7 +71,8 @@ Known follow-ups before shipping a signed build (outside the eight build increme
 
 - Developer ID signing, hardened-runtime entitlements, and notarization for distribution
   (the local bundle script does ad-hoc signing).
-- XCUITest coverage for the critical flows and the NFR-01…05 performance gates.
+- Broader XCUITest coverage (drag/drop, trays, calendar, focus) and the NFR-01…05
+  performance gates.
 - Live Markdown rendering and pasted-image attachments inside the detail description.
 - CloudKit sync (v2, per `driver.md` §6); v1 is intentionally local-only.
 
