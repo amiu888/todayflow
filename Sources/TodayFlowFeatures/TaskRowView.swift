@@ -201,6 +201,18 @@ public struct TaskRowView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay {
+                TaskDragSource(
+                    itemId: model.id,
+                    title: model.title,
+                    tooltip: model.descriptionPreview ?? "Open “\(model.title)”",
+                    onClick: {
+                        onSelect(model.id)
+                        onQuickAction(model.id, .open)
+                    },
+                    menuActions: dragMenuActions
+                )
+            }
 
             ForEach(model.trays.prefix(2)) { tray in
                 Image(systemName: DesignTokens.TrayPalette.iconName)
@@ -570,6 +582,39 @@ public struct TaskRowView: View {
             }
             return true
         }
+    }
+
+    @MainActor
+    private var dragMenuActions: [TaskDragSource.MenuAction] {
+        let id = model.id
+        let quick = onQuickAction
+        var actions: [TaskDragSource.MenuAction] = [
+            .init("Open") { quick(id, .open) },
+            .init("Focus for 25 minutes") { quick(id, .focus) },
+        ]
+
+        if !allTrays.isEmpty, let onAddToTray {
+            actions.append(.separator)
+            for tray in allTrays {
+                actions.append(.init("Add to \(tray.name)") {
+                    onAddToTray(id, tray.id)
+                })
+            }
+        }
+
+        actions.append(.separator)
+        actions.append(.init("Move up") { quick(id, .moveUp) })
+        actions.append(.init("Move down") { quick(id, .moveDown) })
+        actions.append(.init("Move to tomorrow") { quick(id, .moveToTomorrow) })
+
+        actions.append(.separator)
+        for priority in Priority.allCases {
+            actions.append(.init("Priority: \(priority.label)") {
+                quick(id, .setPriority(priority))
+            })
+        }
+
+        return actions
     }
 
     private func accessibilityLabel(dueTime: String) -> String {

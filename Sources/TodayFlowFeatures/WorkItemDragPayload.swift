@@ -45,10 +45,40 @@ public struct WorkItemDragPayload: Codable, Transferable {
         let value = sourceTray == nil
             ? itemId.uuid.uuidString
             : "\(itemId.uuid.uuidString)|\(sourceTray!.uuid.uuidString)"
-        return NSItemProvider(
-            item: value as NSString,
+        let item = value as NSString
+        let provider = NSItemProvider(
+            item: item,
             typeIdentifier: UTType.todayFlowWorkItem.identifier
         )
+        // A plain-text copy survives drag systems that drop custom UTIs.
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.utf8PlainText.identifier,
+            visibility: .all
+        ) { completion in
+            completion(Data(value.utf8), nil)
+            return nil
+        }
+        return provider
+    }
+
+    /// The pasteboard item written by the AppKit drag source. Keeping the
+    /// value eager (not provider-backed) is what makes same-app drops reliable.
+    public static func pasteboardItem(
+        for itemId: UUIDv7,
+        sourceTray: UUIDv7? = nil
+    ) -> NSPasteboardItem {
+        let value = sourceTray == nil
+            ? itemId.uuid.uuidString
+            : "\(itemId.uuid.uuidString)|\(sourceTray!.uuid.uuidString)"
+        let item = NSPasteboardItem()
+        item.setString(
+            value,
+            forType: NSPasteboard.PasteboardType(
+                UTType.todayFlowWorkItem.identifier
+            )
+        )
+        item.setString(value, forType: .string)
+        return item
     }
 
     /// NSItemProvider is not Sendable, but a drop callback hands it to a
@@ -61,29 +91,56 @@ public struct WorkItemDragPayload: Codable, Transferable {
         }
     }
 
-    /// Loads a payload from either encoding this app can produce: the string
-    /// provider used by `.onDrag`, or the Codable JSON used by `.draggable`.
-    /// Accepting both keeps every drop target working during migrations.
-    public static func load(from provider: NSItemProvider) async -> WorkItemDragPayload? {
-        let value = try? await provider.loadItem(
-            forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
-            options: nil
-        )
-        if let string = (value as? String) ?? (value as? NSString).map(String.init),
-           let decoded = decode(string)
-        {
-            return WorkItemDragPayload(
-                itemId: decoded.itemId,
-                sourceTrayId: decoded.sourceTray
-            )
+    /// Decodes anything a drag can hand us: the string provider used by
+    /// `.onDrag`, Codable JSON from `.draggable`, or a plain-text copy.
+    public static func payload(from item: NSSecureCoding?) -> WorkItemDragPayload? {
+        if let string = (item as? String) ?? (item as? NSString).map(String.init) {
+            if let decoded = decode(string) {
+                return WorkItemDragPayload(
+                    itemId: decoded.itemId,
+                    sourceTrayId: decoded.sourceTray
+                )
+            }
+            if let payload = try? JSONDecoder().decode(
+                WorkItemDragPayload.self,
+                from: Data(string.utf8)
+            ) {
+                return payload
+            }
         }
-        if let data = value as? Data,
-           let payload = try? JSONDecoder().decode(
+        if let data = item as? Data {
+            if let payload = try? JSONDecoder().decode(
                 WorkItemDragPayload.self,
                 from: data
-           )
-        {
-            return payload
+            ) {
+                return payload
+            }
+            if let string = String(data: data, encoding: .utf8),
+               let decoded = decode(string)
+            {
+                return WorkItemDragPayload(
+                    itemId: decoded.itemId,
+                    sourceTrayId: decoded.sourceTray
+                )
+            }
+        }
+        return nil
+    }
+
+    /// Loads a payload from any encoding this app can produce.
+    public static func load(from provider: NSItemProvider) async -> WorkItemDragPayload? {
+        let type = UTType.todayFlowWorkItem.identifier
+        if let value = try? await provider.loadItem(
+            forTypeIdentifier: type,
+            options: nil
+        ) {
+            if let payload = payload(from: value) { return payload }
+        }
+        if let value = try? await provider.loadItem(
+            forTypeIdentifier: UTType.utf8PlainText.identifier,
+            options: nil
+        ) {
+            return payload(from: value)
         }
         return nil
     }
@@ -98,24 +155,34 @@ public struct WorkItemDragPayload: Codable, Transferable {
 
         for item in pasteboard.pasteboardItems ?? [] {
             if let string = item.string(forType: type),
-               let decoded = decode(string)
-            {
-                payloads.append(
-                    WorkItemDragPayload(
-                        itemId: decoded.itemId,
-                        sourceTrayId: decoded.sourceTray
-                    )
-                )
-                continue
-            }
-
-            if let data = item.data(forType: type),
-               let payload = try? JSONDecoder().decode(
-                    WorkItemDragPayload.self,
-                    from: data
-               )
+               let payload = payload(from: string as NSString)
             {
                 payloads.append(payload)
+                continue
+            }
+            if let data = item.data(forType: type),
+               let payload = payload(from: data as NSData)
+            {
+                payloads.append(payload)
+                continue
+            }
+            // Fallback for drag systems that only preserve plain text.
+            if let string = item.string(forType: .string),
+               let payload = payload(from: string as NSString)
+            {
+                payloads.append(payload)
+            }
+        }
+
+        if payloads.isEmpty {
+            let strings = pasteboard.readObjects(
+                forClasses: [NSString.self],
+                options: nil
+            ) as? [NSString] ?? []
+            for string in strings {
+                if let payload = payload(from: string) {
+                    payloads.append(payload)
+                }
             }
         }
         return payloads

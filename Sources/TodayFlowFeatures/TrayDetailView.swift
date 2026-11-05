@@ -20,27 +20,29 @@ public struct TrayDetailView: View {
 
     @MainActor
     public var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            content
-        }
-        .frame(minWidth: 380, minHeight: 420)
-        .background(DesignTokens.Palette.background)
-        .overlay(alignment: .top) { WindowDragGrabber() }
-        .overlay {
-            if isDropTargeted {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(DesignTokens.Palette.accent, lineWidth: 2)
-                    .padding(4)
-                    .allowsHitTesting(false)
+        TrayDropArea(
+            onTargeted: { isDropTargeted = $0 },
+            onDrop: { payloads in
+                apply(payloads)
+                return true
             }
-        }
-        .onDrop(
-            of: [.todayFlowWorkItem],
-            isTargeted: $isDropTargeted
-        ) { providers in
-            accept(providers)
+        ) {
+            VStack(spacing: 0) {
+                header
+                Divider()
+                content
+            }
+            .frame(minWidth: 380, minHeight: 420)
+            .background(DesignTokens.Palette.background)
+            .overlay(alignment: .top) { WindowDragGrabber() }
+            .overlay {
+                if isDropTargeted {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(DesignTokens.Palette.accent, lineWidth: 2)
+                        .padding(4)
+                        .allowsHitTesting(false)
+                }
+            }
         }
         .tint(DesignTokens.Palette.accent)
     }
@@ -159,6 +161,25 @@ public struct TrayDetailView: View {
                     .font(.caption2)
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
             }
+            .contentShape(Rectangle())
+            .overlay {
+                TaskDragSource(
+                    itemId: item.id,
+                    sourceTray: trayId,
+                    title: item.title,
+                    tooltip: item.descriptionMd.isEmpty
+                        ? item.title
+                        : item.descriptionMd,
+                    onClick: { model.onOpenTask?(item.id) },
+                    menuActions: [
+                        .init("Open") { model.onOpenTask?(item.id) },
+                        .separator,
+                        .init("Remove from tray") {
+                            Task { await model.removeFromTray(item.id, trayId: trayId) }
+                        },
+                    ]
+                )
+            }
 
             Spacer()
 
@@ -244,28 +265,9 @@ public struct TrayDetailView: View {
     }
 
     @MainActor
-    private func accept(_ providers: [NSItemProvider]) -> Bool {
-        let snapshotted = WorkItemDragPayload.loadFromDragPasteboard()
-        if !snapshotted.isEmpty {
-            for payload in snapshotted {
-                Task { @MainActor in
-                    if let source = payload.sourceTrayId {
-                        await model.moveToTray(payload.itemId, from: source, to: trayId)
-                    } else {
-                        await model.addToTray(payload.itemId, trayId: trayId)
-                    }
-                }
-            }
-            return true
-        }
-
-        guard !providers.isEmpty else { return false }
-        for provider in providers {
-            let box = WorkItemDragPayload.ProviderBox(provider)
+    private func apply(_ payloads: [WorkItemDragPayload]) {
+        for payload in payloads {
             Task { @MainActor in
-                guard let payload = await WorkItemDragPayload.load(from: box.provider)
-                else { return }
-
                 if let source = payload.sourceTrayId {
                     await model.moveToTray(payload.itemId, from: source, to: trayId)
                 } else {
@@ -273,6 +275,5 @@ public struct TrayDetailView: View {
                 }
             }
         }
-        return true
     }
 }

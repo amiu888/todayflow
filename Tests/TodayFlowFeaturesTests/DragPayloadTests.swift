@@ -149,3 +149,24 @@ struct DragPasteboardSnapshotTests {
         #expect(payloads.first?.sourceTrayId == tray)
     }
 }
+
+@MainActor
+struct AppKitDragSourceTests {
+    @Test func eagerPasteboardItemRoundTrips() {
+        let item = UUIDv7.new()
+        let tray = UUIDv7.new()
+        let board = NSPasteboard(
+            name: NSPasteboard.Name("todayflow-source-\(UUID().uuidString)")
+        )
+        board.clearContents()
+        board.writeObjects([
+            WorkItemDragPayload.pasteboardItem(for: item, sourceTray: tray)
+        ])
+
+        let payloads = WorkItemDragPayload.loadAll(from: board)
+
+        #expect(payloads.count == 1)
+        #expect(payloads.first?.itemId == item)
+        #expect(payloads.first?.sourceTrayId == tray)
+    }
+}
