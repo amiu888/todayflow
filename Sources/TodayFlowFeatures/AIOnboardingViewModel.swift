@@ -139,6 +139,7 @@ public final class AIOnboardingViewModel {
     @ObservationIgnored private let settings: any SettingRepository
     @ObservationIgnored private let keychain: any KeychainStore
     @ObservationIgnored private var downloadTask: Task<Void, Never>?
+    @ObservationIgnored private var downloadToken = UUID()
 
     public enum Option: String, Sendable {
         case apple
@@ -188,13 +189,19 @@ public final class AIOnboardingViewModel {
     public func downloadLocalModel() {
         guard downloadTask == nil else { return }
         lastError = nil
+        let token = UUID()
+        downloadToken = token
         downloadTask = Task { [weak self] in
-            await self?.runDownload()
-            self?.downloadTask = nil
+            await self?.runDownload(token: token)
+            guard let self, self.downloadToken == token else { return }
+            self.downloadTask = nil
         }
     }
 
     public func cancelDownload() {
+        // Invalidate the old task first: its cancellation handler must not
+        // clobber a download the user starts immediately afterwards.
+        downloadToken = UUID()
         downloadTask?.cancel()
         downloadTask = nil
         if case .downloading = downloadState {
@@ -267,13 +274,15 @@ public final class AIOnboardingViewModel {
 
     // MARK: - Private
 
-    private func runDownload() async {
+    private func runDownload(token: UUID) async {
+        guard token == downloadToken else { return }
         if case .checking = serverState {
             await refreshServer()
         }
         if case .notRunning = serverState {
             await refreshServer()
         }
+        guard token == downloadToken else { return }
         if case .notRunning = serverState {
             downloadState = .failed("Ollama isn’t running.")
             lastError = "Ollama isn’t running. Open it, then try again."
@@ -291,15 +300,25 @@ public final class AIOnboardingViewModel {
             var finished = false
             for try await progress in installer.download(localModel) {
                 try Task.checkCancellation()
+                guard token == downloadToken else { return }
                 downloadState = .downloading(progress)
                 if progress.phase == .done { finished = true }
             }
             try Task.checkCancellation()
-            guard finished else { throw LocalModelInstallError.incompleteDownload }
+            guard token == downloadToken else { return }
+            if !finished {
+                // A truncated stream may still have installed the model.
+                let names = (try? await installer.installedModelNames()) ?? []
+                guard names.contains(localModel.ollamaName) else {
+                    throw LocalModelInstallError.incompleteDownload
+                }
+            }
             await configureLocal()
         } catch is CancellationError {
+            guard token == downloadToken else { return }
             downloadState = .idle
         } catch {
+            guard token == downloadToken else { return }
             downloadState = .failed(error.localizedDescription)
             lastError = error.localizedDescription
         }

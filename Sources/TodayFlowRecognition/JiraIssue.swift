@@ -84,10 +84,19 @@ public struct JiraIssueReference: Sendable, Hashable {
     }
 
     private static func issueKey(in url: URL) -> String? {
+        let host = (url.host() ?? "").lowercased()
+        let looksLikeJiraHost = host.contains("jira")
+            || host.contains("atlassian")
+            || host.contains("servicedesk")
+
         if let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
             for item in components.queryItems ?? [] {
                 let name = item.name.lowercased()
-                guard ["selectedissue", "issuekey", "issue", "key"].contains(name),
+                // selectedIssue/issueKey are Jira-specific. Generic `key` or
+                // `issue` parameters only count on a Jira-looking host.
+                let isJiraName = name == "selectedissue" || name == "issuekey"
+                let isGenericName = name == "issue" || name == "key"
+                guard isJiraName || (looksLikeJiraHost && isGenericName),
                       let value = item.value,
                       let key = normalizedKey(value)
                 else { continue }
@@ -104,10 +113,7 @@ public struct JiraIssueReference: Sendable, Hashable {
 
         // A bare key in a path is only Jira-shaped on a Jira host. This avoids
         // turning arbitrary product URLs like /products/ABC-123 into tickets.
-        let host = (url.host() ?? "").lowercased()
-        let looksLikeJira = host.contains("jira")
-            || host.contains("atlassian")
-            || host.contains("servicedesk")
+        let looksLikeJira = looksLikeJiraHost
             || path.lowercased().contains("/jira/")
         guard looksLikeJira else { return nil }
 

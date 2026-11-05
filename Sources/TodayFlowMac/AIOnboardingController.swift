@@ -43,13 +43,18 @@ public final class AIOnboardingController: NSObject, NSWindowDelegate {
 
     public func windowWillClose(_ notification: Notification) {
         let closingModel = model
+        let callback = onClose
         closingModel?.cancelDownload()
-        Task { await closingModel?.markComplete() }
         model = nil
         window = nil
-        let callback = onClose
         onClose = nil
-        callback?()
+        // Persist the "seen" flag before moving on to the deferred
+        // notification prompt. If the app quits immediately, the next launch
+        // should not show the setup window again.
+        Task {
+            await closingModel?.markComplete()
+            callback?()
+        }
     }
 
     private func show() {

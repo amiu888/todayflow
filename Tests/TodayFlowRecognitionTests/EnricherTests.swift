@@ -15,6 +15,13 @@ struct EnricherTests {
         reference: "https://example.com/article"
     )
 
+    @Test("decodesDoubleEncodedEntitiesOnlyOnce")
+    func decodesDoubleEncodedEntitiesOnlyOnce() {
+        #expect(Enricher.unescapeHTML("&amp;lt;") == "&lt;")
+        #expect(Enricher.unescapeHTML("&lt;b&gt;") == "<b>")
+        #expect(Enricher.unescapeHTML("AT&amp;T") == "AT&T")
+    }
+
     @Test("fillsUrlTitleFromFetchedHtml")
     func fillsUrlTitleFromFetchedHtml() async {
         let fetcher = FakeFetcher(behavior: .data(Self.page))

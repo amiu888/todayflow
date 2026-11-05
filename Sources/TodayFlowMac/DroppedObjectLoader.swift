@@ -242,10 +242,16 @@ public struct DroppedObjectLoader {
                     }
                 }
             }
-            if let object { return (object, type) }
+            if let object {
+                if !object.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return (object, type)
+                }
+                continue
+            }
 
             if let data = await loadData(provider, type: type),
-               let text = String(data: data, encoding: .utf8)
+               let text = String(data: data, encoding: .utf8),
+               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
                 return (text, type)
             }

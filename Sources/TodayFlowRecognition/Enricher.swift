@@ -62,13 +62,14 @@ public struct Enricher: Sendable {
     /// Unescapes the common HTML entities.
     static func unescapeHTML(_ text: String) -> String {
         var result = text
-        let named: [String: String] = [
-            "&amp;": "&",
-            "&lt;": "<",
-            "&gt;": ">",
-            "&quot;": "\"",
-            "&apos;": "'",
-            "&nbsp;": " ",
+        // Decode `&amp;` last so `&amp;lt;` becomes `&lt;`, not `<`.
+        let named: [(String, String)] = [
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+            ("&quot;", "\""),
+            ("&apos;", "'"),
+            ("&nbsp;", " "),
+            ("&amp;", "&"),
         ]
         for (entity, character) in named {
             result = result.replacingOccurrences(of: entity, with: character)

@@ -44,6 +44,15 @@ struct DroppedObjectLoaderTests {
         #expect(objects.first?.uti?.conforms(to: .plainText) == true)
     }
 
+    @Test func providerWhitespaceText_isSkipped() async {
+        let provider = NSItemProvider(
+            item: "   \n  " as NSString,
+            typeIdentifier: UTType.utf8PlainText.identifier
+        )
+        let objects = await DroppedObjectLoader().load(from: [provider])
+        #expect(objects.isEmpty)
+    }
+
     @Test func providerWebURL_loadsURL() async throws {
         let url = try #require(URL(string: "https://example.com/article"))
         let provider = NSItemProvider(

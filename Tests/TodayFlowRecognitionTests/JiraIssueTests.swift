@@ -31,6 +31,12 @@ struct JiraIssueTests {
     @Test func rejectsAKeyShapedPathOnANonJiraHost() throws {
         let url = try #require(URL(string: "https://example.com/products/ABC-123"))
         #expect(JiraIssueReference(url: url) == nil)
+        let genericQuery = try #require(URL(string: "https://example.com/page?key=ABC-123"))
+        #expect(JiraIssueReference(url: genericQuery) == nil)
+        let jiraQuery = try #require(URL(string: "https://jira.example.com/page?key=ABC-123"))
+        #expect(JiraIssueReference(url: jiraQuery)?.issueKey == "ABC-123")
+        let selectedIssue = try #require(URL(string: "https://example.com/page?selectedIssue=ABC-123"))
+        #expect(JiraIssueReference(url: selectedIssue)?.issueKey == "ABC-123")
     }
 
     @Test func findsIssueURLInsidePlainText() throws {
