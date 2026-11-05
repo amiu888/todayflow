@@ -342,7 +342,8 @@ public final class AIOnboardingViewModel {
         settingsModel.aiSettings.enabledFeatures = features
         settingsModel.aiSettings.sendAttachmentText = false
         settingsModel.aiSettings.timeoutSeconds = timeout
-        settingsModel.aiSettings.apiKey = ""
+        // Keep any existing Keychain API key: switching to a local provider
+        // must not erase a key the user may want when switching back.
         await settingsModel.save()
         if let error = settingsModel.lastError {
             lastError = error

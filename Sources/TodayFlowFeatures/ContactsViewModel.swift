@@ -249,8 +249,12 @@ public final class ContactsViewModel {
                 return
             }
         }
+        let siblings = groups.filter { $0.parentId == parentId && $0.id != group.id }
+        let lastOrder = siblings.map(\.sortOrder)
+            .max(by: FractionalIndex.isLessThan)
         var updated = group
         updated.parentId = parentId
+        updated.sortOrder = FractionalIndex.midpoint(lastOrder, nil)
         updated.updatedAt = clock()
         updated.version += 1
         try? await repository.saveGroup(updated)
