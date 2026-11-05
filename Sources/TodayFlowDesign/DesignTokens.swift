@@ -10,6 +10,8 @@ public enum DesignTokens {
         public static let panelMinimum = CGSize(width: 300, height: 420)
         public static let slimBar = CGSize(width: 360, height: 44)
         public static let menuBar = CGSize(width: 340, height: 480)
+        /// The quick-add capture panel (FR-02/FR-05); width matches the panel.
+        public static let capture = CGSize(width: 360, height: 360)
         public static let detail = CGSize(width: 720, height: 640)
         public static let hierarchy = CGSize(width: 640, height: 560)
         public static let settings = CGSize(width: 480, height: 560)

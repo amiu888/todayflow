@@ -36,6 +36,13 @@ struct AppEnvironmentTests {
     }
 
     @Test @MainActor
+    func defaultAttachmentsDirectory_livesUnderApplicationSupport() {
+        let directory = AppEnvironment.defaultAttachmentsDirectory()
+        #expect(directory.lastPathComponent == "Attachments")
+        #expect(directory.deletingLastPathComponent().lastPathComponent == "TodayFlow")
+    }
+
+    @Test @MainActor
     func init_acceptsCustomWorkCalendar() {
         let custom = WorkCalendar(startHour: 8, endHour: 16, workWeekdays: [2, 3, 4])
         let f = Fixture(workCalendar: custom)

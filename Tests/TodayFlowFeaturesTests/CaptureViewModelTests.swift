@@ -112,6 +112,25 @@ private struct Fixture {
     }
 }
 
+// MARK: - Parent picker
+
+@Test @MainActor
+func loadParents_listsProjectsInDisplayOrder() async {
+    let f = Fixture()
+    let epic = WorkItem(kind: .epic, title: "Epic", displayOrder: "a")
+    let first = WorkItem(kind: .project, title: "First", displayOrder: "b")
+    let second = WorkItem(kind: .project, title: "Second", displayOrder: "c")
+    let task = WorkItem(title: "Task", displayOrder: "d")
+    for item in [epic, second, first, task] {
+        await f.repository.seed(item)
+    }
+
+    await f.vm.loadParents()
+
+    #expect(f.vm.parents.map(\.title) == ["First", "Second"])
+    #expect(f.vm.parents.map(\.id) == [first.id, second.id])
+}
+
 // MARK: - prepare
 
 @Test @MainActor

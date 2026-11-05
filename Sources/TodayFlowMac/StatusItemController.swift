@@ -42,6 +42,7 @@ public final class StatusItemController: NSObject {
                 repository: environment.workItems,
                 linkRepository: environment.links,
                 attachmentRepository: environment.attachments,
+                settingRepository: environment.settings,
                 calendar: environment.workCalendar,
                 onOpenTask: { [weak windowManager] id in windowManager?.show(.detail(id)) }
             )
@@ -86,6 +87,8 @@ public final class StatusItemController: NSObject {
     /// The right-click menu: the standard window commands + quit.
     public var menu: NSMenu {
         let menu = NSMenu()
+        menu.addItem(item("New Task…", #selector(newTask)))
+        menu.addItem(.separator())
         menu.addItem(item("Open Today", #selector(openPanel)))
         menu.addItem(item("Slim bar", #selector(toggleSlimBar)))
         menu.addItem(item("Hierarchy", #selector(openHierarchy)))
@@ -100,6 +103,8 @@ public final class StatusItemController: NSObject {
         menuItem.target = self
         return menuItem
     }
+
+    @objc private func newTask() { windowManager.showCapture() }
 
     @objc private func openPanel() { windowManager.show(.panel) }
 

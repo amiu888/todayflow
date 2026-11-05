@@ -15,6 +15,9 @@ public final class AppEnvironment {
     public let settings: any SettingRepository
     public let keychain: any KeychainStore
     public let pipeline: RecognitionPipeline
+    /// Copies transient drops into the app container and bookmarks files
+    /// (driver.md §7 step 2); the capture sheet uses it on save.
+    public let materializer: Materializer
 
     /// The user's working-hours model (driver.md line 49). Refreshed from the
     /// settings store by `loadSettings()`.
@@ -27,6 +30,10 @@ public final class AppEnvironment {
         settings: any SettingRepository,
         keychain: any KeychainStore,
         pipeline: RecognitionPipeline,
+        materializer: Materializer = Materializer(
+            fileAccess: FileManagerFileAccess(),
+            attachmentsDirectory: AppEnvironment.defaultAttachmentsDirectory()
+        ),
         workCalendar: WorkCalendar = .standard
     ) {
         self.workItems = workItems
@@ -35,6 +42,7 @@ public final class AppEnvironment {
         self.settings = settings
         self.keychain = keychain
         self.pipeline = pipeline
+        self.materializer = materializer
         self.workCalendar = workCalendar
     }
 
@@ -55,12 +63,22 @@ public final class AppEnvironment {
 
     /// `~/Library/Application Support/TodayFlow/todayflow.sqlite`.
     public static func defaultDatabaseURL() -> URL {
+        applicationSupportDirectory()
+            .appendingPathComponent("todayflow.sqlite")
+    }
+
+    /// `~/Library/Application Support/TodayFlow/Attachments` — where copies of
+    /// transient drops (.eml/.msg/.ics and pasted images) live.
+    public static func defaultAttachmentsDirectory() -> URL {
+        applicationSupportDirectory()
+            .appendingPathComponent("Attachments", isDirectory: true)
+    }
+
+    private static func applicationSupportDirectory() -> URL {
         let base = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first ?? FileManager.default.temporaryDirectory
-        return base
-            .appendingPathComponent("TodayFlow", isDirectory: true)
-            .appendingPathComponent("todayflow.sqlite")
+        return base.appendingPathComponent("TodayFlow", isDirectory: true)
     }
 
     /// Loads the stored business-hours settings (driver.md line 49). A missing

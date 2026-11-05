@@ -84,6 +84,16 @@ public final class CaptureViewModel {
         self.parents = parents
     }
 
+    /// Loads the parent picker's options from the repository: every project,
+    /// in display order. Projects may stand alone or live under an epic
+    /// (driver.md §2), so no further filtering is needed.
+    public func loadParents() async {
+        let all = await repository.allItems()
+        parents = all
+            .filter { $0.kind == .project }
+            .map { CaptureParentOption(id: $0.id, title: $0.title) }
+    }
+
     /// Prepares the sheet for a new capture: builds the draft from the
     /// recognized objects and records the raw drops for materialization.
     /// The draft assignment triggers the NL date re-parse (a suggested title

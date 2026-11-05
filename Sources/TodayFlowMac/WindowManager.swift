@@ -13,6 +13,7 @@ import TodayFlowFeatures
 public final class WindowManager: NSObject, NSWindowDelegate {
     private let environment: AppEnvironment
     private var windows: [WindowKind: NSWindow] = [:]
+    private let capture: CaptureWindowController
 
     /// The shared summary model (driver.md FR-40); the delegate assigns it
     /// after construction. The slim bar reads it in `body` so it stays live.
@@ -20,7 +21,18 @@ public final class WindowManager: NSObject, NSWindowDelegate {
 
     public init(environment: AppEnvironment) {
         self.environment = environment
+        self.capture = CaptureWindowController(environment: environment)
         super.init()
+    }
+
+    /// Opens the quick-add capture panel (FR-02 drop, FR-05 hotkey).
+    public func showCapture() {
+        capture.present()
+    }
+
+    /// True while the quick-add panel is on screen.
+    public var isCapturePresenting: Bool {
+        capture.isPresenting
     }
 
     /// Shows the window for `kind`, creating it on first use. Re-showing an
@@ -112,6 +124,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 repository: environment.workItems,
                 linkRepository: environment.links,
                 attachmentRepository: environment.attachments,
+                settingRepository: environment.settings,
                 calendar: environment.workCalendar,
                 onOpenTask: { [weak self] id in self?.show(.detail(id)) }
             )

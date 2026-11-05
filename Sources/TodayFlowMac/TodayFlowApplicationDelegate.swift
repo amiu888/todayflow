@@ -12,6 +12,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     public private(set) var windows: WindowManager?
     public private(set) var statusItem: StatusItemController?
     public private(set) var summary: TodaySummaryModel?
+    /// The system-wide capture hotkey (FR-05, default ⌃⌥Space).
+    public private(set) var hotKey: GlobalHotKey?
 
     public override init() {}
 
@@ -36,6 +38,13 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             summary.onRefreshed = { [weak controller] progress in
                 controller?.apply(progress: progress)
             }
+            let hotKey = GlobalHotKey { [weak windowManager] in
+                windowManager?.showCapture()
+            }
+            self.hotKey = hotKey
+            if !hotKey.isRegistered {
+                NSLog("TodayFlow: ⌃⌥Space is unavailable; use the menu-bar New Task item.")
+            }
             Task {
                 await environment.loadSettings()
                 summary.updateCalendar(environment.workCalendar)
@@ -58,6 +67,11 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     /// the app alive; quit comes from the status-item menu.
     public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    /// Releases the Carbon hotkey before the process exits.
+    public func applicationWillTerminate(_ notification: Notification) {
+        hotKey?.unregister()
     }
 }
 #endif

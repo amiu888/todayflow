@@ -14,6 +14,8 @@ public final class PanelWindow: NSPanel {
         case panel
         /// The slim bar: borderless, fixed size, dragged by its background.
         case slimBar
+        /// The quick-add sheet: borderless, fixed size, dragged by its header.
+        case capture
     }
 
     public init(contentRect: NSRect, style: Style) {
@@ -21,7 +23,7 @@ public final class PanelWindow: NSPanel {
         switch style {
         case .panel:
             mask = [.titled, .closable, .resizable, .nonactivatingPanel]
-        case .slimBar:
+        case .slimBar, .capture:
             mask = [.borderless, .nonactivatingPanel]
         }
         super.init(contentRect: contentRect, styleMask: mask, backing: .buffered, defer: false)
@@ -33,7 +35,7 @@ public final class PanelWindow: NSPanel {
         switch style {
         case .panel:
             titleVisibility = .visible
-        case .slimBar:
+        case .slimBar, .capture:
             isMovableByWindowBackground = true
         }
     }
