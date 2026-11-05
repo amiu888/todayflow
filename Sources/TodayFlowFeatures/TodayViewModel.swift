@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import TodayFlowCore
+import TodayFlowDesign
 
 /// A presentation action fired by a Today row (driver.md FR-12, FR-31).
 ///
@@ -35,11 +36,13 @@ extension TaskRowModel {
             isDone: isDone,
             isBlocked: isBlocked,
             dueAt: dueAt,
+            estimatedMinutes: estimatedMinutes,
             isOverdue: isOverdue,
             isDueSoon: isDueSoon,
             completedAt: completedAt,
             attachments: attachments,
             allAttachments: allAttachments,
+            trays: trays,
             attachmentCount: attachmentCount,
             parentColorHex: parentColorHex,
             hasChainBelow: hasChainBelow
@@ -68,6 +71,19 @@ public final class TodayViewModel {
 
     /// The day's items + progress, as produced by `TodayQuery`.
     public private(set) var result: TodayQuery.Result = .empty
+
+    /// Minutes planned across open tasks with estimates.
+    public var plannedMinutes: Int {
+        visibleRows
+            .filter { !$0.isDone }
+            .compactMap(\.estimatedMinutes)
+            .reduce(0, +)
+    }
+
+    /// Available working minutes today.
+    public var capacityMinutes: Int {
+        Int((calendar.endHour - calendar.startHour) * 60)
+    }
 
     /// All links (drives blocked + chain state for the day's items).
     private var links: [ItemLink] = []
@@ -378,8 +394,21 @@ public final class TodayViewModel {
             index = ordered.count
         }
         var updated = ordered
-        updated.insert(WorkTray(name: trimmed, sortOrder: index), at: index)
+        updated.insert(
+            WorkTray(
+                name: trimmed,
+                sortOrder: index,
+                colorHex: DesignTokens.TrayPalette.colorHex(at: index)
+            ),
+            at: index
+        )
         trays = renumbered(updated)
+        await persistTrays()
+    }
+
+    public func setTrayColor(_ id: UUIDv7, colorHex: String) async {
+        guard let index = trays.firstIndex(where: { $0.id == id }) else { return }
+        trays[index].colorHex = colorHex
         await persistTrays()
     }
 
@@ -448,7 +477,13 @@ public final class TodayViewModel {
         } else {
             // A first-run tray gives the user somewhere to drop the task they
             // are working on without a setup step.
-            trays = [WorkTray(name: "Working tray", sortOrder: 0)]
+            trays = [
+                WorkTray(
+                    name: "Working tray",
+                    sortOrder: 0,
+                    colorHex: DesignTokens.TrayPalette.colorHex(at: 0)
+                )
+            ]
             await persistTrays()
         }
     }
@@ -538,6 +573,7 @@ public final class TodayViewModel {
             isDone: isDone,
             isBlocked: isBlocked,
             dueAt: item.endAt,
+            estimatedMinutes: item.estimatedMinutes,
             isOverdue: isOverdue,
             isDueSoon: isDueSoon,
             completedAt: item.completedAt,
@@ -555,6 +591,16 @@ public final class TodayViewModel {
                     sourceApp: $0.sourceApp
                 )
             },
+            trays: trays
+                .filter { $0.itemIds.contains(item.id) }
+                .map {
+                    TaskRowModel.TrayHint(
+                        id: $0.id,
+                        name: $0.name,
+                        colorHex: $0.colorHex
+                            ?? DesignTokens.TrayPalette.colorHex(at: $0.sortOrder)
+                    )
+                },
             attachmentCount: itemAttachments.count,
             parentColorHex: item.parentId.flatMap { known[$0]?.color },
             hasChainBelow: false
@@ -599,6 +645,8 @@ public final class TodayViewModel {
         if row.title.lowercased().contains(needle) { return true }
         if let item = knownItems[row.id],
            item.descriptionMd.lowercased().contains(needle) { return true }
+        if let item = knownItems[row.id],
+           item.tags.contains(where: { $0.lowercased().contains(needle) }) { return true }
         return (attachments[row.id] ?? []).contains {
             $0.displayName.lowercased().contains(needle)
         }
@@ -617,6 +665,16 @@ public final class TodayViewModel {
             return rows.sorted {
                 if $0.dueAt != $1.dueAt { return $0.dueAt < $1.dueAt }
                 return $0.priority < $1.priority
+            }
+        case .tray:
+            return rows.sorted {
+                let left = $0.trays.first?.name ?? "~ No tray"
+                let right = $1.trays.first?.name ?? "~ No tray"
+                if left != right {
+                    return left.localizedStandardCompare(right) == .orderedAscending
+                }
+                if $0.priority != $1.priority { return $0.priority < $1.priority }
+                return $0.dueAt < $1.dueAt
             }
         }
     }

@@ -41,6 +41,8 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
     public var startAt: Date
     /// When the work is due (defaults per `WorkCalendar.defaultEndAt`).
     public var endAt: Date
+    /// Optional effort estimate in minutes, used by the daily load meter.
+    public var estimatedMinutes: Int?
     /// Set when the item transitions to `.done`.
     public var completedAt: Date?
     /// Fractional-index sort key within its parent's children (driver.md §2).
@@ -68,6 +70,7 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
         priority: Priority = .default,
         startAt: Date = .now,
         endAt: Date = .now,
+        estimatedMinutes: Int? = nil,
         completedAt: Date? = nil,
         displayOrder: String = FractionalIndex.bottom,
         color: String? = nil,
@@ -87,6 +90,7 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
         self.priority = priority
         self.startAt = startAt
         self.endAt = endAt
+        self.estimatedMinutes = estimatedMinutes
         self.completedAt = completedAt
         self.displayOrder = displayOrder
         self.color = color

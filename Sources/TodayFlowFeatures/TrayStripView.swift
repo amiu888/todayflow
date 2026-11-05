@@ -86,12 +86,22 @@ public struct TrayStripView: View {
     }
 
     @MainActor
+    private func trayColor(_ tray: WorkTray) -> Color {
+        Color(
+            hex: tray.colorHex
+                ?? DesignTokens.TrayPalette.colorHex(at: tray.sortOrder)
+        )
+    }
+
+    @MainActor
     private func trayCard(_ column: TodayViewModel.TrayColumn) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let tint = trayColor(column.tray)
+
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
-                Image(systemName: "tray.full")
+                Image(systemName: DesignTokens.TrayPalette.iconName)
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(DesignTokens.Palette.accent)
+                    .foregroundStyle(tint)
 
                 Text(column.tray.name)
                     .font(.caption.weight(.semibold))
@@ -107,6 +117,25 @@ public struct TrayStripView: View {
                     Button("Rename…") {
                         renameText = column.tray.name
                         renamingTray = column.tray.id
+                    }
+                    Menu("Color") {
+                        ForEach(DesignTokens.TrayPalette.colors, id: \.self) { hex in
+                            Button {
+                                Task {
+                                    await model.setTrayColor(column.tray.id, colorHex: hex)
+                                }
+                            } label: {
+                                HStack {
+                                    Circle()
+                                        .fill(Color(hex: hex))
+                                        .frame(width: 8, height: 8)
+                                    Text(hex)
+                                    if hex == column.tray.colorHex {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
                     }
                     Button("Insert tray after…") {
                         insertAfter = column.tray.id
@@ -167,8 +196,14 @@ public struct TrayStripView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+                .stroke(tint.opacity(0.45), lineWidth: 1)
         )
+        .overlay(alignment: .top) {
+            Capsule()
+                .fill(tint)
+                .frame(width: 26, height: 2)
+                .padding(.top, 3)
+        }
         .shadow(color: DesignTokens.Palette.shadow.opacity(0.5), radius: 6, y: 2)
         .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
             guard let payload = payloads.first else { return false }

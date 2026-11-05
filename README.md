@@ -88,10 +88,19 @@ open build/TodayFlow.app
 ./scripts/run-ui-tests.sh   # real XCUITest against the built .app
 ```
 
-`scripts/build-app.sh` wraps the SwiftPM executable in a minimal ad-hoc-signed
-`.app` bundle (Info.plist + Dock icon). Distribution still needs a Developer ID,
-hardened runtime, and notarization. Requires Swift 6 / Xcode 16+. Minimum
-deployment: macOS 14 Sonoma.
+`scripts/build-app.sh` wraps the SwiftPM executable in a `.app` bundle and signs
+it with the first **Developer ID Application** identity in the keychain (hardened
+runtime). `scripts/package-dmg.sh` builds a signed DMG plus SHA-256 checksum.
+
+Notarization needs an Apple Developer account and a notarytool keychain profile:
+
+```sh
+xcrun notarytool store-credentials todayflow \
+  --apple-id "you@example.com" --team-id XC9C9QZ6W8
+NOTARY_PROFILE=todayflow ./scripts/package-dmg.sh
+```
+
+Requires Swift 6 / Xcode 16+. Minimum deployment: macOS 14 Sonoma.
 
 ## Conventions
 

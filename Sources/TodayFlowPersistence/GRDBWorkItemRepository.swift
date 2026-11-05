@@ -148,9 +148,10 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
                 sql: """
                     INSERT INTO work_item (
                       id, kind, parent_id, title, description_md, status, priority,
-                      start_at, end_at, completed_at, display_order, color, tags_json,
+                      start_at, end_at, completed_at, estimated_minutes,
+                      display_order, color, tags_json,
                       created_at, updated_at, deleted_at, version, device_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                       kind = excluded.kind,
                       parent_id = excluded.parent_id,
@@ -161,6 +162,7 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
                       start_at = excluded.start_at,
                       end_at = excluded.end_at,
                       completed_at = excluded.completed_at,
+                      estimated_minutes = excluded.estimated_minutes,
                       display_order = excluded.display_order,
                       color = excluded.color,
                       tags_json = excluded.tags_json,
@@ -180,6 +182,7 @@ public final class GRDBWorkItemRepository: WorkItemRepository, Sendable {
                     SqlTimestamp.encode(item.startAt),
                     SqlTimestamp.encode(item.endAt),
                     item.completedAt.map(SqlTimestamp.encode),
+                    item.estimatedMinutes,
                     item.displayOrder,
                     item.color,
                     Json.arrayString(item.tags),

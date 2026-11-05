@@ -72,6 +72,25 @@ public final class CalendarViewModel {
         selectedDay = anchor
     }
 
+    /// Drag a task onto a day to move its start (and therefore its due date).
+    public func reschedule(_ itemId: UUIDv7, to day: Date) async {
+        let start = calendar.date(
+            bySettingHour: 9,
+            minute: 0,
+            second: 0,
+            of: calendar.startOfDay(for: day)
+        ) ?? day
+        do {
+            try await SetStartTime(
+                repository: repository,
+                calendar: WorkCalendar(calendar: calendar)
+            ).execute(itemId, to: start, at: clock())
+            await load()
+        } catch {
+            // The calendar is a view; the detail/Today surfaces show errors.
+        }
+    }
+
     public var title: String {
         switch mode {
         case .week:
@@ -273,6 +292,11 @@ public struct CalendarView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
                 )
+                .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
+                    guard let payload = payloads.first else { return false }
+                    Task { await model.reschedule(payload.itemId, to: day.date) }
+                    return true
+                }
             }
         }
         .padding(12)
@@ -331,7 +355,12 @@ public struct CalendarView: View {
                         .opacity(day.isInCurrentMonth ? 1 : 0.42)
                     }
                     .buttonStyle(.plain)
-                    .help("\(day.openCount) open tasks")
+                    .help("\(day.openCount) open tasks · drop a task to move it here")
+                    .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
+                        guard let payload = payloads.first else { return false }
+                        Task { await model.reschedule(payload.itemId, to: day.date) }
+                        return true
+                    }
                 }
             }
             .padding(.horizontal, 12)

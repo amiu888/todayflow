@@ -12,17 +12,20 @@ public struct DetailEdit: Hashable, Sendable {
     public var descriptionMd: String
     public var startAt: Date
     public var endAt: Date
+    public var estimatedMinutes: Int?
 
     public init(
         title: String = "",
         descriptionMd: String = "",
         startAt: Date = .now,
-        endAt: Date = .now
+        endAt: Date = .now,
+        estimatedMinutes: Int? = nil
     ) {
         self.title = title
         self.descriptionMd = descriptionMd
         self.startAt = startAt
         self.endAt = endAt
+        self.estimatedMinutes = estimatedMinutes
     }
 
     public init(item: WorkItem) {
@@ -30,7 +33,8 @@ public struct DetailEdit: Hashable, Sendable {
             title: item.title,
             descriptionMd: item.descriptionMd,
             startAt: item.startAt,
-            endAt: item.endAt
+            endAt: item.endAt,
+            estimatedMinutes: item.estimatedMinutes
         )
     }
 }
@@ -325,6 +329,7 @@ public final class DetailViewModel {
             && edit.descriptionMd == current.descriptionMd
             && edit.startAt == current.startAt
             && edit.endAt == current.endAt
+            && edit.estimatedMinutes == current.estimatedMinutes
         guard !unchanged else { return }
 
         isSaving = true
@@ -337,6 +342,7 @@ public final class DetailViewModel {
         updated.descriptionMd = edit.descriptionMd
         updated.startAt = edit.startAt
         updated.endAt = edit.endAt
+        updated.estimatedMinutes = edit.estimatedMinutes
         updated = updated.touching(now)
         updated.deviceId = deviceId
 
@@ -590,6 +596,43 @@ public final class DetailViewModel {
     /// Closes the suggestion list without creating anything.
     public func dismissSubtaskSuggestions() {
         subtaskSuggestions = []
+    }
+
+    // MARK: Tags
+
+    public func addTag(_ text: String) async {
+        guard var item else { return }
+        let tag = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tag.isEmpty,
+              !item.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame })
+        else { return }
+
+        item.tags.append(tag)
+        item = item.touching(clock())
+        item.deviceId = deviceId
+        do {
+            try await repository.save(item)
+            self.item = item
+            lastSavedAt = clock()
+            await reloadRelated()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    public func removeTag(_ tag: String) async {
+        guard var item, item.tags.contains(tag) else { return }
+        item.tags.removeAll { $0 == tag }
+        item = item.touching(clock())
+        item.deviceId = deviceId
+        do {
+            try await repository.save(item)
+            self.item = item
+            lastSavedAt = clock()
+            await reloadRelated()
+        } catch {
+            lastError = error.localizedDescription
+        }
     }
 
     /// Removes an attachment from the item.

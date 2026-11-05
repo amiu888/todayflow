@@ -2,6 +2,7 @@
 import AppKit
 import Foundation
 import QuickLookUI
+import UniformTypeIdentifiers
 import TodayFlowCore
 
 /// Opens, reveals, and Quick Looks attachments (driver.md FR-23).
@@ -47,13 +48,50 @@ public final class AttachmentActions: NSObject {
     }
 
     /// Opens the original with its default app (or the system handler for a
-    /// web/deep-link URL).
+    /// web/deep-link URL). Excel files open in Excel, PDFs in Preview, etc.
     public func open(_ attachment: Attachment) {
         guard let url = url(for: attachment) else {
             NSSound.beep()
             return
         }
         NSWorkspace.shared.open(url)
+    }
+
+    /// The display name of the default handler, e.g. “Microsoft Excel”.
+    public func defaultApplicationName(for attachment: Attachment) -> String? {
+        guard let url = url(for: attachment), url.isFileURL,
+              let appURL = NSWorkspace.shared.urlForApplication(toOpen: url)
+        else { return nil }
+        return FileManager.default.displayName(atPath: appURL.path)
+    }
+
+    /// Opens the attachment with a user-chosen application.
+    public func chooseApplication(for attachment: Attachment) {
+        guard let url = url(for: attachment), url.isFileURL else {
+            open(attachment)
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.title = "Open “\(attachment.displayName)” with"
+        panel.prompt = "Open With"
+        panel.message = "Choose an application."
+        panel.allowedContentTypes = [.application]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+
+        guard panel.runModal() == .OK, let appURL = panel.url else { return }
+        NSWorkspace.shared.open(
+            [url],
+            withApplicationAt: appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, error in
+            if error != nil {
+                NSSound.beep()
+            }
+        }
     }
 
     /// Reveals a file or folder in Finder.

@@ -26,8 +26,16 @@ public enum TodayFlowMigrations {
         migrator.registerMigration("v2") { db in
             try db.execute(sql: schemaV2)
         }
+        migrator.registerMigration("v3") { db in
+            try db.execute(sql: schemaV3)
+        }
         return migrator
     }
+
+    /// v3 adds optional effort estimates for the daily load meter.
+    static let schemaV3 = """
+        ALTER TABLE work_item ADD COLUMN estimated_minutes INTEGER;
+        """
 
     /// v2 adds the append-only activity/audit log (FR-20).
     static let schemaV2 = """

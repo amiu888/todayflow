@@ -60,6 +60,26 @@ public enum DesignTokens {
         }
     }
 
+    /// Working-tray identity. Apple’s SF Symbols supply the tray glyph so it
+    /// matches the native macOS visual language.
+    public enum TrayPalette {
+        public static let iconName = "tray.full.fill"
+        public static let colors: [String] = [
+            "#60A5FA", // sky
+            "#A78BFA", // violet
+            "#34D399", // mint
+            "#FBBF24", // amber
+            "#FB7185", // coral
+            "#22D3EE", // cyan
+            "#F472B6", // rose
+            "#94A3B8", // slate
+        ]
+
+        public static func colorHex(at index: Int) -> String {
+            colors[((index % colors.count) + colors.count) % colors.count]
+        }
+    }
+
     /// Window mode sizes (driver.md §4: Panel 360×640 min 300×420, Slim bar
     /// 360×44, menu bar popover 340×480, Detail 720×640, Hierarchy 640×560,
     /// Settings 480×560).

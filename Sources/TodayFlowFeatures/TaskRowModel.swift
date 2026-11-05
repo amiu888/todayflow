@@ -16,6 +16,8 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
     /// A prerequisite (`.blocks` link) is not yet complete — the row shows a lock.
     public let isBlocked: Bool
     public let dueAt: Date
+    /// Optional effort estimate in minutes.
+    public let estimatedMinutes: Int?
     public let isOverdue: Bool
     /// Due within 15 minutes: the row pulses and the panel shows a banner.
     public let isDueSoon: Bool
@@ -24,6 +26,20 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
     public let attachments: [AttachmentHint]
     /// Every attachment, for the hover overlay.
     public let allAttachments: [AttachmentHint]
+
+    /// Working trays this task belongs to (for the tray badge and sorting).
+    public struct TrayHint: Identifiable, Hashable, Sendable {
+        public let id: UUIDv7
+        public let name: String
+        public let colorHex: String
+
+        public init(id: UUIDv7, name: String, colorHex: String) {
+            self.id = id
+            self.name = name
+            self.colorHex = colorHex
+        }
+    }
+    public let trays: [TrayHint]
     /// Total attachment count (drives the "+n" overflow).
     public let attachmentCount: Int
     /// Parent project/epic color strip hex; nil for root items.
@@ -57,11 +73,13 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
         isDone: Bool,
         isBlocked: Bool,
         dueAt: Date,
+        estimatedMinutes: Int? = nil,
         isOverdue: Bool,
         isDueSoon: Bool = false,
         completedAt: Date? = nil,
         attachments: [AttachmentHint] = [],
         allAttachments: [AttachmentHint] = [],
+        trays: [TrayHint] = [],
         attachmentCount: Int = 0,
         parentColorHex: String? = nil,
         hasChainBelow: Bool = false
@@ -73,11 +91,13 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
         self.isDone = isDone
         self.isBlocked = isBlocked
         self.dueAt = dueAt
+        self.estimatedMinutes = estimatedMinutes
         self.isOverdue = isOverdue
         self.isDueSoon = isDueSoon
         self.completedAt = completedAt
         self.attachments = attachments
         self.allAttachments = allAttachments
+        self.trays = trays
         self.attachmentCount = attachmentCount
         self.parentColorHex = parentColorHex
         self.hasChainBelow = hasChainBelow

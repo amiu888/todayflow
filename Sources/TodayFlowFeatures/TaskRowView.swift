@@ -148,6 +148,22 @@ public struct TaskRowView: View {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(Color.secondary)
+                    .help("Blocked by an unfinished task")
+            }
+
+            ForEach(model.trays.prefix(2)) { tray in
+                Image(systemName: DesignTokens.TrayPalette.iconName)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color(hex: tray.colorHex))
+                    .help("Tray: \(tray.name)")
+                    .accessibilityLabel("In tray \(tray.name)")
+            }
+
+            if model.trays.count > 2 {
+                Text("+\(model.trays.count - 2)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .help(model.trays.dropFirst(2).map(\.name).joined(separator: ", "))
             }
 
             attachmentCluster

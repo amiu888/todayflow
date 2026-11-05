@@ -62,8 +62,8 @@ public struct DataExport: Sendable {
         let formatter = ISO8601DateFormatter()
         let header = [
             "id", "kind", "title", "parent_id", "status", "priority",
-            "start_at", "end_at", "completed_at", "display_order", "tags",
-            "description",
+            "estimate_min", "start_at", "end_at", "completed_at", "display_order",
+            "tags", "description",
         ]
         var rows = [header.map(escape).joined(separator: ",")]
 
@@ -75,6 +75,7 @@ public struct DataExport: Sendable {
                 item.parentId?.uuid.uuidString ?? "",
                 item.status.rawValue,
                 "P\(item.priority.rawValue)",
+                item.estimatedMinutes.map(String.init) ?? "",
                 formatter.string(from: item.startAt),
                 formatter.string(from: item.endAt),
                 item.completedAt.map(formatter.string(from:)) ?? "",
@@ -201,8 +202,8 @@ public struct DataExport: Sendable {
         let formatter = ISO8601DateFormatter()
         let header = [
             "id", "kind", "title", "parent_id", "status", "priority",
-            "start_at", "end_at", "completed_at", "display_order", "tags",
-            "description",
+            "estimate_min", "start_at", "end_at", "completed_at", "display_order",
+            "tags", "description",
         ]
         var rows = [rowXML(header, index: 1, header: true)]
 
@@ -214,6 +215,7 @@ public struct DataExport: Sendable {
                 item.parentId?.uuid.uuidString ?? "",
                 item.status.rawValue,
                 "P\(item.priority.rawValue)",
+                item.estimatedMinutes.map(String.init) ?? "",
                 formatter.string(from: item.startAt),
                 formatter.string(from: item.endAt),
                 item.completedAt.map(formatter.string(from:)) ?? "",

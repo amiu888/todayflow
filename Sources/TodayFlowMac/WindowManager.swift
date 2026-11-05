@@ -18,8 +18,20 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private let dropLoader = DroppedObjectLoader()
     private let attachmentActions = AttachmentActions()
     private let focus: FocusWindowController
+    private let miniCalendar: MiniCalendarWindowController
     /// Snaps floating windows to screen edges and neighbouring windows.
     public let docking = WindowDockController()
+    /// When true, all app windows follow the user across every Space.
+    public var showOnAllDesktops: Bool {
+        didSet {
+            UserDefaults.standard.set(showOnAllDesktops, forKey: Self.desktopsKey)
+            for window in windows.values {
+                applyDesktopBehavior(to: window)
+            }
+        }
+    }
+
+    private static let desktopsKey = "todayflow.allDesktops"
 
     /// The shared summary model (driver.md FR-40); the delegate assigns it
     /// after construction. The slim bar reads it in `body` so it stays live.
@@ -29,7 +41,14 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         self.environment = environment
         self.capture = CaptureWindowController(environment: environment)
         self.focus = FocusWindowController(environment: environment)
+        self.miniCalendar = MiniCalendarWindowController(environment: environment)
+        self.showOnAllDesktops = UserDefaults.standard.object(forKey: Self.desktopsKey) as? Bool ?? false
         super.init()
+        self.miniCalendar.onOpenDetail = { [weak self] id in self?.show(.detail(id)) }
+        self.miniCalendar.onOpenMain = { [weak self] in
+            self?.show(.panel)
+            self?.miniCalendar.dismiss()
+        }
         self.capture.onSaved = { [weak self] id in
             guard let self else { return }
             NotificationCenter.default.post(name: TodayFlowEvents.itemsChanged, object: nil)
@@ -123,6 +142,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// Opens the focused-work timer for one task.
     public func presentFocus(_ id: UUIDv7) {
         focus.present(itemId: id)
+    }
+
+    /// Collapse the full panel into the corner-friendly mini calendar.
+    public func collapseToMiniCalendar() {
+        close(.panel)
+        miniCalendar.present(mode: .day)
+    }
+
+    public func toggleMiniCalendar() {
+        miniCalendar.toggle()
     }
 
     /// Minimize the Today panel; the menu-bar icon restores it.
@@ -283,7 +312,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         }
         window.contentView = NSHostingView(rootView: content(for: kind))
         window.isReleasedWhenClosed = false
+        applyDesktopBehavior(to: window)
         return window
+    }
+
+    private func applyDesktopBehavior(to window: NSWindow) {
+        if showOnAllDesktops {
+            window.collectionBehavior.insert(.canJoinAllSpaces)
+        } else if !(window is PanelWindow) {
+            window.collectionBehavior.remove(.canJoinAllSpaces)
+        }
     }
 
     /// A save confirmation that explains where the task actually landed.
@@ -328,7 +366,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 onDrop: { [weak self] providers, itemId in
                     self?.handleDrop(providers, onto: itemId) ?? false
                 },
-                onOpenUpcoming: { [weak self] in self?.show(.upcoming) }
+                onOpenUpcoming: { [weak self] in self?.show(.upcoming) },
+                onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() }
             )
         case .hierarchy:
             HierarchyView(
@@ -342,6 +381,11 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 repository: environment.workItems,
                 calendar: environment.workCalendar.calendar,
                 onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
+            )
+        case .insights:
+            InsightsView(
+                repository: environment.workItems,
+                calendar: environment.workCalendar.calendar
             )
         case .upcoming:
             UpcomingView(
@@ -387,6 +431,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             DetailView(
                 model: model,
                 onOpenAttachment: { actions.open($0) },
+                onOpenAttachmentWith: { actions.chooseApplication(for: $0) },
+                defaultApplicationName: { actions.defaultApplicationName(for: $0) },
                 onQuickLookAttachment: { actions.quickLook($0) },
                 onRevealAttachment: { actions.reveal($0) },
                 onDropAttachment: { [weak self] providers in

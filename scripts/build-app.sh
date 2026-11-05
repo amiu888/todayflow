@@ -1,12 +1,11 @@
 #!/bin/bash
-# Builds a minimal .app bundle around the SwiftPM executable so TodayFlow gets
-# a real Dock icon, an Info.plist, and Finder "Open With" support.
+# Builds a distribution-ready TodayFlow.app.
 #
 #   ./scripts/build-app.sh            # release
 #   ./scripts/build-app.sh debug      # debug
 #
-# This is an ad-hoc signed local bundle; distribution still needs a Developer ID
-# certificate, hardened runtime, and notarization (driver.md Phase 4).
+# Uses the first "Developer ID Application" identity in the keychain when
+# available; otherwise falls back to an ad-hoc signature for local testing.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -22,10 +21,17 @@ cp "$BIN_PATH/TodayFlowApp" "$APP_DIR/Contents/MacOS/TodayFlowApp"
 cp Resources/Info.plist "$APP_DIR/Contents/Info.plist"
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
-# Ad-hoc signature: enough for local launch on Apple silicon.
-if command -v codesign >/dev/null 2>&1; then
+IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+    | awk -F '"' '/Developer ID Application/ {print $2; exit}')"
+
+if [[ -n "$IDENTITY" ]]; then
+    echo "Signing with: $IDENTITY"
+    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP_DIR"
+else
+    echo "No Developer ID identity found; using an ad-hoc signature."
     codesign --force --deep --sign - "$APP_DIR" >/dev/null 2>&1 || true
 fi
 
+codesign --verify --deep --strict --verbose=2 "$APP_DIR" 2>&1 | tail -3
 echo "Built $APP_DIR"
 echo "Open it with: open \"$APP_DIR\""

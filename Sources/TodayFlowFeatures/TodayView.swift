@@ -20,6 +20,7 @@ public struct TodayView: View {
     private let onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)?
     #endif
     private let onOpenUpcoming: (@MainActor () -> Void)?
+    private let onShowMiniCalendar: (@MainActor () -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -38,6 +39,7 @@ public struct TodayView: View {
         self.onDrop = nil
         #endif
         self.onOpenUpcoming = nil
+        self.onShowMiniCalendar = nil
     }
 
     /// Convenience initializer for hosts that own the repositories.
@@ -55,7 +57,8 @@ public struct TodayView: View {
         onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil,
         onFocusTask: (@MainActor (UUIDv7) -> Void)? = nil,
         onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil,
-        onOpenUpcoming: (@MainActor () -> Void)? = nil
+        onOpenUpcoming: (@MainActor () -> Void)? = nil,
+        onShowMiniCalendar: (@MainActor () -> Void)? = nil
     ) {
         self.model = TodayViewModel(
             repository: repository,
@@ -71,6 +74,7 @@ public struct TodayView: View {
         self.onDrop = onDrop
         #endif
         self.onOpenUpcoming = onOpenUpcoming
+        self.onShowMiniCalendar = onShowMiniCalendar
     }
 
     private var motion: Motion {
@@ -85,6 +89,9 @@ public struct TodayView: View {
                 weekStrip
                 if model.isViewingToday {
                     ProgressHeaderView(progress: model.progress, motion: motion)
+                    if model.plannedMinutes > 0 {
+                        loadMeter
+                    }
                 } else {
                     futureDaySummary
                 }
@@ -514,6 +521,20 @@ public struct TodayView: View {
                 .buttonStyle(.borderless)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(DesignTokens.Palette.accent)
+                .help("Return to today")
+            }
+
+            if let onShowMiniCalendar {
+                Button {
+                    onShowMiniCalendar()
+                } label: {
+                    Image(systemName: "rectangle.compress.vertical")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("Minimize to the mini day/week calendar")
+                .accessibilityLabel("Minimize to mini calendar")
             }
         }
         .padding(.horizontal, 4)
@@ -579,6 +600,58 @@ public struct TodayView: View {
                 )
             }
         }
+    }
+
+    @MainActor
+    private var loadMeter: some View {
+        let planned = model.plannedMinutes
+        let capacity = max(1, model.capacityMinutes)
+        let fraction = min(1, Double(planned) / Double(capacity))
+        let over = planned > capacity
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Label("\(minutesLabel(planned)) planned", systemImage: "gauge.with.dots.needle.33percent")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(
+                        over ? DesignTokens.Palette.warning : DesignTokens.Palette.textSecondary
+                    )
+                Spacer()
+                Text("of \(minutesLabel(capacity))")
+                    .font(.caption2)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+            }
+
+            ProgressView(value: fraction)
+                .progressViewStyle(.linear)
+                .tint(over ? DesignTokens.Palette.warning : DesignTokens.Palette.accent)
+                .scaleEffect(x: 1, y: 0.65, anchor: .center)
+
+            if over {
+                Text("Overbooked by \(minutesLabel(planned - capacity)) — move something.")
+                    .font(.caption2)
+                    .foregroundStyle(DesignTokens.Palette.warning)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(DesignTokens.Palette.surface.opacity(0.8))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+        )
+        .help("Estimated effort across today's open tasks")
+    }
+
+    private func minutesLabel(_ minutes: Int) -> String {
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if hours == 0 { return "\(rest)m" }
+        if rest == 0 { return "\(hours)h" }
+        return "\(hours)h \(rest)m"
     }
 
     @MainActor

@@ -26,6 +26,7 @@ public enum TodaySort: String, CaseIterable, Identifiable, Sendable {
     case manual
     case priority
     case due
+    case tray
 
     public var id: String { rawValue }
 
@@ -34,6 +35,7 @@ public enum TodaySort: String, CaseIterable, Identifiable, Sendable {
         case .manual: return "Display order"
         case .priority: return "Priority then due date"
         case .due: return "Due date then priority"
+        case .tray: return "Working tray"
         }
     }
 }

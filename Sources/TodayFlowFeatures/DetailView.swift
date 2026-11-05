@@ -16,6 +16,8 @@ import AppKit
 public struct DetailView: View {
     public let model: DetailViewModel
     private let onOpenAttachment: (@MainActor (Attachment) -> Void)?
+    private let onOpenAttachmentWith: (@MainActor (Attachment) -> Void)?
+    private let defaultApplicationName: (@MainActor (Attachment) -> String?)?
     private let onQuickLookAttachment: (@MainActor (Attachment) -> Void)?
     private let onRevealAttachment: (@MainActor (Attachment) -> Void)?
     #if canImport(AppKit)
@@ -29,6 +31,7 @@ public struct DetailView: View {
     @State private var isAttachmentDropTargeted = false
     @State private var showSaved = false
     @State private var savedFeedbackTask: Task<Void, Never>?
+    @State private var newTag = ""
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -43,12 +46,16 @@ public struct DetailView: View {
     public init(
         model: DetailViewModel,
         onOpenAttachment: (@MainActor (Attachment) -> Void)? = nil,
+        onOpenAttachmentWith: (@MainActor (Attachment) -> Void)? = nil,
+        defaultApplicationName: (@MainActor (Attachment) -> String?)? = nil,
         onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil
     ) {
         self.model = model
         self.onOpenAttachment = onOpenAttachment
+        self.onOpenAttachmentWith = onOpenAttachmentWith
+        self.defaultApplicationName = defaultApplicationName
         self.onQuickLookAttachment = onQuickLookAttachment
         self.onRevealAttachment = onRevealAttachment
         #if canImport(AppKit)
@@ -66,6 +73,8 @@ public struct DetailView: View {
         attachmentRepository: any AttachmentRepository,
         onClosed: (@MainActor () -> Void)? = nil,
         onOpenAttachment: (@MainActor (Attachment) -> Void)? = nil,
+        onOpenAttachmentWith: (@MainActor (Attachment) -> Void)? = nil,
+        defaultApplicationName: (@MainActor (Attachment) -> String?)? = nil,
         onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil
@@ -78,6 +87,8 @@ public struct DetailView: View {
             onClosed: onClosed
         )
         self.onOpenAttachment = onOpenAttachment
+        self.onOpenAttachmentWith = onOpenAttachmentWith
+        self.defaultApplicationName = defaultApplicationName
         self.onQuickLookAttachment = onQuickLookAttachment
         self.onRevealAttachment = onRevealAttachment
         #if canImport(AppKit)
@@ -149,9 +160,13 @@ public struct DetailView: View {
                     breadcrumb(item)
                     titleField
                     pillsRow(item)
+                    tagsRow(item)
                     datesRow
-                    if model.remindersAvailable {
-                        reminderSection
+                    HStack(spacing: 10) {
+                        if model.remindersAvailable {
+                            reminderSection
+                        }
+                        estimateMenu
                     }
                     descriptionSection
 
@@ -322,6 +337,48 @@ public struct DetailView: View {
     }
 
     @MainActor
+    private func tagsRow(_ item: WorkItem) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "tag")
+                .font(.caption)
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+
+            ForEach(item.tags, id: \.self) { tag in
+                HStack(spacing: 3) {
+                    Text(tag)
+                        .font(.caption2.weight(.medium))
+                    Button {
+                        Task { await model.removeTag(tag) }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 7, weight: .bold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Remove tag")
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(DesignTokens.Palette.accent.opacity(0.16)))
+                .foregroundStyle(DesignTokens.Palette.accent)
+            }
+
+            TextField("Add tag", text: $newTag)
+                .textFieldStyle(.plain)
+                .font(.caption)
+                .frame(width: 78)
+                .onSubmit {
+                    let value = newTag
+                    newTag = ""
+                    Task { await model.addTag(value) }
+                }
+                .help("Type a tag and press Return")
+
+            Spacer()
+        }
+    }
+
+    @MainActor
     private var datesRow: some View {
         @Bindable var model = model
 
@@ -357,6 +414,47 @@ public struct DetailView: View {
         }
         .font(.callout)
         .disabled(model.isSaving)
+    }
+
+    @MainActor
+    private var estimateMenu: some View {
+        let current = model.edit.estimatedMinutes
+
+        return Menu {
+            Button("No estimate") {
+                model.edit.estimatedMinutes = nil
+                Task { await model.commit() }
+            }
+            Divider()
+            ForEach([15, 30, 45, 60, 90, 120, 180, 240], id: \.self) { minutes in
+                Button(minutesLabel(minutes)) {
+                    model.edit.estimatedMinutes = minutes
+                    Task { await model.commit() }
+                }
+            }
+        } label: {
+            Label(
+                current.map(minutesLabel) ?? "Estimate",
+                systemImage: "timer"
+            )
+            .font(.caption)
+            .foregroundStyle(
+                current == nil
+                    ? DesignTokens.Palette.textSecondary
+                    : DesignTokens.Palette.accent
+            )
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Effort estimate, used by the daily load meter")
+    }
+
+    private func minutesLabel(_ minutes: Int) -> String {
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if hours == 0 { return "\(rest)m" }
+        if rest == 0 { return "\(hours)h" }
+        return "\(hours)h \(rest)m"
     }
 
     /// Per-task custom reminder (FR-42). Distinct from the automatic
@@ -530,14 +628,13 @@ public struct DetailView: View {
                 HStack(spacing: 8) {
                     AttachmentIconView(attachment: attachment, size: 14)
 
-                    Button {
-                        onOpenAttachment?(attachment)
-                    } label: {
-                        Text(attachment.displayName)
-                            .lineLimit(1)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Open \(attachment.displayName)")
+                    Text(attachment.displayName)
+                        .lineLimit(1)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 2) {
+                            onOpenAttachment?(attachment)
+                        }
+                        .help(openTooltip(attachment))
 
                     Spacer()
 
@@ -548,16 +645,27 @@ public struct DetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .help("Remove attachment")
                     .disabled(model.isSaving)
                 }
                 .frame(height: DesignTokens.Spacing.rowHeight)
                 .contextMenu {
                     Button("Open") { onOpenAttachment?(attachment) }
+                    Button("Open With…") { onOpenAttachmentWith?(attachment) }
+                    Divider()
                     Button("Quick Look") { onQuickLookAttachment?(attachment) }
                     Button("Reveal in Finder") { onRevealAttachment?(attachment) }
                 }
             }
         }
+    }
+
+    @MainActor
+    private func openTooltip(_ attachment: Attachment) -> String {
+        if let app = defaultApplicationName?(attachment) {
+            return "Double-click to open in \(app). Right-click for Open With."
+        }
+        return "Double-click to open. Right-click for Open With."
     }
 
     @MainActor

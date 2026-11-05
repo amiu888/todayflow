@@ -9,6 +9,7 @@ public enum WindowKind: Hashable, Sendable {
     case slimBar
     case hierarchy
     case calendar
+    case insights
     case upcoming
     case completed
     case settings
@@ -20,6 +21,7 @@ public enum WindowKind: Hashable, Sendable {
         case .slimBar: "Today"
         case .hierarchy: "Hierarchy"
         case .calendar: "Calendar"
+        case .insights: "Insights"
         case .upcoming: "Upcoming"
         case .completed: "Completed"
         case .settings: "Settings"
@@ -33,6 +35,7 @@ public enum WindowKind: Hashable, Sendable {
         case .slimBar: DesignTokens.Window.slimBar
         case .hierarchy: DesignTokens.Window.hierarchy
         case .calendar: DesignTokens.Window.calendar
+        case .insights: CGSize(width: 540, height: 430)
         case .upcoming: DesignTokens.Window.upcoming
         case .completed: DesignTokens.Window.completed
         case .settings: DesignTokens.Window.settings

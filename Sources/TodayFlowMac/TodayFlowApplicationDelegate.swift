@@ -21,6 +21,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     /// The automatic end-of-day review (FR-43).
     public private(set) var endOfDayReview: EndOfDayReviewController?
     private weak var dockingMenuItem: NSMenuItem?
+    private weak var allDesktopsMenuItem: NSMenuItem?
     /// AI planning and Q&A windows (driver.md §8).
     public private(set) var dayPlan: DayPlanWindowController?
     public private(set) var askAI: AskWindowController?
@@ -193,7 +194,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewMenu.addItem(appearanceItem)
         viewMenu.addItem(.separator())
         viewMenu.addItem(item("Today", #selector(showTodayMenu), key: "1"))
+        viewMenu.addItem(item("Mini Calendar", #selector(toggleMiniCalendarMenu), key: "7"))
         viewMenu.addItem(item("Calendar", #selector(showCalendarMenu), key: "5"))
+        viewMenu.addItem(item("Insights", #selector(showInsightsMenu), key: "6"))
         viewMenu.addItem(item("Upcoming", #selector(showUpcomingMenu), key: "2"))
         viewMenu.addItem(item("Completed", #selector(showCompletedMenu), key: "3"))
         viewMenu.addItem(item("Hierarchy", #selector(showHierarchyMenu), key: "4"))
@@ -204,6 +207,11 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         docking.state = windows?.docking.isEnabled == true ? .on : .off
         dockingMenuItem = docking
         viewMenu.addItem(docking)
+
+        let desktops = item("Show Windows on All Desktops", #selector(toggleAllDesktops), key: "")
+        desktops.state = windows?.showOnAllDesktops == true ? .on : .off
+        allDesktopsMenuItem = desktops
+        viewMenu.addItem(desktops)
         viewItem.submenu = viewMenu
         main.addItem(viewItem)
 
@@ -323,6 +331,14 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         windows?.show(.calendar)
     }
 
+    @objc private func toggleMiniCalendarMenu() {
+        windows?.toggleMiniCalendar()
+    }
+
+    @objc private func showInsightsMenu() {
+        windows?.show(.insights)
+    }
+
     @objc private func showUpcomingMenu() {
         windows?.show(.upcoming)
     }
@@ -343,6 +359,12 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         guard let docking = windows?.docking else { return }
         docking.isEnabled.toggle()
         dockingMenuItem?.state = docking.isEnabled ? .on : .off
+    }
+
+    @objc private func toggleAllDesktops() {
+        guard let windows else { return }
+        windows.showOnAllDesktops.toggle()
+        allDesktopsMenuItem?.state = windows.showOnAllDesktops ? .on : .off
     }
 
     /// NFR-09: export the whole task store as JSON or CSV.

@@ -25,6 +25,7 @@ struct WorkItemRecord {
             priority: Priority(rawValue: row["priority"] as Int) ?? .normal,
             startAt: (row["start_at"] as String?).flatMap(SqlTimestamp.decode) ?? .distantPast,
             endAt: (row["end_at"] as String?).flatMap(SqlTimestamp.decode) ?? .distantPast,
+            estimatedMinutes: row["estimated_minutes"] as Int?,
             completedAt: (row["completed_at"] as String?).flatMap(SqlTimestamp.decode),
             displayOrder: row["display_order"] as String,
             color: row["color"] as String?,

@@ -151,8 +151,10 @@ public final class StatusItemController: NSObject {
         menu.addItem(item("Plan my day…", #selector(openPlanDay)))
         menu.addItem(item("Ask about tasks…", #selector(openAskAI)))
         menu.addItem(.separator())
+        menu.addItem(item("Mini Calendar", #selector(toggleMiniCalendar)))
         menu.addItem(item("Slim bar", #selector(toggleSlimBar)))
         menu.addItem(item("Calendar", #selector(openCalendar)))
+        menu.addItem(item("Insights", #selector(openInsights)))
         menu.addItem(item("Upcoming", #selector(openUpcoming)))
         menu.addItem(item("Completed", #selector(openCompleted)))
         menu.addItem(item("Hierarchy", #selector(openHierarchy)))
@@ -191,6 +193,10 @@ public final class StatusItemController: NSObject {
     }
 
     @objc private func openCalendar() { windowManager.show(.calendar) }
+
+    @objc private func toggleMiniCalendar() { windowManager.toggleMiniCalendar() }
+
+    @objc private func openInsights() { windowManager.show(.insights) }
 
     @objc private func openUpcoming() { windowManager.show(.upcoming) }
 
