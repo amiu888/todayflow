@@ -159,7 +159,7 @@ public struct DroppedObjectLoader {
 
     /// `public.file-url` / `public.url` data is normally the UTF-8 URL string,
     /// but older providers may hand back an archived `URL`. Accept both.
-    static func url(from data: Data) -> URL? {
+    nonisolated static func url(from data: Data) -> URL? {
         if let text = String(data: data, encoding: .utf8) {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if let url = URL(string: trimmed) { return url }

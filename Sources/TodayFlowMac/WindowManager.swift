@@ -272,7 +272,10 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 model: model,
                 onOpenAttachment: { actions.open($0) },
                 onQuickLookAttachment: { actions.quickLook($0) },
-                onRevealAttachment: { actions.reveal($0) }
+                onRevealAttachment: { actions.reveal($0) },
+                onDropAttachment: { [weak self] providers in
+                    self?.handleDrop(providers, onto: id) ?? false
+                }
             )
         }
     }

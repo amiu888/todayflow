@@ -2,6 +2,9 @@ import SwiftUI
 import Foundation
 import TodayFlowCore
 import TodayFlowDesign
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// The Jira-style task detail window (driver.md FR-20, FR-21, FR-22):
 /// breadcrumb, editable title, status / priority pills, dates with shortcuts,
@@ -15,11 +18,15 @@ public struct DetailView: View {
     private let onOpenAttachment: (@MainActor (Attachment) -> Void)?
     private let onQuickLookAttachment: (@MainActor (Attachment) -> Void)?
     private let onRevealAttachment: (@MainActor (Attachment) -> Void)?
+    #if canImport(AppKit)
+    private let onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)?
+    #endif
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var focusedField: Field?
     @State private var selectedSuggestions: Set<String> = []
+    @State private var isAttachmentDropTargeted = false
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -35,12 +42,16 @@ public struct DetailView: View {
         model: DetailViewModel,
         onOpenAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
-        onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil
+        onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil,
+        onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil
     ) {
         self.model = model
         self.onOpenAttachment = onOpenAttachment
         self.onQuickLookAttachment = onQuickLookAttachment
         self.onRevealAttachment = onRevealAttachment
+        #if canImport(AppKit)
+        self.onDropAttachment = onDropAttachment
+        #endif
     }
 
     /// Convenience for hosts that only know the item id and their
@@ -54,7 +65,8 @@ public struct DetailView: View {
         onClosed: (@MainActor () -> Void)? = nil,
         onOpenAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
-        onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil
+        onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil,
+        onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil
     ) {
         self.model = DetailViewModel(
             itemId: itemId,
@@ -66,6 +78,9 @@ public struct DetailView: View {
         self.onOpenAttachment = onOpenAttachment
         self.onQuickLookAttachment = onQuickLookAttachment
         self.onRevealAttachment = onRevealAttachment
+        #if canImport(AppKit)
+        self.onDropAttachment = onDropAttachment
+        #endif
     }
 
     // MARK: Body
@@ -84,6 +99,17 @@ public struct DetailView: View {
             }
         }
         .frame(width: DesignTokens.Window.detail.width, height: DesignTokens.Window.detail.height)
+        #if canImport(AppKit)
+        // Dropping a file anywhere on the detail window attaches it to this
+        // task (FR-04). This is the natural place to add a screenshot/PDF
+        // after the task exists.
+        .onDrop(
+            of: CaptureDropTypes.supported,
+            isTargeted: $isAttachmentDropTargeted
+        ) { providers in
+            onDropAttachment?(providers) ?? false
+        }
+        #endif
         .task { await model.load() }
         .onChange(of: model.subtaskSuggestions) { _, new in
             selectedSuggestions = Set(new.map(\.title))
