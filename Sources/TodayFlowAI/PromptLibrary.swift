@@ -11,8 +11,29 @@ struct PromptLibrary: Sendable {
     static let ask = "ask_v1"
     static let summarizeEmail = "summarize_email_v1"
 
+    private final class BundleFinder {}
+
+    /// `Bundle.module` fatal-asserts when packaging forgot the resource bundle.
+    /// AI is optional, so a missing prompt must degrade to the fallback text,
+    /// never crash the app.
+    private static let promptBundle: Bundle? = {
+        let name = "TodayFlow_TodayFlowAI"
+        let candidates = [
+            Bundle.main.resourceURL,
+            Bundle(for: BundleFinder.self).resourceURL,
+            Bundle.main.bundleURL,
+        ]
+        for candidate in candidates {
+            guard let url = candidate?.appendingPathComponent(name + ".bundle"),
+                  let bundle = Bundle(url: url)
+            else { continue }
+            return bundle
+        }
+        return nil
+    }()
+
     func text(_ name: String) -> String {
-        if let url = Bundle.module.url(forResource: name, withExtension: "md"),
+        if let url = Self.promptBundle?.url(forResource: name, withExtension: "md"),
            let text = try? String(contentsOf: url, encoding: .utf8)
         {
             return text
