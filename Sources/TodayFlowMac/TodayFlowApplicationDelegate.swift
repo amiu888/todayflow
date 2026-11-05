@@ -14,6 +14,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     public private(set) var summary: TodaySummaryModel?
     /// The system-wide capture hotkey (FR-05, default ⌃⌥Space).
     public private(set) var hotKey: GlobalHotKey?
+    /// Nudges and task reminders (FR-42/FR-44).
+    public private(set) var notifications: NotificationController?
 
     public override init() {}
 
@@ -35,8 +37,11 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
                 summary: summary
             )
             self.statusItem = controller
-            summary.onRefreshed = { [weak controller] progress in
+            summary.onRefreshed = { [weak controller, weak self] progress in
                 controller?.apply(progress: progress)
+                Task { @MainActor in
+                    await self?.notifications?.refresh()
+                }
             }
             let hotKey = GlobalHotKey { [weak windowManager] in
                 windowManager?.showCapture()
@@ -48,6 +53,16 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             Task {
                 await environment.loadSettings()
                 summary.updateCalendar(environment.workCalendar)
+
+                let notifications = NotificationController(
+                    repository: environment.workItems,
+                    linkRepository: environment.links,
+                    calendar: environment.workCalendar,
+                    onOpen: { windowManager.show(.panel) }
+                )
+                self.notifications = notifications
+                await notifications.requestAuthorization()
+
                 await summary.refresh()
                 windowManager.show(.panel)
                 summary.startPolling()
