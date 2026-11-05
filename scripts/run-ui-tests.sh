@@ -18,6 +18,17 @@ if [[ -x "$LSREGISTER" ]]; then
     "$LSREGISTER" -f "$PWD/build/TodayFlow.app"
 fi
 
+# XCUITest can time out enabling automation if a previous test runner or
+# testmanagerd is stuck. Clear both before xcodebuild starts.
+pkill -f TodayFlowUITests-Runner 2>/dev/null || true
+pkill -f testmanagerd 2>/dev/null || true
+
+if ! DevToolsSecurity -status 2>&1 | grep -qi "enabled"; then
+    echo "⚠️  macOS developer mode is disabled."
+    echo "   If XCUITest asks to Enable UI Automation, enter your Mac login password,"
+    echo "   or run once: sudo DevToolsSecurity -enable"
+fi
+
 # XCUIApplication.launch() must start the app itself; an existing instance
 # would make it attach to a stale process with no test-controlled launch.
 pkill -x TodayFlowApp 2>/dev/null || true
