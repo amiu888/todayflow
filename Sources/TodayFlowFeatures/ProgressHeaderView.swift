@@ -14,41 +14,37 @@ public struct ProgressHeaderView: View {
     }
 
     public var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 7) {
             ProgressRingView(
                 model: ProgressRingModel(done: progress.done, total: progress.total),
+                size: 20,
                 tint: ringTint,
                 motion: motion
             )
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(progress.done) / \(progress.total) done")
-                    .foregroundStyle(.primary)
+            Text("\(progress.done)/\(progress.total) done")
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
 
-                if progress.isCleared {
-                    Text("Day cleared")
-                        .foregroundStyle(Color(hex: "#0ca30c"))
-                } else {
-                    Text("\(progress.remaining) left · " + TimeLeft.format(progress.secondsUntilEOB))
-                        .foregroundStyle(.secondary)
-                }
-            }
+            Text(progress.isCleared
+                ? "Day cleared"
+                : "\(progress.remaining) left · " + TimeLeft.format(progress.secondsUntilEOB))
+                .font(.caption2)
+                .foregroundStyle(
+                    progress.isCleared ? Color(hex: "#0ca30c") : DesignTokens.Palette.textSecondary
+                )
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Spacer(minLength: 0)
 
             if progress.overdue > 0 {
                 overdueBadge
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(DesignTokens.Palette.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
-        )
-        .shadow(color: DesignTokens.Palette.shadow, radius: 10, y: 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(voiceLabel)
     }

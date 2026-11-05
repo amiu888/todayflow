@@ -62,7 +62,7 @@ public struct FilterChipsView: View {
             .accessibilityLabel("Search")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder
@@ -149,9 +149,9 @@ public struct FilterChipsView: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, 9)
-                .padding(.vertical, 5)
+                .padding(.vertical, 4)
                 .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(
                             isSelected
                                 ? DesignTokens.Palette.accent.opacity(0.22)
@@ -159,7 +159,7 @@ public struct FilterChipsView: View {
                         )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(
                             isSelected
                                 ? DesignTokens.Palette.accent.opacity(0.7)

@@ -157,20 +157,40 @@ public struct TodayView: View {
     @MainActor
     public var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 dateHeader
-                weekStrip
-                if model.isViewingToday {
-                    ProgressHeaderView(progress: model.progress, motion: motion)
-                    if model.plannedMinutes > 0 {
-                        loadMeter
+
+                // One compact surface holds the week strip and the day's
+                // status row; the old design used three separate cards.
+                VStack(spacing: 0) {
+                    weekStrip
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 3)
+
+                    Divider()
+                        .overlay(DesignTokens.Palette.hairline.opacity(0.7))
+
+                    if model.isViewingToday {
+                        ProgressHeaderView(progress: model.progress, motion: motion)
+                    } else {
+                        futureDaySummary
                     }
-                } else {
-                    futureDaySummary
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(DesignTokens.Palette.surface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+                )
+
+                if model.isViewingToday, model.plannedMinutes > 0 {
+                    loadMeter
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 10)
+            .padding(.top, 8)
             .padding(.bottom, 2)
 
             FilterChipsView(
@@ -595,20 +615,21 @@ public struct TodayView: View {
 
     @MainActor
     private var dateHeader: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
             Text(model.isViewingToday
                 ? "Today"
                 : model.activeDay.formatted(.dateTime.weekday(.wide))
             )
-            .font(.system(.title2, design: .rounded).weight(.bold))
+            .font(.system(size: 20, weight: .bold, design: .rounded))
             .foregroundStyle(DesignTokens.Palette.textPrimary)
 
             Text(model.activeDay.formatted(.dateTime.month(.wide).day()))
-                .font(.subheadline)
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(DesignTokens.Palette.textSecondary)
 
-            Spacer()
+            Spacer(minLength: 6)
 
+            HStack(spacing: 9) {
             if !model.isViewingToday {
                 Button("Back to today") {
                     Task { @MainActor in await model.goToToday() }
@@ -719,6 +740,7 @@ public struct TodayView: View {
                 .fixedSize()
                 .help("Window docking, desktops, and mini-calendar corners")
                 .accessibilityLabel("Window options")
+            }
             }
         }
         .padding(.horizontal, 4)
@@ -841,55 +863,44 @@ public struct TodayView: View {
 
     @MainActor
     private var weekStrip: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2) {
             ForEach(model.weekDays) { day in
                 Button {
                     Task { @MainActor in await model.selectDay(day.date) }
                 } label: {
-                    VStack(spacing: 2) {
+                    VStack(spacing: 1) {
                         Text(day.date.formatted(.dateTime.weekday(.narrow)))
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(day.isSelected ? Color.white.opacity(0.8) : .secondary)
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundStyle(
+                                day.isSelected ? Color.white.opacity(0.78) : .secondary
+                            )
 
                         Text(day.date.formatted(.dateTime.day()))
-                            .font(.system(.callout, design: .rounded).weight(.semibold))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
 
                         Circle()
                             .fill(day.isSelected ? Color.white : DesignTokens.Palette.accent)
-                            .frame(width: 4, height: 4)
+                            .frame(width: 3, height: 3)
                             .opacity(day.count > 0 ? 1 : 0)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 4)
                     .background {
                         if day.isSelected {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 .fill(DesignTokens.Palette.gradient)
-                        } else {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .fill(DesignTokens.Palette.surface)
+                        } else if day.isToday {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(DesignTokens.Palette.accent.opacity(0.10))
                         }
                     }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .stroke(
-                                day.isToday && !day.isSelected
-                                    ? DesignTokens.Palette.accent.opacity(0.65)
-                                    : DesignTokens.Palette.hairline,
-                                lineWidth: 1
-                            )
-                    )
                     .foregroundStyle(
                         day.isSelected
                             ? Color.white
                             : (day.isToday
                                 ? DesignTokens.Palette.accent
                                 : DesignTokens.Palette.textPrimary)
-                    )
-                    .shadow(
-                        color: day.isSelected ? DesignTokens.Palette.accent.opacity(0.35) : .clear,
-                        radius: 6,
-                        y: 2
                     )
                 }
                 .buttonStyle(.plain)
@@ -956,34 +967,31 @@ public struct TodayView: View {
     @MainActor
     private var futureDaySummary: some View {
         let ring = ProgressRingModel(done: model.progress.done, total: model.progress.total)
-        return HStack(spacing: 12) {
-            ProgressRingView(model: ring, tint: DesignTokens.Palette.accent, motion: motion)
+        return HStack(spacing: 7) {
+            ProgressRingView(
+                model: ring,
+                size: 20,
+                tint: DesignTokens.Palette.accent,
+                motion: motion
+            )
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(model.progress.remaining) planned")
-                    .font(.system(.body, design: .rounded).weight(.semibold))
-                Text(ring.doneLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text("\(model.progress.remaining) planned")
+                .font(.caption.weight(.semibold))
+                .monospacedDigit()
 
-            Spacer()
-
-            Text("Pick a task to work ahead")
+            Text(ring.doneLabel)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            Text("Work ahead")
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(DesignTokens.Palette.accent)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(DesignTokens.Palette.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
-        )
-        .shadow(color: DesignTokens.Palette.shadow, radius: 10, y: 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
     }
 
     @MainActor
