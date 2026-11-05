@@ -61,7 +61,16 @@ public struct DroppedObjectLoader {
         {
             // Some providers only advertise public.url even for a file.
             if url.isFileURL { return Self.object(forFileURL: url, sourceApp: sourceApp) }
-            return DroppedObject(url: url, sourceApp: sourceApp, uti: .url)
+            var object = DroppedObject(url: url, sourceApp: sourceApp, uti: .url)
+            // Mail and Outlook deep links often carry the message text on the
+            // same pasteboard item; keep it for the summary.
+            if Self.isMailScheme(url),
+               let (text, _) = await loadText(provider),
+               !text.isEmpty
+            {
+                object.text = text
+            }
+            return object
         }
 
         // Ask for concrete image types first: a provider may list `public.png`
@@ -174,6 +183,12 @@ public struct DroppedObjectLoader {
         return identifier
     }
 
+    /// Mail's message links and Outlook's deep links.
+    nonisolated static func isMailScheme(_ url: URL) -> Bool {
+        let scheme = url.scheme?.lowercased()
+        return scheme == "message" || scheme == "ms-outlook"
+    }
+
     /// `public.file-url` / `public.url` data is normally the UTF-8 URL string,
     /// but older providers may hand back an archived `URL`. Accept both.
     nonisolated static func url(from data: Data) -> URL? {
@@ -251,7 +266,15 @@ public struct DroppedObjectLoader {
             if let string = item.string(forType: .URL),
                let url = URL(string: string)
             {
-                return DroppedObject(url: url, sourceApp: sourceApp, uti: .url)
+                var object = DroppedObject(url: url, sourceApp: sourceApp, uti: .url)
+                if Self.isMailScheme(url),
+                   let text = item.string(forType: .string),
+                   !text.isEmpty,
+                   text != string
+                {
+                    object.text = text
+                }
+                return object
             }
             if let data = item.data(forType: .tiff) ?? item.data(forType: .png) {
                 return DroppedObject(imageData: data, sourceApp: sourceApp, uti: .image)

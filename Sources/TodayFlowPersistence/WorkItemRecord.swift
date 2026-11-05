@@ -21,6 +21,7 @@ struct WorkItemRecord {
             title: row["title"] as String,
             parentId: (row["parent_id"] as String?).map { UUIDv7(databaseString: $0) },
             descriptionMd: row["description_md"] as String,
+            summary: (row["summary"] as String?) ?? "",
             status: Status(rawValue: row["status"] as String) ?? .todo,
             priority: Priority(rawValue: row["priority"] as Int) ?? .normal,
             startAt: (row["start_at"] as String?).flatMap(SqlTimestamp.decode) ?? .distantPast,

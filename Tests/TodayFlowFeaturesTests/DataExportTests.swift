@@ -84,3 +84,14 @@ struct DataExportTests {
     #expect(xml.contains("P2"))
 }
 }
+
+@Test func csv_includesTheTaskSummary() throws {
+    let item = WorkItem(
+        title: "Email task",
+        summary: "Carol needs the vendor totals by Friday."
+    )
+    let data = try DataExport().data(for: [item], format: .csv)
+    let csv = String(decoding: data, as: UTF8.self)
+    #expect(csv.contains("summary"))
+    #expect(csv.contains("Carol needs the vendor totals by Friday."))
+}

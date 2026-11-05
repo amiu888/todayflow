@@ -66,11 +66,11 @@ struct WorkCalendarSettingsTests {
 }
 
 struct AIEndpointSettingsTests {
-    @Test func defaultsAreOffWithOllamaPreset() {
+    @Test func defaultsAreOffWithAppleIntelligence() {
         let settings = AIEndpointSettings()
         #expect(settings.enabled == false)
-        #expect(settings.provider == .ollama)
-        #expect(settings.baseURL == "http://localhost:11434/v1")
+        #expect(settings.provider == .apple)
+        #expect(settings.baseURL == "")
         #expect(settings.apiKey.isEmpty)
         #expect(settings.model == "llama3.1:8b")
         #expect(settings.enabledFeatures.isEmpty)
@@ -101,8 +101,9 @@ struct AIEndpointSettingsTests {
     }
 
     @Test func featureKeysAreStable() {
-        #expect(AIFeatures.all == ["suggest", "break_down", "plan_day", "ask"])
+        #expect(AIFeatures.all == ["suggest", "break_down", "plan_day", "ask", "summarize_email"])
         #expect(AIFeatures.label(for: AIFeatures.suggest) == "Suggest from capture")
+        #expect(AIFeatures.label(for: AIFeatures.summarizeEmail) == "Summarize emails")
         #expect(AIFeatures.label(for: "unknown") == "unknown")
     }
 }

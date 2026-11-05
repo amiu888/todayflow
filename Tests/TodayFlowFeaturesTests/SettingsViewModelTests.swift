@@ -186,7 +186,7 @@ struct SettingsViewModelTests {
     @Test @MainActor
     func providerChange_fillsPresetBaseURL() {
         let f = Fixture()
-        #expect(f.vm.aiSettings.baseURL == "http://localhost:11434/v1")
+        #expect(f.vm.aiSettings.baseURL == "")
 
         f.vm.aiSettings.provider = .openai
 

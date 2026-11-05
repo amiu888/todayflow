@@ -448,6 +448,7 @@ public struct TaskRowView: View {
         let quick = onQuickAction
         let priority = model.priority
         let scheme = colorScheme
+        let tint = PriorityColor.color(for: priority, in: scheme)
 
         return Menu {
             ForEach(Priority.allCases, id: \.self) { option in
@@ -464,14 +465,22 @@ public struct TaskRowView: View {
         } label: {
             HStack(spacing: 2) {
                 Circle()
-                    .fill(PriorityColor.color(for: priority, in: scheme))
+                    .fill(tint)
                     .frame(width: 7, height: 7)
 
                 Text("P\(priority.rawValue)")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(tint)
             }
-            .frame(minWidth: 24)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .background(
+                Capsule().fill(tint.opacity(scheme == .dark ? 0.16 : 0.12))
+            )
+            .overlay(
+                Capsule().stroke(tint.opacity(0.45), lineWidth: 0.75)
+            )
+            .frame(minWidth: 28)
             .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)

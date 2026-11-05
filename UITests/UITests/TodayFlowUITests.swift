@@ -630,4 +630,52 @@ final class TodayFlowUITests: XCTestCase {
         )
     }
 
+
+    /// The header pin opens a dock popover with every edge; Left is the default.
+    func testDockPopoverDefaultsToLeftEdge() throws {
+        let app = launchApp()
+        let button = app.buttons["Dock to application"].firstMatch
+        XCTAssertTrue(button.waitForExistence(timeout: 5), "Dock button missing")
+        button.click()
+
+        XCTAssertTrue(
+            app.staticTexts["Dock TodayFlow"].waitForExistence(timeout: 4),
+            "Dock popover did not open"
+        )
+        for edge in ["Left", "Right", "Top", "Bottom"] {
+            let option = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == %@", edge)).firstMatch
+            XCTAssertTrue(option.exists, "\(edge) edge missing")
+        }
+        XCTAssertTrue(app.buttons["Dock"].exists)
+        XCTAssertTrue(app.buttons["Cancel"].exists)
+        app.buttons["Cancel"].click()
+    }
+
+    /// A tray opens next to the panel and a second tray sits to its right.
+    func testTrayWindowsTileToTheRight() throws {
+        let app = launchApp()
+        app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Working tray").firstMatch.doubleClick()
+        let first = app.windows["Tray · Working tray"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+
+        app.buttons["Add working tray"].click()
+        let name = app.textFields["Tray name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        name.typeText("Right tray")
+        app.buttons["Create"].click()
+        let secondName = app.descendants(matching: .any)
+            .matching(identifier: "tray-name-Right tray").firstMatch
+        XCTAssertTrue(secondName.waitForExistence(timeout: 4))
+        secondName.doubleClick()
+        let second = app.windows["Tray · Right tray"]
+        XCTAssertTrue(second.waitForExistence(timeout: 5))
+
+        let panel = app.windows["Today"]
+        XCTAssertTrue(panel.exists)
+        XCTAssertGreaterThan(first.frame.minX, panel.frame.minX)
+        XCTAssertGreaterThan(second.frame.minX, first.frame.minX)
+    }
+
 }

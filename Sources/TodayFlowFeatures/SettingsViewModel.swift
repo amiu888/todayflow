@@ -28,7 +28,10 @@ public final class SettingsViewModel {
             // base URL — but only if the current URL is still a preset default
             // (or empty); a user-customized URL is preserved.
             guard !isApplying, aiSettings.provider != oldValue.provider else { return }
-            if oldValue.baseURL == oldValue.provider.defaultBaseURL || oldValue.baseURL.isEmpty {
+            let isPresetURL = AIEndpointSettings.Provider.allCases.contains {
+                !$0.defaultBaseURL.isEmpty && $0.defaultBaseURL == oldValue.baseURL
+            }
+            if isPresetURL || oldValue.baseURL.isEmpty {
                 aiSettings.baseURL = aiSettings.provider.defaultBaseURL
             }
         }

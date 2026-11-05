@@ -67,16 +67,38 @@ public final class AIEnvironment: AIModelCatalog {
     /// disabled or misconfigured.
     public func assistant(for feature: String) async -> OpenAICompatibleAssistant? {
         let settings = await loadSettings()
-        guard settings.enabled, settings.enabledFeatures.contains(feature) else {
-            return nil
-        }
+        guard settings.enabled,
+              settings.provider != .apple,
+              settings.enabledFeatures.contains(feature)
+        else { return nil }
         return makeAssistant(settings)
     }
 
     /// An assistant regardless of feature toggles, for Settings' model list.
     public func assistantForConfiguration() async -> OpenAICompatibleAssistant? {
         let settings = await loadSettings()
-        guard settings.enabled else { return nil }
+        guard settings.enabled, settings.provider != .apple else { return nil }
+        return makeAssistant(settings)
+    }
+
+    /// The best available email summarizer for the current settings. Apple
+    /// Intelligence is used on-device when selected and available; otherwise
+    /// the OpenAI-compatible endpoint is used. Returns nil when AI is off, the
+    /// email-summary feature is disabled, or no provider is usable.
+    public func emailSummarizer() async -> (any EmailSummarizer)? {
+        let settings = await loadSettings()
+        guard settings.enabled,
+              settings.enabledFeatures.contains(AIFeatures.summarizeEmail)
+        else { return nil }
+
+        if settings.provider == .apple {
+            #if canImport(FoundationModels)
+            if #available(macOS 26.0, *), AppleEmailSummarizer.isAvailable {
+                return AppleEmailSummarizer()
+            }
+            #endif
+            return nil
+        }
         return makeAssistant(settings)
     }
 
@@ -103,6 +125,7 @@ public final class AIEnvironment: AIModelCatalog {
     /// Settings can fetch before Save: build the client from the in-memory form.
     public func listModels(for settings: AIEndpointSettings) async throws -> [String] {
         guard settings.enabled else { throw AIError.disabled }
+        if settings.provider == .apple { return [] }
         guard let assistant = makeAssistant(settings) else {
             throw AIError.invalidConfiguration("Check the base URL and model.")
         }

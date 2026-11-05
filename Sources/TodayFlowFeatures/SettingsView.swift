@@ -1,6 +1,9 @@
 import SwiftUI
 import TodayFlowCore
 import TodayFlowDesign
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 /// The settings window (driver.md §11 feature 5): business hours and the
 /// AI endpoint (driver.md §8).
@@ -61,35 +64,53 @@ public struct SettingsView: View {
                             Text(provider.label).tag(provider)
                         }
                     }
-                    TextField("Base URL", text: $model.aiSettings.baseURL)
-                    TextField("API key", text: $model.aiSettings.apiKey)
-
-                    HStack {
-                        TextField("Model", text: $model.aiSettings.model)
-
-                        if model.modelCatalogAvailable {
-                            Button(model.isFetchingModels ? "Fetching…" : "Fetch models") {
-                                Task { @MainActor in await model.fetchModels() }
-                            }
-                            .disabled(model.isFetchingModels)
+                    if model.aiSettings.provider == .apple {
+                        if appleIntelligenceAvailable {
+                            Label(
+                                "Apple Intelligence is available on this Mac. No API key or network request.",
+                                systemImage: "checkmark.seal"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        } else {
+                            Label(
+                                "Apple Intelligence is not available here. Choose Ollama, LM Studio, OpenAI, or a custom OpenAI-compatible endpoint.",
+                                systemImage: "exclamationmark.triangle"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                         }
-                    }
+                    } else {
+                        TextField("Base URL", text: $model.aiSettings.baseURL)
+                        TextField("API key", text: $model.aiSettings.apiKey)
 
-                    if !model.availableModels.isEmpty {
-                        Picker("Available models", selection: $model.aiSettings.model) {
-                            ForEach(model.availableModels, id: \.self) { identifier in
-                                Text(identifier).tag(identifier)
+                        HStack {
+                            TextField("Model", text: $model.aiSettings.model)
+
+                            if model.modelCatalogAvailable {
+                                Button(model.isFetchingModels ? "Fetching…" : "Fetch models") {
+                                    Task { @MainActor in await model.fetchModels() }
+                                }
+                                .disabled(model.isFetchingModels)
                             }
                         }
-                    }
 
-                    Toggle("Send attachment text", isOn: $model.aiSettings.sendAttachmentText)
-                    Stepper(
-                        "Timeout \(Int(model.aiSettings.timeoutSeconds)) s",
-                        value: $model.aiSettings.timeoutSeconds,
-                        in: 5.0...120.0,
-                        step: 5.0
-                    )
+                        if !model.availableModels.isEmpty {
+                            Picker("Available models", selection: $model.aiSettings.model) {
+                                ForEach(model.availableModels, id: \.self) { identifier in
+                                    Text(identifier).tag(identifier)
+                                }
+                            }
+                        }
+
+                        Toggle("Send attachment text", isOn: $model.aiSettings.sendAttachmentText)
+                        Stepper(
+                            "Timeout \(Int(model.aiSettings.timeoutSeconds)) s",
+                            value: $model.aiSettings.timeoutSeconds,
+                            in: 5.0...120.0,
+                            step: 5.0
+                        )
+                    }
                     ForEach(AIFeatures.all, id: \.self) { feature in
                         Toggle(AIFeatures.label(for: feature), isOn: featureBinding(feature))
                     }
@@ -151,6 +172,17 @@ public struct SettingsView: View {
                 }
             }
         )
+    }
+
+    private var appleIntelligenceAvailable: Bool {
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            if case .available = SystemLanguageModel.default.availability {
+                return true
+            }
+        }
+        #endif
+        return false
     }
 
     private static func weekdayName(_ weekday: Int) -> String {

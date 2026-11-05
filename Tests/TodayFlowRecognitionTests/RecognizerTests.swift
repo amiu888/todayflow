@@ -403,3 +403,28 @@ struct PlainTextRecognizerTests {
         #expect(recognized.suggestedTitle == "Real first line")
     }
 }
+
+@Test("message links keep the pasteboard email text and headers")
+func messageLinkKeepsText() {
+    let text = """
+        Subject: Q3 budget review
+        From: Carol <carol@example.com>
+        To: Afonso <afonso@example.com>
+
+        Please review the Q3 budget and send the totals by Friday.
+        """
+    let object = DroppedObject(
+        url: URL(string: "message://%3C123@example.com%3E")!,
+        text: text,
+        sourceApp: "com.apple.mail",
+        uti: .url
+    )
+
+    let recognized = MailEmailRecognizer().recognize(object)
+
+    #expect(recognized.type == .email)
+    #expect(recognized.suggestedTitle == "Q3 budget review")
+    #expect(recognized.metadata[MetadataKeys.from] == "Carol <carol@example.com>")
+    #expect(recognized.previewText?.contains("vendor") == false)
+    #expect(recognized.previewText?.contains("Q3 budget") == true)
+}

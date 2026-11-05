@@ -704,3 +704,67 @@ func retryingASaveAfterAnAttachmentFailure_doesNotDuplicateTheTask() async {
     #expect(await repository.allItems().count == 1)
     #expect(await attachments.count == 1)
 }
+
+// MARK: - Email summary
+
+private struct FixedEmailSummarizer: EmailSummarizer {
+    let result: String
+    func summarize(_ email: EmailDigest) async throws -> String { result }
+}
+
+@Test @MainActor
+func savingAnEmailDropStoresTheGeneratedSummary() async {
+    let f = Fixture()
+    f.vm.emailSummarizer = FixedEmailSummarizer(
+        result: "Carol asks for the Q3 budget by Friday and needs the vendor totals."
+    )
+    let recognized = RecognizedObject(
+        type: .email,
+        uti: "org.rfc822-message",
+        displayName: "Q3 budget",
+        sourceApp: "com.apple.mail",
+        metadata: [MetadataKeys.from: "Carol <carol@example.com>"],
+        suggestedTitle: "Q3 budget review",
+        previewText: "Please review the Q3 budget and send the vendor totals by Friday."
+    )
+    let dropped = DroppedObject(
+        url: URL(string: "message://%3C123@example.com%3E")!,
+        sourceApp: "com.apple.mail",
+        uti: .url
+    )
+    f.vm.prepare(dropped: [dropped], recognized: [recognized])
+    f.vm.draft.title = "Q3 budget review"
+
+    await f.vm.save()
+    let id = try! #require(f.vm.savedItem?.id)
+
+    var summary = ""
+    for _ in 0..<50 {
+        if let item = await f.repository.item(id), !item.summary.isEmpty {
+            summary = item.summary
+            break
+        }
+        try? await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(summary.contains("Carol"))
+}
+
+@Test @MainActor
+func savingAnEmailWithoutASummarizerLeavesTheSummaryEmpty() async {
+    let f = Fixture()
+    let recognized = RecognizedObject(
+        type: .email,
+        displayName: "No AI",
+        suggestedTitle: "No AI summary",
+        previewText: "Body"
+    )
+    f.vm.prepare(
+        dropped: [DroppedObject(url: URL(string: "message://x")!)],
+        recognized: [recognized]
+    )
+    f.vm.draft.title = "No AI summary"
+
+    await f.vm.save()
+    let id = try! #require(f.vm.savedItem?.id)
+    #expect(await f.repository.item(id)?.summary == "")
+}

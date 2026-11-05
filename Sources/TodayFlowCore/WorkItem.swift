@@ -35,6 +35,9 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
     public var parentId: UUIDv7?
     /// Markdown body.
     public var descriptionMd: String
+    /// A short summary of the task or its source (for example an email),
+    /// produced on-device or by the configured AI endpoint.
+    public var summary: String
     public var status: Status
     public var priority: Priority
     /// When the work is scheduled to start (defaults to the drop/capture time).
@@ -66,6 +69,7 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
         title: String,
         parentId: UUIDv7? = nil,
         descriptionMd: String = "",
+        summary: String = "",
         status: Status = .todo,
         priority: Priority = .default,
         startAt: Date = .now,
@@ -86,6 +90,7 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
         self.title = title
         self.parentId = parentId
         self.descriptionMd = descriptionMd
+        self.summary = summary
         self.status = status
         self.priority = priority
         self.startAt = startAt

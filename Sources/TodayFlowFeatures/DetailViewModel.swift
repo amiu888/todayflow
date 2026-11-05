@@ -10,6 +10,7 @@ import TodayFlowCore
 public struct DetailEdit: Hashable, Sendable {
     public var title: String
     public var descriptionMd: String
+    public var summary: String
     public var startAt: Date
     public var endAt: Date
     public var estimatedMinutes: Int?
@@ -17,12 +18,14 @@ public struct DetailEdit: Hashable, Sendable {
     public init(
         title: String = "",
         descriptionMd: String = "",
+        summary: String = "",
         startAt: Date = .now,
         endAt: Date = .now,
         estimatedMinutes: Int? = nil
     ) {
         self.title = title
         self.descriptionMd = descriptionMd
+        self.summary = summary
         self.startAt = startAt
         self.endAt = endAt
         self.estimatedMinutes = estimatedMinutes
@@ -32,6 +35,7 @@ public struct DetailEdit: Hashable, Sendable {
         self.init(
             title: item.title,
             descriptionMd: item.descriptionMd,
+            summary: item.summary,
             startAt: item.startAt,
             endAt: item.endAt,
             estimatedMinutes: item.estimatedMinutes
@@ -205,6 +209,18 @@ public final class DetailViewModel {
         await reloadRelated()
     }
 
+    /// Picks up a summary written in the background (email capture) without
+    /// overwriting a summary the user has started editing.
+    public func refreshSummaryIfEmpty() async {
+        guard let current = item,
+              edit.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let latest = await repository.item(current.id),
+              !latest.summary.isEmpty
+        else { return }
+        item = latest
+        edit.summary = latest.summary
+    }
+
     /// Refreshes the sections that depend on other items: attachments,
     /// children, links, parent, and the progress roll-up — and re-derives the
     /// presentation status from the current blockers.
@@ -327,6 +343,7 @@ public final class DetailViewModel {
 
         let unchanged = trimmed == current.title
             && edit.descriptionMd == current.descriptionMd
+            && edit.summary == current.summary
             && edit.startAt == current.startAt
             && edit.endAt == current.endAt
             && edit.estimatedMinutes == current.estimatedMinutes
@@ -340,6 +357,7 @@ public final class DetailViewModel {
         var updated = current
         updated.title = trimmed
         updated.descriptionMd = edit.descriptionMd
+        updated.summary = edit.summary
         updated.startAt = edit.startAt
         updated.endAt = edit.endAt
         updated.estimatedMinutes = edit.estimatedMinutes

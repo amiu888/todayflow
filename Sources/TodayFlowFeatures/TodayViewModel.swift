@@ -438,9 +438,17 @@ public final class TodayViewModel {
     public func addToTray(_ itemId: UUIDv7, trayId: UUIDv7) async {
         Diagnostics.log("tray", "addToTray item=\(itemId) tray=\(trayId)")
         guard let index = trays.firstIndex(where: { $0.id == trayId }) else { return }
-        guard !trays[index].itemIds.contains(itemId) else { return }
+        // A task belongs to at most one tray. Adding it elsewhere is a move.
+        removeFromAllTrays(itemId)
         trays[index].itemIds.append(itemId)
         await persistTrays()
+    }
+
+    /// Enforces the one-tray-per-task invariant.
+    private func removeFromAllTrays(_ itemId: UUIDv7) {
+        for index in trays.indices {
+            trays[index].itemIds.removeAll { $0 == itemId }
+        }
     }
 
     /// Applies a completed drag. Payloads with a source tray are moves;
@@ -468,14 +476,10 @@ public final class TodayViewModel {
         to targetTrayId: UUIDv7
     ) async {
         guard sourceTrayId != targetTrayId else { return }
-        if let source = trays.firstIndex(where: { $0.id == sourceTrayId }) {
-            trays[source].itemIds.removeAll { $0 == itemId }
-        }
-        if let target = trays.firstIndex(where: { $0.id == targetTrayId }),
-           !trays[target].itemIds.contains(itemId)
-        {
-            trays[target].itemIds.append(itemId)
-        }
+        guard let target = trays.firstIndex(where: { $0.id == targetTrayId })
+        else { return }
+        removeFromAllTrays(itemId)
+        trays[target].itemIds.append(itemId)
         await persistTrays()
     }
 

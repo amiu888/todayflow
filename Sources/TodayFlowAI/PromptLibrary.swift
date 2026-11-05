@@ -9,6 +9,7 @@ struct PromptLibrary: Sendable {
     static let breakDown = "break_down_v1"
     static let planDay = "plan_day_v1"
     static let ask = "ask_v1"
+    static let summarizeEmail = "summarize_email_v1"
 
     func text(_ name: String) -> String {
         if let url = Bundle.module.url(forResource: name, withExtension: "md"),
@@ -54,6 +55,25 @@ enum PromptContext {
             return lines.joined(separator: "\n")
         }
         .joined(separator: "\n")
+    }
+
+    static func email(_ email: EmailDigest) -> String {
+        var lines = [
+            "subject: \(email.subject)",
+            "from: \(email.sender ?? "unknown")",
+        ]
+        if let recipients = email.recipients {
+            lines.append("to: \(recipients)")
+        }
+        if let receivedAt = email.receivedAt {
+            lines.append("received: \(ISO8601DateFormatter().string(from: receivedAt))")
+        }
+        if let source = email.sourceApp {
+            lines.append("source: \(source)")
+        }
+        lines.append("body:")
+        lines.append(String(email.body.prefix(6_000)))
+        return lines.joined(separator: "\n")
     }
 
     static func task(_ item: WorkItem, includeDescription: Bool) -> String {

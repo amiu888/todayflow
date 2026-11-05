@@ -401,3 +401,43 @@ struct OpenAICompatibleAssistantTests {
         #expect(library.text(PromptLibrary.ask).contains("{{context}}"))
     }
 }
+
+// MARK: - Email summary
+
+@Test func summarizeEmail_sendsTheEmailAndReturnsProse() async throws {
+    let (assistant, transport, _, requests) = assistant(
+        responses: [.init(
+            status: 200,
+            body: chatResponse("Carol needs the vendor totals by Friday.")
+        )]
+    )
+    let digest = EmailDigest(
+        subject: "Q3 budget review",
+        sender: "Carol <carol@example.com>",
+        recipients: "Afonso <afonso@example.com>",
+        body: "Please review the Q3 budget and send the vendor totals by Friday.",
+        sourceApp: "com.apple.mail"
+    )
+
+    let summary = try await assistant.summarize(digest)
+
+    #expect(summary == "Carol needs the vendor totals by Friday.")
+    let sent = await transport.requests
+    #expect(sent.count == 1)
+    let body = bodyObject(sent[0])
+    #expect(body["stream"] as? Bool == false)
+    #expect(body["response_format"] == nil)
+    let messages = body["messages"] as? [[String: String]]
+    let prompt = messages?.last?["content"] ?? ""
+    #expect(prompt.contains("Q3 budget review"))
+    #expect(prompt.contains("carol@example.com"))
+    #expect(prompt.contains("vendor totals"))
+    #expect(requests.all.first?.feature == "summarize_email")
+}
+
+@Test func summarizeEmail_rejectsAnEmptyEmail() async {
+    let (assistant, _, _, _) = assistant(responses: [])
+    await #expect(throws: AIError.self) {
+        _ = try await assistant.summarize(EmailDigest(subject: " ", body: " "))
+    }
+}

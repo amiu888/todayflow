@@ -63,6 +63,116 @@ public enum WindowDockGeometry {
     }
 }
 
+/// The edge of another app's window the Today panel attaches to.
+public enum DockEdge: String, CaseIterable, Codable, Sendable {
+    case left
+    case right
+    case top
+    case bottom
+
+    public var label: String {
+        switch self {
+        case .left: return "Left"
+        case .right: return "Right"
+        case .top: return "Top"
+        case .bottom: return "Bottom"
+        }
+    }
+}
+
+/// A running application the panel is docked to.
+public struct DockTarget: Codable, Equatable, Sendable {
+    public var bundleId: String
+    public var name: String
+    public var edge: DockEdge
+
+    public init(bundleId: String, name: String, edge: DockEdge) {
+        self.bundleId = bundleId
+        self.name = name
+        self.edge = edge
+    }
+}
+
+/// Pure application-docking geometry, testable without windows.
+public enum AppDockGeometry {
+    /// The panel frame attached to one edge of `target`, clamped to the screen.
+    public static func dockedFrame(
+        panelSize: CGSize,
+        target: CGRect,
+        edge: DockEdge,
+        screen: CGRect,
+        gap: CGFloat = 8
+    ) -> CGRect {
+        var origin: CGPoint
+        switch edge {
+        case .left:
+            origin = CGPoint(x: target.minX - panelSize.width - gap, y: target.maxY - panelSize.height)
+        case .right:
+            origin = CGPoint(x: target.maxX + gap, y: target.maxY - panelSize.height)
+        case .top:
+            origin = CGPoint(x: target.midX - panelSize.width / 2, y: target.maxY + gap)
+        case .bottom:
+            origin = CGPoint(x: target.midX - panelSize.width / 2, y: target.minY - panelSize.height - gap)
+        }
+
+        origin.x = min(max(origin.x, screen.minX), screen.maxX - panelSize.width)
+        origin.y = min(max(origin.y, screen.minY), screen.maxY - panelSize.height)
+        return CGRect(origin: origin, size: panelSize)
+    }
+}
+
+/// A pure left-to-right layout for tray windows attached to the panel.
+public enum TrayWindowLayout {
+    public static func frame(
+        size: CGSize,
+        panel: CGRect?,
+        existing: [CGRect],
+        screen: CGRect,
+        gap: CGFloat = 8
+    ) -> CGRect {
+        let anchor = existing.max { lhs, rhs in
+            if lhs.maxX == rhs.maxX {
+                // Prefer the window on the lower row when a row is full.
+                return lhs.maxY > rhs.maxY
+            }
+            return lhs.maxX < rhs.maxX
+        } ?? panel
+        guard let anchor else {
+            return CGRect(
+                x: screen.maxX - size.width - 24,
+                y: screen.maxY - size.height - 24,
+                width: size.width,
+                height: size.height
+            )
+        }
+
+        var origin = CGPoint(
+            x: anchor.maxX + gap,
+            y: anchor.maxY - size.height
+        )
+        if origin.x + size.width > screen.maxX {
+            // No room to the right: stack a new row below the anchor.
+            origin = CGPoint(
+                x: min(anchor.minX, screen.maxX - size.width),
+                y: anchor.minY - size.height - gap
+            )
+        }
+        if origin.y < screen.minY {
+            origin.y = screen.minY
+        }
+        if origin.x < screen.minX {
+            origin.x = screen.minX
+        }
+        if origin.x + size.width > screen.maxX {
+            origin.x = screen.maxX - size.width
+        }
+        if origin.y + size.height > screen.maxY {
+            origin.y = screen.maxY - size.height
+        }
+        return CGRect(origin: origin, size: size)
+    }
+}
+
 /// Snaps floating TodayFlow windows after the user finishes dragging them.
 @MainActor
 public final class WindowDockController {
@@ -73,8 +183,16 @@ public final class WindowDockController {
     }
 
     private static let key = "todayflow.dockToEdges"
+    private static let appTargetKey = "todayflow.dockedApp"
     private var pending: [ObjectIdentifier: Task<Void, Never>] = [:]
     private var isSnapping = false
+
+    /// The app the panel is attached to, if any.
+    public private(set) var dockedTarget: DockTarget?
+    private weak var dockedPanel: NSWindow?
+    private var followTask: Task<Void, Never>?
+
+    public var isDockedToApp: Bool { dockedTarget != nil }
 
     public init() {
         if UserDefaults.standard.object(forKey: Self.key) == nil {
@@ -94,7 +212,126 @@ public final class WindowDockController {
     }
 
     @objc private func windowDidMove(_ notification: Notification) {
+        guard dockedTarget == nil else { return }
         scheduleSnap(for: notification.object as? NSWindow)
+    }
+
+    // MARK: - Application docking
+
+    /// Attaches the panel to one edge of the running app's front window.
+    /// Defaults to the left edge; the panel follows the app window while docked.
+    public func dock(
+        panel: NSWindow,
+        bundleId: String,
+        appName: String,
+        edge: DockEdge = .left
+    ) {
+        dockedPanel = panel
+        dockedTarget = DockTarget(bundleId: bundleId, name: appName, edge: edge)
+        persistTarget()
+        startFollowing()
+        repositionDockedPanel()
+    }
+
+    /// Changes the attachment edge without undocking.
+    public func setDockEdge(_ edge: DockEdge) {
+        guard var target = dockedTarget else { return }
+        target.edge = edge
+        dockedTarget = target
+        persistTarget()
+        repositionDockedPanel()
+    }
+
+    /// Detaches from the other app and re-enables edge snapping.
+    public func undock() {
+        followTask?.cancel()
+        followTask = nil
+        dockedTarget = nil
+        dockedPanel = nil
+        UserDefaults.standard.removeObject(forKey: Self.appTargetKey)
+    }
+
+    /// Restores the last docked app when the panel is shown again, if that app
+    /// is still running.
+    public func restoreIfNeeded(panel: NSWindow) {
+        guard dockedTarget == nil,
+              let data = UserDefaults.standard.data(forKey: Self.appTargetKey),
+              let saved = try? JSONDecoder().decode(DockTarget.self, from: data),
+              NSRunningApplication.runningApplications(
+                withBundleIdentifier: saved.bundleId
+              ).first != nil
+        else { return }
+        dockedPanel = panel
+        dockedTarget = saved
+        startFollowing()
+        repositionDockedPanel()
+    }
+
+    private func persistTarget() {
+        guard let dockedTarget,
+              let data = try? JSONEncoder().encode(dockedTarget)
+        else { return }
+        UserDefaults.standard.set(data, forKey: Self.appTargetKey)
+    }
+
+    private func startFollowing() {
+        followTask?.cancel()
+        followTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                self?.repositionDockedPanel()
+                try? await Task.sleep(for: .milliseconds(350))
+            }
+        }
+    }
+
+    private func repositionDockedPanel() {
+        guard let target = dockedTarget,
+              let panel = dockedPanel,
+              panel.isVisible,
+              let running = NSRunningApplication.runningApplications(
+                withBundleIdentifier: target.bundleId
+              ).first,
+              let appFrame = Self.frontWindowFrame(for: running.processIdentifier)
+        else { return }
+        let screen = panel.screen?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? .zero
+        let frame = AppDockGeometry.dockedFrame(
+            panelSize: panel.frame.size,
+            target: appFrame,
+            edge: target.edge,
+            screen: screen
+        )
+        if panel.frame != frame {
+            panel.setFrame(frame, display: true)
+        }
+    }
+
+    /// The app's frontmost on-screen window in AppKit coordinates.
+    static func frontWindowFrame(for pid: pid_t) -> CGRect? {
+        guard let primaryHeight = NSScreen.screens.first?.frame.height else { return nil }
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let raw = CGWindowListCopyWindowInfo(options, kCGNullWindowID)
+            as? [[String: Any]]
+        else { return nil }
+        for info in raw {
+            guard let owner = info[kCGWindowOwnerPID as String] as? pid_t,
+                  owner == pid,
+                  let layer = info[kCGWindowLayer as String] as? Int,
+                  layer == 0,
+                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
+                  let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+                  rect.width > 180,
+                  rect.height > 120
+            else { continue }
+            return CGRect(
+                x: rect.minX,
+                y: primaryHeight - rect.maxY,
+                width: rect.width,
+                height: rect.height
+            )
+        }
+        return nil
     }
 
     private func scheduleSnap(for window: NSWindow?) {
@@ -110,7 +347,7 @@ public final class WindowDockController {
     }
 
     private func snap(_ window: NSWindow) {
-        guard isEnabled, window.isVisible else { return }
+        guard isEnabled, dockedTarget == nil, window.isVisible else { return }
         guard let screen = window.screen ?? NSScreen.main else { return }
 
         let current = window.frame

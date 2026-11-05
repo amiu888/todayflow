@@ -63,7 +63,7 @@ public struct DataExport: Sendable {
         let header = [
             "id", "kind", "title", "parent_id", "status", "priority",
             "estimate_min", "start_at", "end_at", "completed_at", "display_order",
-            "tags", "description",
+            "tags", "description", "summary",
         ]
         var rows = [header.map(escape).joined(separator: ",")]
 
@@ -82,6 +82,7 @@ public struct DataExport: Sendable {
                 item.displayOrder,
                 item.tags.joined(separator: "; "),
                 item.descriptionMd,
+                item.summary,
             ]
             rows.append(row.map(escape).joined(separator: ","))
         }
@@ -203,7 +204,7 @@ public struct DataExport: Sendable {
         let header = [
             "id", "kind", "title", "parent_id", "status", "priority",
             "estimate_min", "start_at", "end_at", "completed_at", "display_order",
-            "tags", "description",
+            "tags", "description", "summary",
         ]
         var rows = [rowXML(header, index: 1, header: true)]
 
@@ -222,6 +223,7 @@ public struct DataExport: Sendable {
                 item.displayOrder,
                 item.tags.joined(separator: "; "),
                 item.descriptionMd,
+                item.summary,
             ]
             rows.append(rowXML(values, index: offset + 2, header: false))
         }

@@ -16,6 +16,7 @@ struct GRDBWorkItemRepositoryTests {
             title: "Q1 planning",
             parentId: parent.id,
             descriptionMd: "Some **markdown**",
+            summary: "Carol asks for the vendor totals by Friday.",
             status: .inProgress,
             priority: .urgent,
             startAt: Date.whole(year: 2026, month: 1, day: 5, hour: 9),

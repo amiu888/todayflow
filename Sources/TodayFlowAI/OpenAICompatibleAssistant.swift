@@ -13,7 +13,7 @@ import TodayFlowCore
 ///   ignores streaming gets its normal JSON response parsed at the end.
 /// - Every outgoing payload is reported through `onRequest` (redacted: no API
 ///   key) for the "What was sent" disclosure.
-public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, Sendable {
+public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, EmailSummarizer, Sendable {
     private let configuration: AIConfiguration
     private let transport: any AITransport
     private let sleeper: @Sendable (TimeInterval) async throws -> Void
@@ -150,6 +150,29 @@ public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, Sendable {
         )
         let lines = try await openStream(request, info: info)
         return Self.decodeStream(lines)
+    }
+
+    public func summarize(_ email: EmailDigest) async throws -> String {
+        guard !email.isEmpty else {
+            throw AIError.invalidConfiguration("The email has no text to summarize.")
+        }
+        let prompt = prompts.render(
+            PromptLibrary.summarizeEmail,
+            ["email": PromptContext.email(email)]
+        )
+        let (request, info) = try makeRequest(
+            messages: Self.messages(prompt),
+            stream: false,
+            format: nil,
+            feature: "summarize_email"
+        )
+        let data = try await sendWithRetry(request, info: info)
+        let text = try Self.content(from: data)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            throw AIError.malformedResponse("The email summary was empty.")
+        }
+        return String(text.prefix(1_200))
     }
 
     // MARK: - AIModelCatalog

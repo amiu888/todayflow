@@ -596,3 +596,28 @@ func updateAttachmentNote_persistsTheDescription() async {
     #expect(stored.first?.note == "Q4 numbers")
     #expect(f.vm.attachments.first?.note == "Q4 numbers")
 }
+
+// MARK: - Background email summary
+
+@Test @MainActor
+func refreshSummaryPicksUpABackgroundSummaryWithoutOverwritingEdits() async {
+    let item = WorkItem(title: "Email task")
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.vm.load()
+    #expect(f.vm.edit.summary.isEmpty)
+
+    var withSummary = item
+    withSummary.summary = "Carol needs the vendor totals by Friday."
+    try? await f.repository.save(withSummary)
+
+    await f.vm.refreshSummaryIfEmpty()
+    #expect(f.vm.edit.summary == "Carol needs the vendor totals by Friday.")
+
+    f.vm.edit.summary = "My own note"
+    var changed = withSummary
+    changed.summary = "A different generated summary"
+    try? await f.repository.save(changed)
+    await f.vm.refreshSummaryIfEmpty()
+    #expect(f.vm.edit.summary == "My own note")
+}

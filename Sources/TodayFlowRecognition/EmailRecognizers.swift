@@ -22,13 +22,17 @@ public struct OutlookEmailRecognizer: ObjectRecognizer {
     }
 
     public func recognize(_ object: DroppedObject) -> RecognizedObject {
-        // Deep link: the app can only see the URL, not the message.
+        // Deep link: the message text is often on the same pasteboard item.
         if let url = object.url, url.scheme?.lowercased() == "ms-outlook" {
+            let headers = EmailHeaderParser.parse(object.text)
             return RecognizedObject(
                 type: .email,
-                displayName: "Outlook email",
+                displayName: headers.subject ?? "Outlook email",
                 sourceApp: "outlook",
-                reference: url.absoluteString
+                reference: url.absoluteString,
+                metadata: headers.metadata,
+                suggestedTitle: headers.subject,
+                previewText: object.text
             )
         }
 
@@ -126,11 +130,15 @@ public struct MailEmailRecognizer: ObjectRecognizer {
         let filename = object.fileURL?.lastPathComponent ?? "email"
 
         if let url = object.url, url.scheme?.lowercased() == "message" {
+            let headers = EmailHeaderParser.parse(object.text)
             return RecognizedObject(
                 type: .email,
-                displayName: "Mail message",
+                displayName: headers.subject ?? "Mail message",
                 sourceApp: sourceApp,
-                reference: url.absoluteString
+                reference: url.absoluteString,
+                metadata: headers.metadata,
+                suggestedTitle: headers.subject,
+                previewText: object.text
             )
         }
 
@@ -160,5 +168,36 @@ public struct MailEmailRecognizer: ObjectRecognizer {
             sourceApp: sourceApp,
             reference: object.fileURL?.path
         )
+    }
+}
+
+
+/// Reads simple `Subject:` / `From:` / `To:` lines from the plain text that
+/// Mail and Outlook put on the drag pasteboard alongside a message link.
+enum EmailHeaderParser {
+    struct Headers {
+        var subject: String?
+        var metadata: [String: String]
+    }
+
+    static func parse(_ text: String?) -> Headers {
+        guard let text else { return Headers(subject: nil, metadata: [:]) }
+        var subject: String?
+        var metadata: [String: String] = [:]
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false).prefix(30) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let lower = trimmed.lowercased()
+            if lower.hasPrefix("subject:") {
+                subject = String(trimmed.dropFirst("subject:".count))
+                    .trimmingCharacters(in: .whitespaces)
+            } else if lower.hasPrefix("from:") {
+                metadata[MetadataKeys.from] = String(trimmed.dropFirst("from:".count))
+                    .trimmingCharacters(in: .whitespaces)
+            } else if lower.hasPrefix("to:") {
+                metadata[MetadataKeys.to] = String(trimmed.dropFirst("to:".count))
+                    .trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return Headers(subject: subject, metadata: metadata)
     }
 }

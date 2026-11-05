@@ -32,8 +32,16 @@ public enum TodayFlowMigrations {
         migrator.registerMigration("v4") { db in
             try db.execute(sql: schemaV4)
         }
+        migrator.registerMigration("v5") { db in
+            try db.execute(sql: schemaV5)
+        }
         return migrator
     }
+
+    /// v5 adds the task summary (AI-generated from an email or written by hand).
+    static let schemaV5 = """
+        ALTER TABLE work_item ADD COLUMN summary TEXT NOT NULL DEFAULT '';
+        """
 
     /// v4 adds a user description per attachment.
     static let schemaV4 = """

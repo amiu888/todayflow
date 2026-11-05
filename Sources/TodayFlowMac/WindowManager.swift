@@ -59,6 +59,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         super.init()
         self.todayModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
         self.todayModel.onFocusTask = { [weak self] id in self?.presentFocus(id) }
+        self.trayWindows.panelFrame = { [weak self] in self?.windows[.panel]?.frame }
         self.miniCalendar.onOpenDetail = { [weak self] id in self?.show(.detail(id)) }
         self.miniCalendar.onOpenMain = { [weak self] in
             self?.show(.panel)
@@ -162,6 +163,27 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// Opens a full tray window with every task, reorder, and remove controls.
     public func openTray(_ id: UUIDv7) {
         trayWindows.open(trayId: id)
+    }
+
+    /// Attaches the panel to another app's window edge.
+    public func dockPanel(to bundleId: String, edge: DockEdge) {
+        show(.panel)
+        guard let panel = window(for: .panel) else { return }
+        let name = NSRunningApplication
+            .runningApplications(withBundleIdentifier: bundleId)
+            .first?
+            .localizedName ?? bundleId
+        docking.dock(
+            panel: panel,
+            bundleId: bundleId,
+            appName: name,
+            edge: edge
+        )
+    }
+
+    /// Detaches the panel from the other app.
+    public func undockPanel() {
+        docking.undock()
     }
 
     /// Collapse the full panel into the corner-friendly mini calendar.
@@ -270,6 +292,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             }
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
+            if kind == .panel {
+                docking.restoreIfNeeded(panel: window)
+            }
             return
         }
         let window = makeWindow(for: kind)
@@ -278,6 +303,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
+        if kind == .panel {
+            docking.restoreIfNeeded(panel: window)
+        }
     }
 
     /// Closes the window for `kind`. The reference is dropped defensively as
@@ -368,6 +396,20 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             onOpenUpcoming: { [weak self] in self?.show(.upcoming) },
             onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() },
             onOpenTray: { [weak self] id in self?.openTray(id) },
+            dockedApp: docking.dockedTarget.map {
+                AppDockState(
+                    appName: $0.name,
+                    edge: $0.edge.rawValue,
+                    isDocked: true
+                )
+            },
+            onDockToApp: { [weak self] bundleId, edgeRaw in
+                self?.dockPanel(
+                    to: bundleId,
+                    edge: DockEdge(rawValue: edgeRaw) ?? .left
+                )
+            },
+            onUndockApp: { [weak self] in self?.undockPanel() },
             windowActions: WindowMenuActions(
                 toggleDocking: { [weak self] in
                     self?.docking.isEnabled.toggle()

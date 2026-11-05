@@ -79,3 +79,34 @@ struct MigrationsTests {
         #expect(count == 1)
     }
 }
+
+@Test func v5AddsSummaryWithAnEmptyDefault() throws {
+    let queue = try TodayFlowDatabase.makeInMemory()
+    defer { try? queue.close() }
+
+    let columns = try queue.read { db in
+        try Row.fetchAll(db, sql: "PRAGMA table_info(work_item)")
+            .map { $0["name"] as String }
+    }
+    #expect(columns.contains("summary"))
+
+    try queue.write { db in
+        try db.execute(
+            sql: """
+                INSERT INTO work_item (
+                  id, kind, title, status, priority, display_order,
+                  created_at, updated_at, version, device_id
+                ) VALUES (?, 'task', 'No summary', 'todo', 3, 'a', ?, ?, 1, 'local')
+                """,
+            arguments: [
+                UUIDv7.new().uuid.uuidString,
+                SqlTimestamp.encode(Date()),
+                SqlTimestamp.encode(Date()),
+            ]
+        )
+    }
+    let summary = try queue.read { db in
+        try String.fetchOne(db, sql: "SELECT summary FROM work_item LIMIT 1")
+    }
+    #expect(summary == "")
+}

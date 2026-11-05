@@ -22,6 +22,9 @@ public struct TodayView: View {
     private let onOpenUpcoming: (@MainActor () -> Void)?
     private let onShowMiniCalendar: (@MainActor () -> Void)?
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
+    private let dockedApp: AppDockState?
+    private let onDockToApp: (@MainActor (String, String) -> Void)?
+    private let onUndockApp: (@MainActor () -> Void)?
     private let windowActions: WindowMenuActions?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,6 +37,10 @@ public struct TodayView: View {
     @State private var undoBarTask: Task<Void, Never>?
     @State private var captureConfirmation: String?
     @State private var captureToastTask: Task<Void, Never>?
+    @State private var showingDockPopover = false
+    @State private var dockAppBundle = ""
+    @State private var dockEdge = "left"
+    @State private var localDockedName: String?
 
     public init(model: TodayViewModel) {
         self.model = model
@@ -43,7 +50,11 @@ public struct TodayView: View {
         self.onOpenUpcoming = nil
         self.onShowMiniCalendar = nil
         self.onOpenTray = nil
+        self.dockedApp = nil
+        self.onDockToApp = nil
+        self.onUndockApp = nil
         self.windowActions = nil
+        _localDockedName = State(initialValue: nil)
     }
 
     /// Host initializer used when the window manager owns the shared model.
@@ -56,6 +67,9 @@ public struct TodayView: View {
         onOpenUpcoming: (@MainActor () -> Void)? = nil,
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
+        dockedApp: AppDockState? = nil,
+        onDockToApp: (@MainActor (String, String) -> Void)? = nil,
+        onUndockApp: (@MainActor () -> Void)? = nil,
         windowActions: WindowMenuActions? = nil
     ) {
         self.model = model
@@ -65,7 +79,13 @@ public struct TodayView: View {
         self.onOpenUpcoming = onOpenUpcoming
         self.onShowMiniCalendar = onShowMiniCalendar
         self.onOpenTray = onOpenTray
+        self.dockedApp = dockedApp
+        self.onDockToApp = onDockToApp
+        self.onUndockApp = onUndockApp
         self.windowActions = windowActions
+        _localDockedName = State(
+            initialValue: dockedApp?.isDocked == true ? dockedApp?.appName : nil
+        )
     }
 
     /// Convenience initializer for hosts that own the repositories.
@@ -86,6 +106,9 @@ public struct TodayView: View {
         onOpenUpcoming: (@MainActor () -> Void)? = nil,
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
+        dockedApp: AppDockState? = nil,
+        onDockToApp: (@MainActor (String, String) -> Void)? = nil,
+        onUndockApp: (@MainActor () -> Void)? = nil,
         windowActions: WindowMenuActions? = nil
     ) {
         self.model = TodayViewModel(
@@ -104,7 +127,13 @@ public struct TodayView: View {
         self.onOpenUpcoming = onOpenUpcoming
         self.onShowMiniCalendar = onShowMiniCalendar
         self.onOpenTray = onOpenTray
+        self.dockedApp = dockedApp
+        self.onDockToApp = onDockToApp
+        self.onUndockApp = onUndockApp
         self.windowActions = windowActions
+        _localDockedName = State(
+            initialValue: dockedApp?.isDocked == true ? dockedApp?.appName : nil
+        )
     }
 
     private var motion: Motion {
@@ -573,6 +602,27 @@ public struct TodayView: View {
                 .accessibilityLabel("Minimize to mini calendar")
             }
 
+            if onDockToApp != nil {
+                Button {
+                    prepareDockPopover()
+                    showingDockPopover = true
+                } label: {
+                    Image(systemName: localDockedName == nil ? "pin" : "pin.fill")
+                        .font(.caption)
+                        .foregroundStyle(
+                            localDockedName == nil
+                                ? DesignTokens.Palette.textSecondary
+                                : DesignTokens.Palette.accent
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(dockHelp)
+                .accessibilityLabel("Dock to application")
+                .popover(isPresented: $showingDockPopover, arrowEdge: .bottom) {
+                    dockPopover
+                }
+            }
+
             if let windowActions {
                 Menu {
                     Button("Dock windows to edges") {
@@ -616,6 +666,102 @@ public struct TodayView: View {
         }
         .padding(.horizontal, 4)
     }
+
+    private var dockHelp: String {
+        if let name = localDockedName {
+            return "Docked to \(name) — click to change"
+        }
+        return "Dock to another application"
+    }
+
+    @MainActor
+    private func prepareDockPopover() {
+        dockEdge = dockedApp?.edge ?? "left"
+        if let current = localDockedName,
+           let match = runningApps.first(where: { $0.name == current })
+        {
+            dockAppBundle = match.bundleId
+        } else if dockAppBundle.isEmpty {
+            dockAppBundle = runningApps.first?.bundleId ?? ""
+        }
+    }
+
+    #if canImport(AppKit)
+    private var runningApps: [(bundleId: String, name: String)] {
+        NSWorkspace.shared.runningApplications
+            .filter {
+                $0.activationPolicy == .regular
+                    && $0.bundleIdentifier != Bundle.main.bundleIdentifier
+            }
+            .compactMap { app in
+                guard let id = app.bundleIdentifier,
+                      let name = app.localizedName,
+                      !name.isEmpty
+                else { return nil }
+                return (id, name)
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private var dockPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Dock TodayFlow")
+                .font(.headline)
+
+            Picker("Application", selection: $dockAppBundle) {
+                ForEach(runningApps, id: \.bundleId) { app in
+                    Text(app.name).tag(app.bundleId)
+                }
+            }
+            .disabled(runningApps.isEmpty)
+
+            Picker("Attach to", selection: $dockEdge) {
+                Text("Left").tag("left")
+                Text("Right").tag("right")
+                Text("Top").tag("top")
+                Text("Bottom").tag("bottom")
+            }
+            .pickerStyle(.segmented)
+
+            if runningApps.isEmpty {
+                Text("Open another app first.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Button("Dock") {
+                    guard !dockAppBundle.isEmpty else { return }
+                    let name = runningApps.first { $0.bundleId == dockAppBundle }?.name
+                    onDockToApp?(dockAppBundle, dockEdge)
+                    localDockedName = name ?? dockAppBundle
+                    showingDockPopover = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(dockAppBundle.isEmpty)
+
+                if localDockedName != nil {
+                    Button("Undock") {
+                        onUndockApp?()
+                        localDockedName = nil
+                        showingDockPopover = false
+                    }
+                }
+
+                Spacer()
+
+                Button("Cancel") {
+                    showingDockPopover = false
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 280)
+    }
+    #else
+    private var runningApps: [(bundleId: String, name: String)] { [] }
+    private var dockPopover: some View { EmptyView() }
+    #endif
 
     @MainActor
     private var weekStrip: some View {

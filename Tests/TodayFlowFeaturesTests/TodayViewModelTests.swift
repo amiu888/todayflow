@@ -884,3 +884,45 @@ func applyDrop_addsFromTodayAndMovesFromAnotherTray() async {
     )
     #expect(f.vm.trayItems(trayId: destination).count == 2)
 }
+
+// MARK: - One tray per task
+
+@Test @MainActor
+func addingToAnotherTrayMovesTheTask() async {
+    let f = Fixture()
+    await f.vm.load()
+    let first = f.vm.trays[0].id
+    await f.vm.addTray(name: "Second")
+    let second = try! #require(f.vm.trays.first { $0.name == "Second" }?.id)
+
+    let task = f.item("Only one tray", displayOrder: "d1")
+    await f.seed(task)
+    await f.vm.load()
+    await f.vm.addToTray(task.id, trayId: first)
+    await f.vm.addToTray(task.id, trayId: second)
+
+    #expect(f.vm.trayItems(trayId: first).isEmpty)
+    #expect(f.vm.trayItems(trayId: second).map(\.id) == [task.id])
+}
+
+@Test @MainActor
+func moveToTrayRemovesTheTaskFromEveryOtherTray() async {
+    let f = Fixture()
+    await f.vm.load()
+    let first = f.vm.trays[0].id
+    await f.vm.addTray(name: "Second")
+    await f.vm.addTray(name: "Third")
+    let second = try! #require(f.vm.trays.first { $0.name == "Second" }?.id)
+    let third = try! #require(f.vm.trays.first { $0.name == "Third" }?.id)
+
+    let task = f.item("One home", displayOrder: "d2")
+    await f.seed(task)
+    await f.vm.load()
+    await f.vm.addToTray(task.id, trayId: first)
+    await f.vm.addToTray(task.id, trayId: third)
+    await f.vm.moveToTray(task.id, from: first, to: second)
+
+    #expect(f.vm.trayItems(trayId: first).isEmpty)
+    #expect(f.vm.trayItems(trayId: third).isEmpty)
+    #expect(f.vm.trayItems(trayId: second).map(\.id) == [task.id])
+}

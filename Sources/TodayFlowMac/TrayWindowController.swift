@@ -10,6 +10,9 @@ import TodayFlowFeatures
 public final class TrayWindowController: NSObject, NSWindowDelegate {
     private let model: TodayViewModel
     private var windows: [UUIDv7: NSWindow] = [:]
+    /// The main panel's frame; new tray windows attach to its right edge and
+    /// then to the right edge of the last tray window.
+    public var panelFrame: (@MainActor () -> NSRect?)?
 
     public init(model: TodayViewModel) {
         self.model = model
@@ -37,16 +40,16 @@ public final class TrayWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
         window.delegate = self
-        // Open to the right of the main panel instead of centered on top of it,
-        // so the panel's trays stay usable while a tray window is open.
+        // Attach to the right of the main panel, then to the right of the
+        // last opened tray window. If the row is full, stack below it.
         if let visible = NSScreen.main?.visibleFrame {
-            let offset = CGFloat(windows.count) * 24
-            window.setFrameOrigin(
-                NSPoint(
-                    x: visible.maxX - window.frame.width - 24 - offset,
-                    y: visible.maxY - window.frame.height - 24 - offset
-                )
+            let frame = TrayWindowLayout.frame(
+                size: window.frame.size,
+                panel: panelFrame?(),
+                existing: windows.values.map(\.frame),
+                screen: visible
             )
+            window.setFrame(frame, display: false)
         } else {
             window.center()
         }

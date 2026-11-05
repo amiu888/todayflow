@@ -36,6 +36,7 @@ public struct DetailView: View {
     /// The two focusable text fields.
     private enum Field: Hashable {
         case title
+        case summary
         case description
     }
 
@@ -128,6 +129,9 @@ public struct DetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.attachmentsChanged)) { _ in
             Task { @MainActor in await model.load() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
+            Task { @MainActor in await model.refreshSummaryIfEmpty() }
+        }
         .onChange(of: model.subtaskSuggestions) { _, new in
             selectedSuggestions = Set(new.map(\.title))
         }
@@ -143,7 +147,7 @@ public struct DetailView: View {
         }
         .onChange(of: focusedField) { old, _ in
             // FR-22: inline edits commit on interaction — here, on focus loss.
-            if old == .description {
+            if old == .description || old == .summary {
                 Task { await model.commit() }
             }
         }
@@ -159,6 +163,7 @@ public struct DetailView: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap * 2) {
                     breadcrumb(item)
                     titleField
+                    summarySection
                     pillsRow(item)
                     tagsRow(item)
                     datesRow
@@ -227,6 +232,43 @@ public struct DetailView: View {
             .onSubmit {
                 Task { await model.commit() }
             }
+    }
+
+    @MainActor
+    private var summarySection: some View {
+        @Bindable var model = model
+
+        return VStack(alignment: .leading, spacing: 4) {
+            Text("Summary")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $model.edit.summary)
+                    .font(.callout)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 38, maxHeight: 82)
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: DesignTokens.Spacing.cornerRadius,
+                            style: .continuous
+                        )
+                        .fill(DesignTokens.Palette.surface.opacity(0.6))
+                    )
+                    .focused($focusedField, equals: .summary)
+                    .accessibilityIdentifier("task-summary")
+
+                if model.edit.summary.isEmpty {
+                    Text("A short summary of the task or its source email…")
+                        .font(.callout)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary.opacity(0.7))
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 14)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
     }
 
     @MainActor

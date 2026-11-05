@@ -29,6 +29,9 @@ public final class CaptureViewModel {
     /// Optional AI client; set by the host only when AI and the "suggest"
     /// feature are enabled (driver.md §8). Capture works without it.
     @ObservationIgnored public var assistant: (any AIAssistant)?
+    /// Optional email summarizer. When nil (AI off, no provider, or the
+    /// feature disabled) the task is saved without a summary.
+    @ObservationIgnored public var emailSummarizer: (any EmailSummarizer)?
 
     /// Projects the sheet's parent (project) picker offers.
     public private(set) var parents: [CaptureParentOption] = []
@@ -270,6 +273,7 @@ public final class CaptureViewModel {
                         )
                     )
                     try await saveAttachment(object, source: dropped, for: item.id, at: now)
+                    scheduleEmailSummary(for: item, object: object, source: dropped, at: now)
                     savedItem = item
                 }
                 if let savedItem { onSaved?(savedItem.id) }
@@ -303,11 +307,91 @@ public final class CaptureViewModel {
                 savedAttachmentCount += 1
             }
 
+            if let email = zip(droppedObjects, draft.objects)
+                .first(where: { $0.1.type == .email })
+            {
+                scheduleEmailSummary(
+                    for: item,
+                    object: email.1,
+                    source: email.0,
+                    at: now
+                )
+            }
+
             Diagnostics.log("capture", "save ok item=\(item.id) title=“\(item.title)”")
             onSaved?(item.id)
         } catch {
             Diagnostics.log("capture", "save FAILED: \(error)")
             lastError = error.localizedDescription
+        }
+    }
+
+    /// Builds a digest from the recognized email and the raw drop. `.eml` and
+    /// `.msg` files carry the body in `previewText`; Mail's `message://` drops
+    /// fall back to the pasteboard text (subject/body) when the source app
+    /// provides it.
+    private func emailDigest(
+        _ object: RecognizedObject,
+        source: DroppedObject
+    ) -> EmailDigest? {
+        guard object.type == .email else { return nil }
+        let candidates = [
+            object.previewText,
+            source.text,
+            source.fileData.flatMap { String(data: $0, encoding: .utf8) },
+        ]
+        let body = candidates
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .max { $0.count < $1.count }
+            ?? ""
+        let subject = (object.suggestedTitle ?? object.displayName)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !subject.isEmpty || !body.isEmpty else { return nil }
+        let received = object.metadata[MetadataKeys.receivedAt].flatMap(Iso8601.decode)
+        return EmailDigest(
+            subject: subject,
+            sender: object.metadata[MetadataKeys.sender] ?? object.metadata[MetadataKeys.from],
+            recipients: object.metadata[MetadataKeys.to],
+            body: body,
+            sourceApp: object.sourceApp ?? source.sourceApp,
+            receivedAt: received
+        )
+    }
+
+    /// Summarizes in the background so saving never waits on the network (or
+    /// on Apple Intelligence). A failure leaves the summary empty.
+    private func scheduleEmailSummary(
+        for item: WorkItem,
+        object: RecognizedObject,
+        source: DroppedObject,
+        at now: Date
+    ) {
+        guard let summarizer = emailSummarizer,
+              let digest = emailDigest(object, source: source)
+        else { return }
+
+        let repository = self.repository
+        let deviceId = self.deviceId
+        Task { @MainActor in
+            guard let summary = try? await summarizer.summarize(digest) else {
+                Diagnostics.log("ai", "email summary skipped item=\(item.id)")
+                return
+            }
+            let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty,
+                  var latest = await repository.item(item.id)
+            else { return }
+            latest.summary = String(trimmed.prefix(1_200))
+            latest.updatedAt = now
+            latest.version += 1
+            latest.deviceId = deviceId
+            try? await repository.save(latest)
+            Diagnostics.log("ai", "email summary item=\(item.id) chars=\(trimmed.count)")
+            NotificationCenter.default.post(
+                name: TodayFlowEvents.itemsChanged,
+                object: nil
+            )
         }
     }
 

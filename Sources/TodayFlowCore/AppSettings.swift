@@ -58,6 +58,7 @@ public struct WorkCalendarSettings: Codable, Hashable, Sendable {
 public struct AIEndpointSettings: Codable, Hashable, Sendable {
     /// A provider preset; picking one fills in its base URL.
     public enum Provider: String, Codable, CaseIterable, Hashable, Sendable {
+        case apple
         case ollama
         case lmStudio = "lm-studio"
         case openai
@@ -65,6 +66,7 @@ public struct AIEndpointSettings: Codable, Hashable, Sendable {
 
         public var label: String {
             switch self {
+            case .apple: return "Apple Intelligence"
             case .ollama: return "Ollama"
             case .lmStudio: return "LM Studio"
             case .openai: return "OpenAI"
@@ -75,6 +77,7 @@ public struct AIEndpointSettings: Codable, Hashable, Sendable {
         /// The preset's default base URL (driver.md §8: "Preset fills base URL").
         public var defaultBaseURL: String {
             switch self {
+            case .apple: return ""
             case .ollama: return "http://localhost:11434/v1"
             case .lmStudio: return "http://localhost:1234/v1"
             case .openai: return "https://api.openai.com/v1"
@@ -85,9 +88,10 @@ public struct AIEndpointSettings: Codable, Hashable, Sendable {
 
     /// Master toggle — AI is off by default.
     public var enabled: Bool = false
-    public var provider: Provider = .ollama
+    /// Apple Intelligence is the preferred on-device provider for new installs.
+    public var provider: Provider = .apple
     /// Any OpenAI-compatible endpoint (`POST {baseURL}/chat/completions`).
-    public var baseURL: String = Provider.ollama.defaultBaseURL
+    public var baseURL: String = ""
     /// Optional for local servers.
     ///
     /// The one AI setting that does not live in the settings store: the 6-Mac
@@ -119,8 +123,10 @@ public enum AIFeatures {
     public static let planDay = "plan_day"
     /// Free-form questions with item context.
     public static let ask = "ask"
+    /// Summarize an email into the task summary.
+    public static let summarizeEmail = "summarize_email"
 
-    public static let all: [String] = [suggest, breakDown, planDay, ask]
+    public static let all: [String] = [suggest, breakDown, planDay, ask, summarizeEmail]
 
     public static func label(for key: String) -> String {
         switch key {
@@ -128,6 +134,7 @@ public enum AIFeatures {
         case breakDown: return "Break tasks down"
         case planDay: return "Plan my day"
         case ask: return "Ask questions"
+        case summarizeEmail: return "Summarize emails"
         default: return key
         }
     }
