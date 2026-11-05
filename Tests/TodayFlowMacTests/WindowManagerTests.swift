@@ -154,5 +154,6 @@ func panelContentViewFitsMinimumWidth() async throws {
     let window = try #require(manager.window(for: .panel))
     window.setContentSize(NSSize(width: DesignTokens.Window.panelMinimum.width, height: 640))
     try await Task.sleep(for: .milliseconds(150))
+    print("PANEL contentFrame=\(window.contentView?.frame ?? .zero) fitting=\(window.contentView?.fittingSize ?? .zero) intrinsic=\(window.contentView?.intrinsicContentSize ?? .zero)")
     #expect(window.contentView?.frame.width == DesignTokens.Window.panelMinimum.width)
 }

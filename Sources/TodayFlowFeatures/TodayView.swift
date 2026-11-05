@@ -160,8 +160,27 @@ public struct TodayView: View {
     @MainActor
     public var body: some View {
         GeometryReader { proxy in
+            // Below 320 points, lay the single-column UI out at 320 and
+            // scale it into the available width. This keeps every control
+            // visible instead of clipping the left/right edge when the
+            // window is squeezed.
+            let baseWidth: CGFloat = 320
+            let scale = min(1, proxy.size.width / baseWidth)
+            let contentWidth = max(proxy.size.width, baseWidth)
+            let contentHeight = proxy.size.height / max(scale, 0.01)
+
             panelBody
-                .frame(width: proxy.size.width, height: proxy.size.height)
+                .frame(
+                    width: contentWidth,
+                    height: contentHeight,
+                    alignment: .topLeading
+                )
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(
+                    width: proxy.size.width,
+                    height: proxy.size.height,
+                    alignment: .topLeading
+                )
                 .onAppear {
                     isCompact = proxy.size.width < 340
                 }
