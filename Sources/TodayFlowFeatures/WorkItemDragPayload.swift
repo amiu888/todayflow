@@ -1,6 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import TodayFlowCore
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// The app's exported UTType for dragging a work item between lists.
 ///
@@ -26,4 +29,16 @@ public struct WorkItemDragPayload: Codable, Transferable {
     public static var transferRepresentation: some TransferRepresentation {
         CodableRepresentation(contentType: .todayFlowWorkItem)
     }
+
+    #if canImport(AppKit)
+    /// The AppKit-backed drag source shared by Today, Upcoming, and trays.
+    /// Using one provider implementation keeps every row draggable.
+    @MainActor
+    public static func itemProvider(for itemId: UUIDv7) -> NSItemProvider {
+        NSItemProvider(
+            item: itemId.uuid.uuidString as NSString,
+            typeIdentifier: UTType.todayFlowWorkItem.identifier
+        )
+    }
+    #endif
 }

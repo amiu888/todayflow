@@ -635,6 +635,22 @@ public final class DetailViewModel {
         }
     }
 
+    /// Saves a user description for one attached object.
+    public func updateAttachmentNote(_ id: UUIDv7, note: String) async {
+        guard let index = attachments.firstIndex(where: { $0.id == id })
+        else { return }
+        var attachment = attachments[index]
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        attachment.note = trimmed.isEmpty ? nil : trimmed
+        do {
+            try await attachmentRepository.save(attachment)
+            attachments[index] = attachment
+            lastSavedAt = clock()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     /// Removes an attachment from the item.
     public func removeAttachment(_ id: UUIDv7) async {
         guard let item = item else { return }

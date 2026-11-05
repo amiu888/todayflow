@@ -21,6 +21,7 @@ public struct TodayView: View {
     #endif
     private let onOpenUpcoming: (@MainActor () -> Void)?
     private let onShowMiniCalendar: (@MainActor () -> Void)?
+    private let windowActions: WindowMenuActions?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -40,6 +41,7 @@ public struct TodayView: View {
         #endif
         self.onOpenUpcoming = nil
         self.onShowMiniCalendar = nil
+        self.windowActions = nil
     }
 
     /// Convenience initializer for hosts that own the repositories.
@@ -58,7 +60,8 @@ public struct TodayView: View {
         onFocusTask: (@MainActor (UUIDv7) -> Void)? = nil,
         onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil,
         onOpenUpcoming: (@MainActor () -> Void)? = nil,
-        onShowMiniCalendar: (@MainActor () -> Void)? = nil
+        onShowMiniCalendar: (@MainActor () -> Void)? = nil,
+        windowActions: WindowMenuActions? = nil
     ) {
         self.model = TodayViewModel(
             repository: repository,
@@ -75,6 +78,7 @@ public struct TodayView: View {
         #endif
         self.onOpenUpcoming = onOpenUpcoming
         self.onShowMiniCalendar = onShowMiniCalendar
+        self.windowActions = windowActions
     }
 
     private var motion: Motion {
@@ -542,6 +546,47 @@ public struct TodayView: View {
                 .help("Minimize to the mini day/week calendar")
                 .accessibilityLabel("Minimize to mini calendar")
             }
+
+            if let windowActions {
+                Menu {
+                    Button("Dock windows to edges") {
+                        windowActions.toggleDocking()
+                    }
+                    Button("Show windows on all desktops") {
+                        windowActions.toggleAllDesktops()
+                    }
+                    Divider()
+                    Button("Show / hide mini calendar") {
+                        windowActions.toggleMiniCalendar()
+                    }
+                    Button("Mini calendar: Day") {
+                        windowActions.showMiniDay()
+                    }
+                    Button("Mini calendar: Week") {
+                        windowActions.showMiniWeek()
+                    }
+                    Menu("Pin mini calendar") {
+                        ForEach(ScreenCorner.allCases) { corner in
+                            Button(corner.label) {
+                                windowActions.pinMiniCalendar(corner)
+                            }
+                        }
+                        Divider()
+                        Button("Unpin") {
+                            windowActions.pinMiniCalendar(nil)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "rectangle.on.rectangle")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                }
+                .menuIndicator(.hidden)
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Window docking, desktops, and mini-calendar corners")
+                .accessibilityLabel("Window options")
+            }
         }
         .padding(.horizontal, 4)
     }
@@ -778,8 +823,21 @@ public struct TodayView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onDrag {
+                WorkItemDragPayload.itemProvider(for: row.id)
+            }
 
             Menu {
+                if !model.trays.isEmpty {
+                    Menu("Add to tray") {
+                        ForEach(model.trays) { tray in
+                            Button(tray.name) {
+                                Task { await model.addToTray(row.id, trayId: tray.id) }
+                            }
+                        }
+                    }
+                }
+
                 Menu("Priority") {
                     ForEach(Priority.allCases, id: \.self) { priority in
                         Button {

@@ -39,6 +39,8 @@ public struct Attachment: Identifiable, Hashable, Sendable, Codable {
     public var metadata: [String: String]
     /// A short extracted preview (first lines of text, OCR, …).
     public var previewText: String?
+    /// User-provided description for this attached object.
+    public var note: String?
     // Sync-ready conventions (driver.md §6).
     public var createdAt: Date
     public var version: Int
@@ -56,6 +58,7 @@ public struct Attachment: Identifiable, Hashable, Sendable, Codable {
         localCopyPath: String? = nil,
         metadata: [String: String] = [:],
         previewText: String? = nil,
+        note: String? = nil,
         createdAt: Date = .now,
         version: Int = 1,
         deviceId: String = "local"
@@ -71,6 +74,7 @@ public struct Attachment: Identifiable, Hashable, Sendable, Codable {
         self.localCopyPath = localCopyPath
         self.metadata = metadata
         self.previewText = previewText
+        self.note = note
         self.createdAt = createdAt
         self.version = version
         self.deviceId = deviceId

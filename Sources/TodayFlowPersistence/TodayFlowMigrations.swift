@@ -29,8 +29,16 @@ public enum TodayFlowMigrations {
         migrator.registerMigration("v3") { db in
             try db.execute(sql: schemaV3)
         }
+        migrator.registerMigration("v4") { db in
+            try db.execute(sql: schemaV4)
+        }
         return migrator
     }
+
+    /// v4 adds a user description per attachment.
+    static let schemaV4 = """
+        ALTER TABLE attachment ADD COLUMN note TEXT;
+        """
 
     /// v3 adds optional effort estimates for the daily load meter.
     static let schemaV3 = """

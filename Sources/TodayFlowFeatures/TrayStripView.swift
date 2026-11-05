@@ -239,6 +239,12 @@ public struct TrayStripView: View {
             }
             return true
         }
+        .dropDestination(for: WorkItemDragPayload.self) { payloads, _ in
+            // Second path for SwiftUI-native drags.
+            guard let payload = payloads.first else { return false }
+            Task { await model.addToTray(payload.itemId, trayId: column.tray.id) }
+            return true
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(
@@ -297,7 +303,9 @@ public struct TrayStripView: View {
         }
         .help(item.descriptionMd.isEmpty ? item.title : item.descriptionMd)
         .accessibilityIdentifier("tray-chip-\(item.title)")
-        .draggable(WorkItemDragPayload(itemId: item.id))
+        .onDrag {
+            WorkItemDragPayload.itemProvider(for: item.id)
+        }
     }
 
     @MainActor

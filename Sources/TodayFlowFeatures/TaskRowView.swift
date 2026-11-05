@@ -49,6 +49,7 @@ public struct TaskRowView: View {
     @State private var isHovering: Bool = false
     @State private var showsAttachments = false
     @State private var attachmentHoverTask: Task<Void, Never>?
+    @State private var isReorderTarget = false
 
     @MainActor
     public var body: some View {
@@ -77,8 +78,10 @@ public struct TaskRowView: View {
                         style: .continuous
                     )
                     .stroke(
-                        isSelected ? DesignTokens.Palette.accent.opacity(0.5) : Color.clear,
-                        lineWidth: 1
+                        isReorderTarget
+                            ? DesignTokens.Palette.accent
+                            : (isSelected ? DesignTokens.Palette.accent.opacity(0.5) : Color.clear),
+                        lineWidth: isReorderTarget ? 2 : 1
                     )
                 )
             }
@@ -99,29 +102,16 @@ public struct TaskRowView: View {
             // is used instead of Transferable because it also works reliably
             // across SwiftUI's nested ScrollViews on macOS.
             .onDrag {
-                let itemId = model.id
-                return NSItemProvider(
-                    item: itemId.uuid.uuidString as NSString,
-                    typeIdentifier: UTType.todayFlowWorkItem.identifier
-                )
+                WorkItemDragPayload.itemProvider(for: model.id)
             }
             .onDrop(
                 of: [.todayFlowWorkItem],
-                isTargeted: nil
-            ) { providers in
-                guard let provider = providers.first else { return false }
-                Task { @MainActor in
-                    guard let string = try? await provider.loadItem(
-                        forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
-                        options: nil
-                    ) as? String,
-                        let uuid = UUID(uuidString: string),
-                        UUIDv7(uuid) != model.id
-                    else { return }
-                    onMove(UUIDv7(uuid), model.id, true)
-                }
-                return true
-            }
+                delegate: TaskRowDropDelegate(
+                    targetId: model.id,
+                    isTargeted: $isReorderTarget,
+                    onMove: onMove
+                )
+            )
             .contextMenu {
                 Button("Open") { onQuickAction(model.id, .open) }
                 Button("Focus for 25 minutes") { onQuickAction(model.id, .focus) }
@@ -148,9 +138,8 @@ public struct TaskRowView: View {
                     onQuickAction(model.id, .moveToTomorrow)
                 }
             }
-            .accessibilityElement(children: .ignore)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("task-row-\(model.title)")
-            .accessibilityLabel(accessibilityLabel(dueTime: dueTime))
     }
 
     @MainActor
@@ -169,20 +158,43 @@ public struct TaskRowView: View {
                 .frame(width: 8, height: 8)
                 .help("Priority: \(model.priority.label)")
 
-            Text(model.title)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .strikethrough(model.isDone)
-                .foregroundStyle(model.isDone ? Color.secondary : Color.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .help(model.descriptionPreview ?? "Open “\(model.title)”")
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.title)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .strikethrough(model.isDone)
+                    .foregroundStyle(model.isDone ? Color.secondary : Color.primary)
+                    .accessibilityLabel(accessibilityLabel(dueTime: dueTime))
+                    .help(model.descriptionPreview ?? "Open “\(model.title)”")
 
-            if model.isBlocked {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.secondary)
-                    .help("Blocked by an unfinished task")
+                HStack(spacing: 4) {
+                    if model.isDueSoon {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(DesignTokens.Palette.warning)
+                            .help("Due soon: \(dueTime)")
+                            .accessibilityHidden(true)
+                    }
+
+                    Text(dueTime)
+                        .font(.system(size: 10))
+                        .foregroundStyle(
+                            model.isOverdue
+                                ? DesignTokens.Palette.danger
+                                : DesignTokens.Palette.textSecondary
+                        )
+                        .help(model.isOverdue ? "Overdue — was due \(dueTime)" : "Due at \(dueTime)")
+
+                    if model.isBlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(Color.secondary)
+                            .help("Blocked by an unfinished task")
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             ForEach(model.trays.prefix(2)) { tray in
                 Image(systemName: DesignTokens.TrayPalette.iconName)
@@ -201,22 +213,62 @@ public struct TaskRowView: View {
 
             attachmentCluster
 
-            if model.isDueSoon {
-                Image(systemName: "clock.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(DesignTokens.Palette.warning)
-                    .help("Due soon: \(dueTime)")
-                    .accessibilityHidden(true)
-            }
+            VStack(spacing: 0) {
+                Button {
+                    onQuickAction(model.id, .moveUp)
+                } label: {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                        .frame(width: 18, height: 16)
+                }
+                .buttonStyle(.plain)
+                .help("Move up")
+                .accessibilityLabel("Move \(model.title) up")
+                .accessibilityIdentifier("move-up-\(model.title)")
 
-            Text(dueTime)
-                .font(.system(size: 12))
-                .foregroundStyle(
-                    model.isOverdue
-                        ? DesignTokens.Palette.danger
-                        : DesignTokens.Palette.textSecondary
-                )
-                .help(model.isOverdue ? "Overdue — was due \(dueTime)" : "Due at \(dueTime)")
+                Button {
+                    onQuickAction(model.id, .moveDown)
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                        .frame(width: 18, height: 16)
+                }
+                .buttonStyle(.plain)
+                .help("Move down")
+                .accessibilityLabel("Move \(model.title) down")
+                .accessibilityIdentifier("move-down-\(model.title)")
+            }
+            .fixedSize()
+        }
+    }
+
+    @ViewBuilder
+    private var actionMenuContent: some View {
+        Button("Open") { onQuickAction(model.id, .open) }
+        Button("Focus for 25 minutes") { onQuickAction(model.id, .focus) }
+        if !allTrays.isEmpty, let onAddToTray {
+            Menu("Add to tray") {
+                ForEach(allTrays) { tray in
+                    Button(tray.name) {
+                        onAddToTray(model.id, tray.id)
+                    }
+                }
+            }
+        }
+        Divider()
+        Button("Move up") { onQuickAction(model.id, .moveUp) }
+        Button("Move down") { onQuickAction(model.id, .moveDown) }
+        Menu("Priority") {
+            ForEach(Priority.allCases, id: \.self) { priority in
+                Button(priority.label) {
+                    onQuickAction(model.id, .setPriority(priority))
+                }
+            }
+        }
+        Button("Move to tomorrow") {
+            onQuickAction(model.id, .moveToTomorrow)
         }
     }
 
@@ -446,6 +498,45 @@ public struct TaskRowView: View {
         formatter.locale = Locale.current
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
+    }
+
+    private struct TaskRowDropDelegate: DropDelegate {
+        let targetId: UUIDv7
+        let isTargeted: Binding<Bool>
+        let onMove: @Sendable (UUIDv7, UUIDv7, Bool) -> Void
+
+        func validateDrop(info: DropInfo) -> Bool {
+            info.hasItemsConforming(to: [.todayFlowWorkItem])
+        }
+
+        func dropEntered(info: DropInfo) {
+            isTargeted.wrappedValue = true
+        }
+
+        func dropExited(info: DropInfo) {
+            isTargeted.wrappedValue = false
+        }
+
+        func performDrop(info: DropInfo) -> Bool {
+            isTargeted.wrappedValue = false
+            guard let provider = info.itemProviders(for: [.todayFlowWorkItem]).first
+            else { return false }
+
+            let before = info.location.y < DesignTokens.Spacing.rowHeight / 2
+            let target = targetId
+            let move = onMove
+            Task { @MainActor in
+                guard let string = try? await provider.loadItem(
+                    forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
+                    options: nil
+                ) as? String,
+                    let uuid = UUID(uuidString: string),
+                    UUIDv7(uuid) != target
+                else { return }
+                move(UUIDv7(uuid), target, before)
+            }
+            return true
+        }
     }
 
     private func accessibilityLabel(dueTime: String) -> String {

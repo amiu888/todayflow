@@ -42,9 +42,9 @@ public final class GRDBAttachmentRepository: AttachmentRepository, Sendable {
                 sql: """
                     INSERT INTO attachment (
                       id, work_item_id, type, uti, display_name, source_app, reference,
-                      bookmark, local_copy_path, metadata_json, preview_text,
+                      bookmark, local_copy_path, metadata_json, preview_text, note,
                       created_at, updated_at, deleted_at, version
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
                     ON CONFLICT(id) DO UPDATE SET
                       work_item_id = excluded.work_item_id,
                       type = excluded.type,
@@ -56,6 +56,7 @@ public final class GRDBAttachmentRepository: AttachmentRepository, Sendable {
                       local_copy_path = excluded.local_copy_path,
                       metadata_json = excluded.metadata_json,
                       preview_text = excluded.preview_text,
+                      note = excluded.note,
                       deleted_at = NULL,
                       version = excluded.version
                     """,
@@ -71,6 +72,7 @@ public final class GRDBAttachmentRepository: AttachmentRepository, Sendable {
                     attachment.localCopyPath,
                     Json.objectString(attachment.metadata),
                     attachment.previewText,
+                    attachment.note,
                     SqlTimestamp.encode(attachment.createdAt),
                     SqlTimestamp.encode(attachment.createdAt),
                     attachment.version,

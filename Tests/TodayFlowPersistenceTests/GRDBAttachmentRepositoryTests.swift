@@ -88,3 +88,30 @@ struct GRDBAttachmentRepositoryTests {
         #expect(after == "Spec.pdf the spec")
     }
 }
+
+@Test func attachmentNote_roundTripsAndUpdates() async throws {
+    let db = try TestDB.inMemory()
+    let item = WorkItem(title: "Note task")
+    try await db.workItems.save(item)
+
+    var attachment = Attachment(
+        itemId: item.id,
+        kind: .file,
+        displayName: "budget.xlsx",
+        note: "Q4 numbers, final version"
+    )
+    try await db.attachments.save(attachment)
+
+    #expect(
+        await db.attachments.attachments(for: item.id).first?.note
+            == "Q4 numbers, final version"
+    )
+
+    attachment.note = "Updated description"
+    try await db.attachments.save(attachment)
+
+    #expect(
+        await db.attachments.attachments(for: item.id).first?.note
+            == "Updated description"
+    )
+}

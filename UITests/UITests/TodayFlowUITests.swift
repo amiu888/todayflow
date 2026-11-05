@@ -86,6 +86,67 @@ final class TodayFlowUITests: XCTestCase {
         )
     }
 
+    /// Moving a task changes its position in the list.
+    func testContextMenuMoveDownReordersTasks() throws {
+        let app = launchApp()
+        app.activate()
+
+        func create(_ title: String) {
+            app.typeKey("n", modifierFlags: .command)
+            let field = app.textFields["Title"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            app.typeText(title)
+            app.buttons["Add task"].click()
+
+            // Wait for the capture sheet to close before the next interaction.
+            let deadline = Date().addingTimeInterval(5)
+            while field.exists, Date() < deadline {
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            Thread.sleep(forTimeInterval: 0.4)
+
+            XCTAssertTrue(
+                app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label CONTAINS %@", title))
+                    .firstMatch
+                    .waitForExistence(timeout: 8)
+            )
+        }
+
+        create("Move A")
+        create("Move B")
+
+        let rowB = app.descendants(matching: .any)
+            .matching(identifier: "task-row-Move B").firstMatch
+        let rowA = app.descendants(matching: .any)
+            .matching(identifier: "task-row-Move A").firstMatch
+        XCTAssertTrue(rowB.waitForExistence(timeout: 5))
+        XCTAssertTrue(rowA.waitForExistence(timeout: 5))
+
+        // New captures insert on top: B is above A. Move B down.
+        let bAboveA = rowB.frame.minY < rowA.frame.minY
+        app.activate()
+        let moveDown = app.descendants(matching: .any)
+            .matching(identifier: "move-down-Move B").firstMatch
+        XCTAssertTrue(moveDown.waitForExistence(timeout: 3))
+        moveDown.click()
+
+        var movedBelow = false
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            let b = app.descendants(matching: .any)
+                .matching(identifier: "task-row-Move B").firstMatch
+            let a = app.descendants(matching: .any)
+                .matching(identifier: "task-row-Move A").firstMatch
+            if b.exists, a.exists, b.frame.minY > a.frame.minY {
+                movedBelow = true
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTAssertTrue(bAboveA && movedBelow, "Move down did not change the list order")
+    }
+
     /// A single click on a task opens its detail window.
     func testClickingTaskOpensDetailWindow() throws {
         let app = launchApp()
@@ -98,11 +159,10 @@ final class TodayFlowUITests: XCTestCase {
 
         app.buttons["Add task"].click()
 
-        let row = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS 'Detail test task'")
-        ).firstMatch
+        let row = app.descendants(matching: .any)
+            .matching(identifier: "task-row-Detail test task").firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 8))
-        row.click()
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.4)).click()
 
         XCTAssertTrue(
             app.windows["Task"].waitForExistence(timeout: 5),

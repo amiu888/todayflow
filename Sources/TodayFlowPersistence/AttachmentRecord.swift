@@ -48,6 +48,7 @@ struct AttachmentRecord {
             localCopyPath: row["local_copy_path"] as String?,
             metadata: Json.object(from: row["metadata_json"] as String),
             previewText: row["preview_text"] as String?,
+            note: row["note"] as String?,
             createdAt: SqlTimestamp.decode(row["created_at"] as String) ?? .distantPast,
             version: row["version"] as Int,
             deviceId: "local"

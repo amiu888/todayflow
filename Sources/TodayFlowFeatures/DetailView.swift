@@ -625,30 +625,37 @@ public struct DetailView: View {
                 .font(.headline)
 
             ForEach(model.attachments) { attachment in
-                HStack(spacing: 8) {
-                    AttachmentIconView(attachment: attachment, size: 14)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        AttachmentIconView(attachment: attachment, size: 14)
 
-                    Text(attachment.displayName)
-                        .lineLimit(1)
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) {
-                            onOpenAttachment?(attachment)
+                        Text(attachment.displayName)
+                            .lineLimit(1)
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) {
+                                onOpenAttachment?(attachment)
+                            }
+                            .help(openTooltip(attachment))
+
+                        Spacer()
+
+                        Button {
+                            Task { await model.removeAttachment(attachment.id) }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
                         }
-                        .help(openTooltip(attachment))
-
-                    Spacer()
-
-                    Button {
-                        Task { await model.removeAttachment(attachment.id) }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
+                        .help("Remove attachment")
+                        .disabled(model.isSaving)
                     }
-                    .buttonStyle(.plain)
-                    .help("Remove attachment")
-                    .disabled(model.isSaving)
+
+                    AttachmentNoteField(attachment: attachment) { note in
+                        Task { await model.updateAttachmentNote(attachment.id, note: note) }
+                    }
+                    .padding(.leading, 22)
                 }
-                .frame(height: DesignTokens.Spacing.rowHeight)
+                .padding(.vertical, 4)
                 .contextMenu {
                     Button("Open") { onOpenAttachment?(attachment) }
                     Button("Open With…") { onOpenAttachmentWith?(attachment) }
@@ -913,6 +920,33 @@ public struct DetailView: View {
 }
 
 // MARK: - Preview
+
+private struct AttachmentNoteField: View {
+    let attachment: Attachment
+    let onCommit: (String) -> Void
+
+    @State private var text: String
+    @FocusState private var focused: Bool
+
+    init(attachment: Attachment, onCommit: @escaping (String) -> Void) {
+        self.attachment = attachment
+        self.onCommit = onCommit
+        _text = State(initialValue: attachment.note ?? "")
+    }
+
+    var body: some View {
+        TextField("Add a description for this attachment", text: $text)
+            .textFieldStyle(.plain)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .focused($focused)
+            .onSubmit { onCommit(text) }
+            .onChange(of: focused) { wasFocused, isFocused in
+                if wasFocused && !isFocused { onCommit(text) }
+            }
+            .help("A note about this attached object")
+    }
+}
 
 private struct DetailPreviewHost: View {
     @State private var model: DetailViewModel?

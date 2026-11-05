@@ -378,7 +378,27 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                     self?.handleDrop(providers, onto: itemId) ?? false
                 },
                 onOpenUpcoming: { [weak self] in self?.show(.upcoming) },
-                onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() }
+                onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() },
+                windowActions: WindowMenuActions(
+                    toggleDocking: { [weak self] in
+                        self?.docking.isEnabled.toggle()
+                    },
+                    toggleAllDesktops: { [weak self] in
+                        self?.showOnAllDesktops.toggle()
+                    },
+                    toggleMiniCalendar: { [weak self] in
+                        self?.toggleMiniCalendar()
+                    },
+                    showMiniDay: { [weak self] in
+                        self?.showMiniCalendar(mode: .day)
+                    },
+                    showMiniWeek: { [weak self] in
+                        self?.showMiniCalendar(mode: .week)
+                    },
+                    pinMiniCalendar: { [weak self] corner in
+                        self?.pinMiniCalendar(to: corner)
+                    }
+                )
             )
         case .hierarchy:
             HierarchyView(

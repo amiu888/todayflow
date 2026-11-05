@@ -574,3 +574,25 @@ func setAndClearReminder_updatesStorage() async {
     #expect(f.vm.reminder == nil)
     #expect(await f.reminderRepository.reminder(for: item.id, kind: .task) == nil)
 }
+
+// MARK: - Attachment descriptions
+
+@Test @MainActor
+func updateAttachmentNote_persistsTheDescription() async {
+    let item = WorkItem(title: "Ship", startAt: date(2026, 11, 3, hour: 9), endAt: date(2026, 11, 3, hour: 17))
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    let attachment = TodayFlowCore.Attachment(
+        itemId: item.id,
+        kind: .file,
+        displayName: "budget.xlsx"
+    )
+    await f.attachmentRepository.seed(attachment)
+    await f.vm.load()
+
+    await f.vm.updateAttachmentNote(attachment.id, note: "Q4 numbers")
+
+    let stored = await f.attachmentRepository.attachments(for: item.id)
+    #expect(stored.first?.note == "Q4 numbers")
+    #expect(f.vm.attachments.first?.note == "Q4 numbers")
+}
