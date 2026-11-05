@@ -162,7 +162,7 @@ public struct TaskRowView: View {
             priorityPill
             titleBlock(dueTime: dueTime, compact: false)
             trayBadges
-            attachmentCluster
+            attachmentCluster()
             moveControls
         }
     }
@@ -210,12 +210,28 @@ public struct TaskRowView: View {
                 .foregroundStyle(model.isDone ? Color.secondary : Color.primary)
                 .accessibilityLabel(accessibilityLabel(dueTime: dueTime))
                 .help(model.descriptionPreview ?? "Open “\(model.title)”")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay {
+                    // Cover the title line only: the compact metadata row
+                    // below must receive its own clicks for move buttons,
+                    // tray badges, and attachment hover.
+                    TaskDragSource(
+                        itemId: model.id,
+                        title: model.title,
+                        tooltip: model.descriptionPreview ?? "Open “\(model.title)”",
+                        onClick: {
+                            onSelect(model.id)
+                            onQuickAction(model.id, .open)
+                        },
+                        menuActions: dragMenuActions
+                    )
+                }
 
             if compact {
                 HStack(spacing: 4) {
                     dueLine(dueTime)
                     trayBadges
-                    attachmentCluster
+                    attachmentCluster(limit: 2)
                     Spacer(minLength: 0)
                     compactMoveControls
                 }
@@ -225,18 +241,6 @@ public struct TaskRowView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .layoutPriority(1)
-        .overlay {
-            TaskDragSource(
-                itemId: model.id,
-                title: model.title,
-                tooltip: model.descriptionPreview ?? "Open “\(model.title)”",
-                onClick: {
-                    onSelect(model.id)
-                    onQuickAction(model.id, .open)
-                },
-                menuActions: dragMenuActions
-            )
-        }
     }
 
     @MainActor
@@ -382,10 +386,10 @@ public struct TaskRowView: View {
     }
 
     @MainActor
-    private var attachmentCluster: some View {
+    private func attachmentCluster(limit: Int = 3) -> some View {
         let scheme = colorScheme
-        let hints = Array(model.attachments.prefix(3))
-        let extra = model.attachmentCount - 3
+        let hints = Array(model.attachments.prefix(limit))
+        let extra = model.attachmentCount - limit
 
         return HStack(spacing: 4) {
             ForEach(hints, id: \.self) { hint in
