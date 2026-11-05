@@ -104,20 +104,7 @@ public struct TrayStripView: View {
     private func trayCard(_ column: TodayViewModel.TrayColumn) -> some View {
         let tint = trayColor(column.tray)
 
-        return TrayDropArea(
-            onTargeted: { targeted in
-                if targeted {
-                    dropTargetID = column.tray.id
-                } else if dropTargetID == column.tray.id {
-                    dropTargetID = nil
-                }
-            },
-            onDrop: { payloads in
-                apply(payloads, into: column.tray.id)
-                return true
-            }
-        ) {
-            VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 Image(systemName: DesignTokens.TrayPalette.iconName)
                     .font(.system(size: 10, weight: .semibold))
@@ -216,6 +203,9 @@ public struct TrayStripView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .frame(maxHeight: 112)
+                .onDrop(of: [.todayFlowWorkItem], isTargeted: nil) { providers in
+                    drop(providers, into: column.tray.id)
+                }
             }
         }
         .padding(8)
@@ -244,8 +234,23 @@ public struct TrayStripView: View {
                     lineWidth: 2
                 )
         )
-            }
+        .contentShape(Rectangle())
+        .onDrop(
+            of: [.todayFlowWorkItem],
+            isTargeted: Binding(
+                get: { dropTargetID == column.tray.id },
+                set: { targeted in
+                    if targeted {
+                        dropTargetID = column.tray.id
+                    } else if dropTargetID == column.tray.id {
+                        dropTargetID = nil
+                    }
+                }
+            )
+        ) { providers in
+            drop(providers, into: column.tray.id)
         }
+    }
 
     @MainActor
     private func chip(_ item: WorkItem, trayId: UUIDv7) -> some View {
@@ -313,6 +318,40 @@ public struct TrayStripView: View {
         .onDrag {
             WorkItemDragPayload.itemProvider(for: item.id, sourceTray: trayId)
         }
+        .onDrop(of: [.todayFlowWorkItem], isTargeted: nil) { providers in
+            drop(providers, into: trayId)
+        }
+    }
+
+    /// Reads the drag pasteboard synchronously; the AppKit source writes the
+    /// payload eagerly, so this no longer depends on a provider staying alive.
+    @MainActor
+    private func drop(_ providers: [NSItemProvider], into trayId: UUIDv7) -> Bool {
+        let snapshotted = WorkItemDragPayload.loadFromDragPasteboard()
+        Diagnostics.log(
+            "tray",
+            "drop tray=\(trayId) providers=\(providers.count) snapshot=\(snapshotted.count)"
+        )
+        if !snapshotted.isEmpty {
+            apply(snapshotted, into: trayId)
+            return true
+        }
+
+        guard !providers.isEmpty else { return false }
+        for provider in providers {
+            provider.loadItem(
+                forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
+                options: nil
+            ) { item, _ in
+                guard let payload = WorkItemDragPayload.payload(from: item) else {
+                    return
+                }
+                Task { @MainActor in
+                    apply([payload], into: trayId)
+                }
+            }
+        }
+        return true
     }
 
     @MainActor

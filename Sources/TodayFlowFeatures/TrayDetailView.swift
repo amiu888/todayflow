@@ -20,29 +20,27 @@ public struct TrayDetailView: View {
 
     @MainActor
     public var body: some View {
-        TrayDropArea(
-            onTargeted: { isDropTargeted = $0 },
-            onDrop: { payloads in
-                apply(payloads)
-                return true
+        VStack(spacing: 0) {
+            header
+            Divider()
+            content
+        }
+        .frame(minWidth: 380, minHeight: 420)
+        .background(DesignTokens.Palette.background)
+        .overlay(alignment: .top) { WindowDragGrabber() }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(DesignTokens.Palette.accent, lineWidth: 2)
+                    .padding(4)
+                    .allowsHitTesting(false)
             }
-        ) {
-            VStack(spacing: 0) {
-                header
-                Divider()
-                content
-            }
-            .frame(minWidth: 380, minHeight: 420)
-            .background(DesignTokens.Palette.background)
-            .overlay(alignment: .top) { WindowDragGrabber() }
-            .overlay {
-                if isDropTargeted {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(DesignTokens.Palette.accent, lineWidth: 2)
-                        .padding(4)
-                        .allowsHitTesting(false)
-                }
-            }
+        }
+        .onDrop(
+            of: [.todayFlowWorkItem],
+            isTargeted: $isDropTargeted
+        ) { providers in
+            drop(providers)
         }
         .tint(DesignTokens.Palette.accent)
     }
@@ -262,6 +260,35 @@ public struct TrayDetailView: View {
                 Task { await model.removeFromTray(item.id, trayId: trayId) }
             }
         }
+    }
+
+    @MainActor
+    private func drop(_ providers: [NSItemProvider]) -> Bool {
+        let snapshotted = WorkItemDragPayload.loadFromDragPasteboard()
+        Diagnostics.log(
+            "tray",
+            "window drop tray=\(trayId) providers=\(providers.count) snapshot=\(snapshotted.count)"
+        )
+        if !snapshotted.isEmpty {
+            apply(snapshotted)
+            return true
+        }
+
+        guard !providers.isEmpty else { return false }
+        for provider in providers {
+            provider.loadItem(
+                forTypeIdentifier: UTType.todayFlowWorkItem.identifier,
+                options: nil
+            ) { item, _ in
+                guard let payload = WorkItemDragPayload.payload(from: item) else {
+                    return
+                }
+                Task { @MainActor in
+                    apply([payload])
+                }
+            }
+        }
+        return true
     }
 
     @MainActor
