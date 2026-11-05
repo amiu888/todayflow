@@ -465,6 +465,24 @@ final class TodayFlowUITests: XCTestCase {
         )
     }
 
+
+    /// The detail window exposes the editable task summary field.
+    func testTaskDetailShowsSummaryField() throws {
+        let app = launchApp()
+        let title = "Summary field \(UUID().uuidString.prefix(5))"
+        let row = createTask(app, title)
+        row.click()
+
+        let window = app.windows["Task"]
+        XCTAssertTrue(window.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            window.descendants(matching: .any)
+                .matching(identifier: "task-summary").firstMatch
+                .waitForExistence(timeout: 5),
+            "The summary field is missing"
+        )
+    }
+
     /// The AppKit drag area must have a real size; a 0×0 area was why drags
     /// never started in 1.3.0–1.3.3.
     func testTaskDragAreaIsHittable() throws {
