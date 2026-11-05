@@ -428,3 +428,47 @@ func messageLinkKeepsText() {
     #expect(recognized.previewText?.contains("vendor") == false)
     #expect(recognized.previewText?.contains("Q3 budget") == true)
 }
+
+@Suite("TeamsMessageRecognizer parsing")
+struct TeamsMessageParsingTests {
+    @Test func parsesSenderTimeAndMessage() {
+        let object = DroppedObject(
+            text: "Microsoft Teams\nJane Doe\n10:30 AM\nCan you review the deck?",
+            sourceApp: "com.microsoft.teams2"
+        )
+        let recognized = TeamsMessageRecognizer().recognize(object)
+
+        #expect(recognized.type == .teamsMessage)
+        #expect(recognized.suggestedTitle == "Can you review the deck?")
+        #expect(recognized.metadata[MetadataKeys.sender] == "Jane Doe")
+        #expect(recognized.previewText == "Can you review the deck?")
+    }
+
+    @Test func titleCaseFirstLineBecomesSender() {
+        let object = DroppedObject(
+            text: "Jane Doe\nCan you review the deck?",
+            sourceApp: "com.apple.Safari"
+        )
+        let recognized = TeamsMessageRecognizer().recognize(object)
+
+        #expect(recognized.suggestedTitle == "Can you review the deck?")
+        #expect(recognized.metadata[MetadataKeys.sender] == "Jane Doe")
+    }
+
+    @Test func keepsOrdinaryFirstLineAsTitle() {
+        let object = DroppedObject(
+            text: "Deploy finished\nsecond line",
+            sourceApp: "com.microsoft.teams"
+        )
+        let recognized = TeamsMessageRecognizer().recognize(object)
+        #expect(recognized.suggestedTitle == "Deploy finished")
+    }
+
+    @Test func detectsTeamsContentWithoutASourceApp() {
+        let text = "Microsoft Teams\nhttps://teams.microsoft.com/l/message/1"
+        let object = DroppedObject(text: text)
+        #expect(TeamsMessageRecognizer().canHandle(object))
+        let recognized = TeamsMessageRecognizer().recognize(object)
+        #expect(recognized.metadata[MetadataKeys.link] == "https://teams.microsoft.com/l/message/1")
+    }
+}

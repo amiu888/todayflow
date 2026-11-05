@@ -100,3 +100,48 @@ struct DroppedObjectLoaderTests {
     }
 }
 #endif
+
+@Suite("DroppedObjectLoader rich text")
+@MainActor
+struct DroppedObjectLoaderRichTextTests {
+    @Test func providerHTML_loadsPlainText() async {
+        let html = "<html><body><p>Hello <b>team</b></p></body></html>"
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.html.identifier,
+            visibility: .all
+        ) { completion in
+            completion(Data(html.utf8), nil)
+            return nil
+        }
+
+        let objects = await DroppedObjectLoader().load(from: [provider])
+
+        #expect(objects.count == 1)
+        #expect(objects.first?.text?.contains("Hello") == true)
+        #expect(objects.first?.text?.contains("team") == true)
+    }
+
+    @Test func pasteboardHTML_readsTeamsChat() {
+        let pasteboard = NSPasteboard(
+            name: NSPasteboard.Name("TodayFlowTeams-\(UUID().uuidString)")
+        )
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setData(
+            Data("<html><body>Review the deck</body></html>".utf8),
+            forType: .html
+        )
+        item.setData(
+            Data(),
+            forType: NSPasteboard.PasteboardType("com.microsoft.teams2.message")
+        )
+        pasteboard.writeObjects([item])
+
+        #expect(DroppedObjectLoader.canRead(pasteboard))
+        let objects = DroppedObjectLoader.objects(from: pasteboard)
+        #expect(objects.count == 1)
+        #expect(objects.first?.text?.contains("Review the deck") == true)
+        #expect(objects.first?.sourceApp == "teams")
+    }
+}

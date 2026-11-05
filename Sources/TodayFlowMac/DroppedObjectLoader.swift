@@ -36,7 +36,9 @@ public struct DroppedObjectLoader {
     /// images over text. That keeps a file dragged from Finder a file (rather
     /// than its filename string) while still accepting a plain-text drag.
     public func load(_ provider: NSItemProvider) async -> DroppedObject? {
-        let sourceApp = Self.externalSourceApp()
+        let sourceApp = Self.sourceAppHint(
+            from: provider.registeredTypeIdentifiers
+        ) ?? Self.externalSourceApp()
         if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
            let url = await loadURL(provider, type: .fileURL),
            url.isFileURL
@@ -83,11 +85,85 @@ public struct DroppedObjectLoader {
             return DroppedObject(imageData: data, sourceApp: sourceApp, uti: type)
         }
 
+        // Teams and other rich clients may only put HTML/RTF on the
+        // pasteboard. Prefer rich text when the source app is Teams; plain
+        // text is cleaner for every other source.
+        if let sourceApp, sourceApp.localizedCaseInsensitiveContains("teams"),
+           let (text, type) = await loadRichText(provider)
+        {
+            return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
+        }
         if let (text, type) = await loadText(provider) {
+            return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
+        }
+        if let (text, type) = await loadRichText(provider) {
             return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
         }
 
         return nil
+    }
+
+    /// HTML/RTF from a provider, converted to readable plain text.
+    private func loadRichText(_ provider: NSItemProvider) async -> (String, UTType)? {
+        for type in [UTType.html, .rtf] {
+            guard provider.hasItemConformingToTypeIdentifier(type.identifier) else {
+                continue
+            }
+            if let data = await loadData(provider, type: type),
+               let text = Self.plainText(from: data, type: type)
+            {
+                return (text, type)
+            }
+            let object: String? = await withCheckedContinuation { continuation in
+                provider.loadItem(forTypeIdentifier: type.identifier, options: nil) { item, _ in
+                    if let string = item as? String {
+                        continuation.resume(returning: string)
+                    } else if let string = item as? NSString {
+                        continuation.resume(returning: string as String)
+                    } else if let attributed = item as? NSAttributedString {
+                        continuation.resume(returning: attributed.string)
+                    } else if let data = item as? Data {
+                        continuation.resume(returning: Self.plainText(from: data, type: type))
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                }
+            }
+            if let object, !object.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return (object, type)
+            }
+        }
+        return nil
+    }
+
+    /// Converts an HTML or RTF payload to plain text without WebKit.
+    nonisolated static func plainText(from data: Data, type: UTType) -> String? {
+        var text: String?
+        if type.conforms(to: .rtf) {
+            text = NSAttributedString(rtf: data, documentAttributes: nil)?.string
+        } else if type.conforms(to: .html) {
+            if let attributed = try? NSAttributedString(
+                data: data,
+                options: [
+                    .documentType: NSAttributedString.DocumentType.html,
+                    .characterEncoding: String.Encoding.utf8.rawValue,
+                ],
+                documentAttributes: nil
+            ) {
+                text = attributed.string
+            } else if let html = String(data: data, encoding: .utf8) {
+                text = html.replacingOccurrences(
+                    of: "<[^>]+>",
+                    with: " ",
+                    options: .regularExpression
+                )
+            }
+        }
+        guard let text else { return nil }
+        let cleaned = text
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
     }
 
     /// Text providers may vend a `String`/`NSString` object rather than a data
@@ -173,6 +249,17 @@ public struct DroppedObjectLoader {
         return nil
     }
 
+    /// A source hint encoded in custom pasteboard types. Teams, Outlook, and
+    /// Mail may be the frontmost app only until the drop lands, so the custom
+    /// type is a more reliable attribution.
+    nonisolated static func sourceAppHint(from identifiers: [String]) -> String? {
+        let joined = identifiers.joined(separator: " ").lowercased()
+        if joined.contains("teams") { return "teams" }
+        if joined.contains("outlook") { return "outlook" }
+        if joined.contains("mail") { return "com.apple.mail" }
+        return nil
+    }
+
     /// The app the user dragged from. Returns nil when TodayFlow itself is
     /// frontmost (for example ⌘V paste), so the log never claims TodayFlow
     /// supplied its own clipboard content.
@@ -235,7 +322,7 @@ public struct DroppedObjectLoader {
     /// The pasteboard types the app accepts. `NSPasteboard.PasteboardType` is
     /// string-backed, so this list can be registered with a view directly.
     public static let pasteboardTypes: [NSPasteboard.PasteboardType] = [
-        .fileURL, .URL, .tiff, .png, .string,
+        .fileURL, .URL, .tiff, .png, .string, .html, .rtf,
     ]
 
     /// True when a drag contains something the app can turn into an object.
@@ -255,7 +342,9 @@ public struct DroppedObjectLoader {
     /// or dragged. Files win over images and text within one item.
     public static func objects(from pasteboard: NSPasteboard) -> [DroppedObject] {
         guard let items = pasteboard.pasteboardItems else { return [] }
-        let sourceApp = externalSourceApp()
+        let sourceApp = sourceAppHint(
+            from: (pasteboard.types ?? []).map(\.rawValue)
+        ) ?? externalSourceApp()
         return items.compactMap { item in
             if let string = item.string(forType: .fileURL),
                let url = URL(string: string),
@@ -278,6 +367,15 @@ public struct DroppedObjectLoader {
             }
             if let data = item.data(forType: .tiff) ?? item.data(forType: .png) {
                 return DroppedObject(imageData: data, sourceApp: sourceApp, uti: .image)
+            }
+            // Rich text (Teams chat cards, Outlook/Mail messages) before the
+            // generic plain-text fallback.
+            for type in [UTType.html, .rtf] {
+                if let data = item.data(
+                    forType: NSPasteboard.PasteboardType(type.identifier)
+                ), let text = plainText(from: data, type: type) {
+                    return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
+                }
             }
             if let text = item.string(forType: .string) {
                 return DroppedObject(text: text, sourceApp: sourceApp, uti: .plainText)
