@@ -156,3 +156,80 @@ struct TodaySummaryModelTests {
         #expect(refreshCount >= 2)
     }
 }
+
+// MARK: - End-of-day review trigger (FR-43)
+
+@MainActor
+private func summaryModel(
+    at hour: Int,
+    minute: Int = 0,
+    tasks: [WorkItem]
+) async -> (TodaySummaryModel, InMemoryWorkItemRepository) {
+    let repository = InMemoryWorkItemRepository()
+    for task in tasks { await repository.seed(task) }
+    let calendar = WorkCalendar(
+        startHour: 9,
+        endHour: 17,
+        workWeekdays: [2, 3, 4, 5, 6],
+        calendar: testCalendar
+    )
+    let now = testCalendar.date(
+        from: DateComponents(year: 2026, month: 11, day: 4, hour: hour, minute: minute)
+    )!
+    return (
+        TodaySummaryModel(repository: repository, calendar: calendar, clock: { now }),
+        repository
+    )
+}
+
+private func summaryTask(_ title: String, status: Status = .todo) -> WorkItem {
+    WorkItem(
+        title: title,
+        status: status,
+        startAt: testCalendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 4, hour: 9)
+        )!,
+        endAt: testCalendar.date(
+            from: DateComponents(year: 2026, month: 11, day: 4, hour: 17)
+        )!,
+        displayOrder: "a1"
+    )
+}
+
+@Test @MainActor
+func endOfDayReview_firesOnceAfterBusinessWithOpenTasks() async {
+    let (model, _) = await summaryModel(at: 17, minute: 30, tasks: [summaryTask("Open")])
+    var count = 0
+    model.onEndOfDay = { count += 1 }
+
+    await model.refresh()
+    await model.refresh()
+
+    #expect(count == 1)
+}
+
+@Test @MainActor
+func endOfDayReview_doesNotFireBeforeBusinessEnds() async {
+    let (model, _) = await summaryModel(at: 16, minute: 30, tasks: [summaryTask("Open")])
+    var count = 0
+    model.onEndOfDay = { count += 1 }
+
+    await model.refresh()
+
+    #expect(count == 0)
+}
+
+@Test @MainActor
+func endOfDayReview_doesNotFireWhenDayIsCleared() async {
+    let (model, _) = await summaryModel(
+        at: 17,
+        minute: 30,
+        tasks: [summaryTask("Done", status: .done)]
+    )
+    var count = 0
+    model.onEndOfDay = { count += 1 }
+
+    await model.refresh()
+
+    #expect(count == 0)
+}

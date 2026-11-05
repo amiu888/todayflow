@@ -16,6 +16,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     public private(set) var hotKey: GlobalHotKey?
     /// Nudges and task reminders (FR-42/FR-44).
     public private(set) var notifications: NotificationController?
+    /// The automatic end-of-day review (FR-43).
+    public private(set) var endOfDayReview: EndOfDayReviewController?
 
     public override init() {}
 
@@ -31,11 +33,14 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             let windowManager = WindowManager(environment: environment)
             windowManager.summary = summary
             self.windows = windowManager
+            let review = EndOfDayReviewController(environment: environment)
+            self.endOfDayReview = review
             let controller = StatusItemController(
                 environment: environment,
                 windowManager: windowManager,
                 summary: summary
             )
+            controller.onEndOfDayReview = { [weak review] in review?.present() }
             self.statusItem = controller
             summary.onRefreshed = { [weak controller, weak self] progress in
                 controller?.apply(progress: progress)
@@ -43,6 +48,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
                     await self?.notifications?.refresh()
                 }
             }
+            summary.onEndOfDay = { [weak review] in review?.present() }
             let hotKey = GlobalHotKey { [weak windowManager] in
                 windowManager?.showCapture()
             }

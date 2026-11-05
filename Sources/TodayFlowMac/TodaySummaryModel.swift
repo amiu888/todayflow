@@ -15,10 +15,15 @@ public final class TodaySummaryModel {
     /// it to the status item, which cannot observe SwiftUI state).
     @ObservationIgnored public var onRefreshed: ((TodayQuery.Progress) -> Void)?
 
+    /// Fires once per day when end of business passes with tasks still open
+    /// (driver.md FR-43). The delegate presents the review sheet.
+    @ObservationIgnored public var onEndOfDay: (() -> Void)?
+
     @ObservationIgnored private let repository: any WorkItemRepository
     @ObservationIgnored private var calendar: WorkCalendar
     @ObservationIgnored private let clock: @Sendable () -> Date
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    @ObservationIgnored private var lastEndOfDayReviewDay: Date?
 
     public init(
         repository: any WorkItemRepository,
@@ -46,6 +51,18 @@ public final class TodaySummaryModel {
             .execute(on: day, at: now)
         progress = result.progress
         nextTitle = result.all.first?.title
+
+        let isWorkday = calendar.isWorkingDay(now)
+        let endOfBusiness = calendar.endOfBusiness(for: now)
+        if isWorkday,
+           now >= endOfBusiness,
+           result.progress.remaining > 0,
+           lastEndOfDayReviewDay != day
+        {
+            lastEndOfDayReviewDay = day
+            onEndOfDay?()
+        }
+
         onRefreshed?(progress)
     }
 

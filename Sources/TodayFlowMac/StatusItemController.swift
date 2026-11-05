@@ -17,6 +17,9 @@ public final class StatusItemController: NSObject {
     private let windowManager: WindowManager
     private let summary: TodaySummaryModel
 
+    /// Presents the end-of-day review (FR-43); assigned by the app delegate.
+    public var onEndOfDayReview: (() -> Void)?
+
     public init(
         environment: AppEnvironment,
         windowManager: WindowManager,
@@ -126,6 +129,7 @@ public final class StatusItemController: NSObject {
         menu.addItem(item("New Task…", #selector(newTask)))
         menu.addItem(.separator())
         menu.addItem(item("Open Today", #selector(openPanel)))
+        menu.addItem(item("End-of-day review…", #selector(openEndOfDayReview)))
         menu.addItem(item("Slim bar", #selector(toggleSlimBar)))
         menu.addItem(item("Hierarchy", #selector(openHierarchy)))
         menu.addItem(item("Settings", #selector(openSettings)))
@@ -143,6 +147,8 @@ public final class StatusItemController: NSObject {
     @objc private func newTask() { windowManager.showCapture() }
 
     @objc private func openPanel() { windowManager.show(.panel) }
+
+    @objc private func openEndOfDayReview() { onEndOfDayReview?() }
 
     @objc private func toggleSlimBar() {
         if windowManager.isOpen(.slimBar) {
