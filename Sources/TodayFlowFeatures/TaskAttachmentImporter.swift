@@ -78,4 +78,8 @@ public struct TaskAttachmentImporter: Sendable {
 public enum TodayFlowEvents {
     /// An attachment was added to an existing task (FR-04).
     public static let attachmentsChanged = Notification.Name("TodayFlow.attachmentsChanged")
+    /// A task was created/updated outside the Today list's own actions.
+    public static let itemsChanged = Notification.Name("TodayFlow.itemsChanged")
+    /// A capture finished; `userInfo["message"]` is shown as a confirmation.
+    public static let captureSaved = Notification.Name("TodayFlow.captureSaved")
 }

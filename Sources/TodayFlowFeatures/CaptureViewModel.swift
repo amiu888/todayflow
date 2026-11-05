@@ -211,6 +211,11 @@ public final class CaptureViewModel {
         guard !isSaving else { return }
         isSaving = true
         lastError = nil
+        Diagnostics.log(
+            "capture",
+            "save start title=“\(draft.title)” objects=\(draft.objects.count) "
+                + "dropped=\(droppedObjects.count) split=\(splitsIntoTasks)"
+        )
         defer { isSaving = false }
 
         let now = clock()
@@ -272,8 +277,10 @@ public final class CaptureViewModel {
                 savedAttachmentCount += 1
             }
 
+            Diagnostics.log("capture", "save ok item=\(item.id) title=“\(item.title)”")
             onSaved?(item.id)
         } catch {
+            Diagnostics.log("capture", "save FAILED: \(error)")
             lastError = error.localizedDescription
         }
     }

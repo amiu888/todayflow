@@ -159,6 +159,7 @@ public final class TodayViewModel {
 
         self.result = r
         self.links = allLinks
+        Diagnostics.log("today", "load open=\(r.all.count) done=\(r.doneToday.count) filter=\(filter.rawValue)")
         self.allItemsById = Dictionary(uniqueKeysWithValues: allItems.map { ($0.id, $0) })
         self.projects = allItems
             .filter { $0.kind == .project && !$0.isDeleted }

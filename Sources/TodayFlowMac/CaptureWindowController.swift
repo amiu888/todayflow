@@ -18,6 +18,9 @@ public final class CaptureWindowController {
     private let environment: AppEnvironment
     private var panel: PanelWindow?
     private var currentModel: CaptureViewModel?
+    /// Called after a successful save, after the sheet closes (the host uses
+    /// it to force the Today list to refresh and come forward).
+    public var onSaved: (@MainActor (UUIDv7) -> Void)?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -55,6 +58,11 @@ public final class CaptureWindowController {
         NSApp.activate(ignoringOtherApps: true)
         panel.center()
         panel.makeKeyAndOrderFront(nil)
+        Diagnostics.log(
+            "capture",
+            "panel visible=\(panel.isVisible) key=\(panel.isKeyWindow) "
+                + "frame=\(NSStringFromRect(panel.frame)) objects=\(recognized.count)"
+        )
 
         guard !recognized.isEmpty else { return }
         Task { @MainActor [weak self] in
@@ -88,7 +96,10 @@ public final class CaptureWindowController {
             materializer: environment.materializer,
             calendar: environment.workCalendar,
             deviceId: "local",
-            onSaved: { [weak self] _ in self?.dismiss() },
+            onSaved: { [weak self] id in
+                self?.dismiss()
+                self?.onSaved?(id)
+            },
             onCancel: { [weak self] in self?.dismiss() }
         )
     }

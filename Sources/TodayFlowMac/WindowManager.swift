@@ -26,6 +26,25 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         self.environment = environment
         self.capture = CaptureWindowController(environment: environment)
         super.init()
+        self.capture.onSaved = { [weak self] id in
+            guard let self else { return }
+            NotificationCenter.default.post(name: TodayFlowEvents.itemsChanged, object: nil)
+            self.show(.panel)
+
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let item = await self.environment.workItems.item(id)
+                let message = self.captureConfirmation(for: item)
+                // Let the Today view's notification subscription attach when
+                // the panel was closed and has just been recreated.
+                try? await Task.sleep(for: .milliseconds(150))
+                NotificationCenter.default.post(
+                    name: TodayFlowEvents.captureSaved,
+                    object: nil,
+                    userInfo: ["message": message]
+                )
+            }
+        }
     }
 
     /// Opens an empty quick-add capture panel (FR-05 hotkey).
@@ -81,8 +100,10 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 return
             }
             if let itemId {
+                DropDiagnostics.log("drop route=attach item=\(itemId) objects=\(objects.count)")
                 await self.attach(objects, to: itemId)
             } else {
+                DropDiagnostics.log("drop route=capture objects=\(objects.count)")
                 self.showCapture(dropped: objects, splitIntoTasks: splitIntoTasks)
             }
         }
@@ -106,6 +127,24 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         do {
             try await importer.add(recognized, from: objects, to: itemId)
             NotificationCenter.default.post(name: TodayFlowEvents.attachmentsChanged, object: nil)
+
+            // A drop on a row attaches to that task instead of creating one;
+            // say so, otherwise it looks like nothing happened.
+            let taskTitle = await environment.workItems.item(itemId)?.title ?? "task"
+            let message: String
+            if objects.count == 1 {
+                message = "Attached “\(recognized[0].displayName)” to “\(taskTitle)”."
+            } else {
+                message = "Attached \(objects.count) items to “\(taskTitle)”."
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                NotificationCenter.default.post(
+                    name: TodayFlowEvents.captureSaved,
+                    object: nil,
+                    userInfo: ["message": message]
+                )
+            }
         } catch {
             presentAttachmentError(error)
         }
@@ -213,6 +252,25 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         window.contentView = NSHostingView(rootView: content(for: kind))
         window.isReleasedWhenClosed = false
         return window
+    }
+
+    /// A save confirmation that explains where the task actually landed.
+    /// After business hours the capture's due date is the next working day,
+    /// which is not on Today's list.
+    private func captureConfirmation(for item: WorkItem?) -> String {
+        guard let item else { return "Task saved." }
+        let now = Date.now
+        let eob = environment.workCalendar.endOfBusiness(for: now)
+        let isToday = item.startAt <= eob
+            && environment.workCalendar.calendar.isDate(item.startAt, inSameDayAs: now)
+
+        if isToday {
+            return "Added “\(item.title)” to Today."
+        }
+        let day = item.endAt.formatted(
+            .dateTime.weekday(.wide).month(.abbreviated).day()
+        )
+        return "Added “\(item.title)” for \(day) — find it in Upcoming."
     }
 
     /// Assigns the optional breakdown assistant once Settings/Keychain resolve.

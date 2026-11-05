@@ -27,6 +27,8 @@ public struct TodayView: View {
     @State private var dropTargetId: UUIDv7?
     @State private var showsUndoBar = false
     @State private var undoBarTask: Task<Void, Never>?
+    @State private var captureConfirmation: String?
+    @State private var captureToastTask: Task<Void, Never>?
 
     public init(model: TodayViewModel) {
         self.model = model
@@ -139,6 +141,15 @@ public struct TodayView: View {
                 await model.load()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
+            Task { @MainActor in
+                await model.load()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.captureSaved)) { note in
+            guard let message = note.userInfo?["message"] as? String else { return }
+            showCaptureConfirmation(message)
+        }
         .onChange(of: model.completionUndo) { _, undo in
             undoBarTask?.cancel()
             guard let undo else {
@@ -153,7 +164,59 @@ public struct TodayView: View {
             }
         }
         .overlay(alignment: .bottom) { undoBar }
+        .overlay(alignment: .top) { captureToast }
         .task { await model.observe() }
+    }
+
+    @MainActor
+    private func showCaptureConfirmation(_ message: String) {
+        captureConfirmation = message
+        captureToastTask?.cancel()
+        captureToastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(7))
+            guard !Task.isCancelled else { return }
+            captureConfirmation = nil
+        }
+    }
+
+    /// A visible confirmation after capture, especially when the task was
+    /// scheduled for tomorrow/Upcoming rather than today.
+    @MainActor
+    @ViewBuilder
+    private var captureToast: some View {
+        if let captureConfirmation {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color(hex: "#0ca30c"))
+
+                Text(captureConfirmation)
+                    .font(.caption)
+                    .lineLimit(3)
+
+                Spacer(minLength: 0)
+
+                Button {
+                    self.captureConfirmation = nil
+                    captureToastTask?.cancel()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08))
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 
     /// The short-lived "Completed · Undo" bar (FR-14).
@@ -370,6 +433,19 @@ public struct TodayView: View {
             ) { providers in
                 // FR-04: a drop on a row adds attachments to that task.
                 onDrop?(providers, row.id) ?? false
+            }
+            .overlay(alignment: .trailing) {
+                if dropTargetId == row.id {
+                    Text("Attach")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.accentColor))
+                        .padding(.trailing, 8)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
             }
         #else
         return content
