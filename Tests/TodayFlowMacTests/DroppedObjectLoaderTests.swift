@@ -57,6 +57,44 @@ struct DroppedObjectLoaderTests {
         #expect(objects.first?.fileURL == nil)
     }
 
+    @Test func providerJiraURL_keepsTheCardText() async throws {
+        let url = try #require(URL(string: "https://acme.atlassian.net/browse/ABC-123"))
+        let provider = NSItemProvider(
+            item: url as NSURL,
+            typeIdentifier: UTType.url.identifier
+        )
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.utf8PlainText.identifier,
+            visibility: .all
+        ) { completion in
+            completion(Data("Fix the login timeout".utf8), nil)
+            return nil
+        }
+
+        let objects = await DroppedObjectLoader().load(from: [provider])
+
+        #expect(objects.count == 1)
+        #expect(objects.first?.url == url)
+        #expect(objects.first?.text == "Fix the login timeout")
+    }
+
+    @Test func providerPlainTextWithJiraURL_loadsURL() async throws {
+        let provider = NSItemProvider(
+            item: """
+            ABC-123 Fix the login timeout
+            https://acme.atlassian.net/browse/ABC-123
+            """ as NSString,
+            typeIdentifier: UTType.utf8PlainText.identifier
+        )
+
+        let objects = await DroppedObjectLoader().load(from: [provider])
+
+        #expect(objects.count == 1)
+        #expect(objects.first?.url?.absoluteString
+            == "https://acme.atlassian.net/browse/ABC-123")
+        #expect(objects.first?.text?.contains("Fix the login timeout") == true)
+    }
+
     @Test func pasteboardFileURL_readsFile() throws {
         let pasteboard = NSPasteboard(
             name: NSPasteboard.Name("TodayFlowTests-\(UUID().uuidString)")

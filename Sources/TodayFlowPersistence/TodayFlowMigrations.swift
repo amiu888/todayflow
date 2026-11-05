@@ -38,8 +38,18 @@ public enum TodayFlowMigrations {
         migrator.registerMigration("v6") { db in
             try db.execute(sql: schemaV6)
         }
+        migrator.registerMigration("v7") { db in
+            try db.execute(sql: schemaV7)
+        }
         return migrator
     }
+
+    /// v7 adds two-level contact group nesting.
+    static let schemaV7 = """
+        ALTER TABLE contact_group ADD COLUMN parent_id TEXT
+          REFERENCES contact_group(id) ON DELETE SET NULL;
+        CREATE INDEX idx_contact_group_parent ON contact_group(parent_id);
+        """
 
     /// v6 adds contacts, contact groups, and many-to-many task links.
     static let schemaV6 = """

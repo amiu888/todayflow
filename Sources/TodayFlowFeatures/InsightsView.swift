@@ -43,7 +43,7 @@ public final class InsightsViewModel {
 
     public func load() async {
         let now = clock()
-        let items = await repository.allItems()
+        let items = await repository.allItems().filter { $0.kind == .task }
         let today = calendar.startOfDay(for: now)
         let completed = items.filter { $0.status == .done && $0.completedAt != nil }
 

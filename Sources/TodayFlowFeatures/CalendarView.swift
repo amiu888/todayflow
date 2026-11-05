@@ -52,7 +52,7 @@ public final class CalendarViewModel {
     public func load() async {
         isLoading = true
         defer { isLoading = false }
-        items = await repository.allItems().filter { !$0.isDeleted }
+        items = await repository.allItems().filter { !$0.isDeleted && $0.kind == .task }
     }
 
     public func show(_ mode: Mode) {

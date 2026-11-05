@@ -93,7 +93,7 @@ public final class MiniCalendarViewModel {
     public func load() async {
         isLoading = true
         defer { isLoading = false }
-        items = await repository.allItems().filter { !$0.isDeleted }
+        items = await repository.allItems().filter { !$0.isDeleted && $0.kind == .task }
     }
 
     public func show(_ mode: Mode) { self.mode = mode }

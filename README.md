@@ -1,8 +1,8 @@
 # TodayFlow
 
 A native macOS app that turns anything you drag in — an email, a Teams message, a
-calendar invite, a PDF, an image, a file, a folder, a URL — into a task in under five
-seconds, and keeps the day's tasks visible until every one is done.
+Jira ticket, a calendar invite, a PDF, an image, a file, a folder, a URL — into a task
+in under five seconds, and keeps the day's tasks visible until every one is done.
 
 Full product spec and project plan: [`driver.md`](./driver.md).
 
@@ -42,8 +42,8 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free, `swift test` passes **641 tests**, and
-the XCUITest suite has nineteen cases against the real `.app` bundle. The app also makes a daily
+Verification: `swift build` is warning-free, `swift test` passes **685 tests**, and
+the XCUITest suite has twenty-one cases against the real `.app` bundle. The app also makes a daily
 database snapshot (`VACUUM INTO`) and keeps the last 7 in
 `Application Support/TodayFlow/Backups/` (NFR-09).
 
@@ -75,7 +75,10 @@ Design rationale and the competitive references are in
 - **Dock to an app** — the **pin** at the top right of the panel. Pick a running application and an edge (Left is the default; Right/Top/Bottom are available), then **Dock**. The panel follows that app’s front window. Click the pin again to change the edge or **Undock**.
 - **Contacts** — the **person.2** icon at the top right of the Today panel (or **View → Contacts**, ⌘8). Drag a contact card from macOS Contacts or Outlook into the capture panel (or paste a vCard): it creates a follow-up task and offers to add the person to Contacts. The card has an **Add to Contacts** switch, an optional group, and duplicate resolution — **Merge**, **Use existing**, or **Keep new**. Create contacts and groups, search, import from macOS Contacts (**Sync Contacts**), or import Outlook/other address books exported as vCard/CSV. The import sheet filters by text and by “must have email/phone”; matching emails and phones are merged automatically. **Duplicates** reviews shared emails/phones and offers auto-merge or merge-into a chosen contact. Open a task to link any number of contacts under its **Contacts** section.
 - **Microsoft Teams** — drag a chat message, a rich-text chat card, or a Teams link into the Today panel or a tray window. Teams chat text is read from plain text, HTML, or RTF; the first message line becomes the title, the sender is kept, and the full chat is attached as preview text. Works with Teams desktop and Teams web.
+- **Jira** — drag a ticket from the Jira web board or issue page into the Today panel, a tray, or the capture sheet. The issue key (`ABC-123`) and summary become the task title, the Jira URL is attached, and the key/project/summary are stored as metadata. Works with Jira Cloud and self-hosted Jira URLs that use `/browse/KEY-123` or `?selectedIssue=KEY-123`; multi-line and HTML drag payloads are handled.
+- **Projects** — click the **folder+** icon in the Today header to create a top-level project. Projects group tasks, appear in the project filter and Hierarchy, and never count as Today tasks or progress. In Hierarchy, right-click an epic to add a project beneath it.
 - **Email tasks + summary** — drag a message from Outlook or Apple Mail. The task opens with the subject as its title and the message text attached; the detail window’s **Summary** field is filled by Apple Intelligence or your configured AI endpoint. If AI is off, the summary stays empty. Configure it in **Settings → AI**.
+- **AI setup / tiny model** — the first launch offers an optional AI choice: Apple Intelligence (0 MB), a tiny local Qwen3.5 0.8B model (533 MB download, about 1.5–2 GB memory while AI runs, served through Ollama), or skip. Nothing is downloaded until you choose. The same setup is available from **Settings → AI → Set up a local model…** and the app menu. With AI off, every core feature still works.
 - **Working trays** — Today panel, below the filter row. Tray windows follow the main panel while you drag or dock it; drag a tray window yourself to detach it and keep it where you put it. Drag any task (including Tomorrow & upcoming rows) onto a tray, or right-click → **Add to tray**. Trays hold any number of tasks and accept multi-item drags; drag a chip to another tray to move it. Double-click a tray (or its `…` → **Open tray window**) to open a full tray window with reorder, remove, and drag-and-drop; several tray windows can be open at once. Tray `…` menu: rename, color, insert after, move, delete.
 - **Mini calendar / 4 corners** — the **window menu** at the right of the date header, or **View → Mini Calendar** (⌘7). Choose Day/Week and **Pin mini calendar → Top Left / Top Right / Bottom Left / Bottom Right**. It stays on every desktop. **View → Show Windows on All Desktops** extends that to every window.
 - **Show windows on all desktops** — **View → Show Windows on All Desktops**.
@@ -100,7 +103,7 @@ visible at the bottom of the task detail window.
 Distribution status:
 
 - Developer ID signing, hardened runtime, and **notarization + stapling** are done for
-  the 1.5.0 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
+  the 1.6.0 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
 - Broader XCUITest coverage (drag/drop, trays, calendar, focus) and the NFR-01…05
   performance gates remain follow-ups.
 - Live Markdown rendering and pasted-image attachments inside the detail description.

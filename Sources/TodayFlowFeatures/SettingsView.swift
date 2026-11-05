@@ -9,9 +9,14 @@ import FoundationModels
 /// AI endpoint (driver.md §8).
 public struct SettingsView: View {
     public let model: SettingsViewModel
+    private let onOpenAISetup: (@MainActor @Sendable () -> Void)?
 
-    public init(model: SettingsViewModel) {
+    public init(
+        model: SettingsViewModel,
+        onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil
+    ) {
         self.model = model
+        self.onOpenAISetup = onOpenAISetup
     }
 
     /// For hosts that only know the repositories (used by the 6-Mac app layer).
@@ -20,7 +25,8 @@ public struct SettingsView: View {
         repository: any SettingRepository,
         keychain: any KeychainStore,
         calendar: Calendar = .current,
-        modelCatalog: (any AIModelCatalog)? = nil
+        modelCatalog: (any AIModelCatalog)? = nil,
+        onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil
     ) {
         model = SettingsViewModel(
             repository: repository,
@@ -28,6 +34,7 @@ public struct SettingsView: View {
             calendar: calendar,
             modelCatalog: modelCatalog
         )
+        self.onOpenAISetup = onOpenAISetup
     }
 
     @MainActor
@@ -126,6 +133,18 @@ public struct SettingsView: View {
                     }
                 } else {
                     Text("AI is off by default. Enable it to use the AI features.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let onOpenAISetup {
+                    Divider()
+                    Button {
+                        onOpenAISetup()
+                    } label: {
+                        Label("Set up a local model…", systemImage: "arrow.down.circle")
+                    }
+                    Text("Qwen3.5 0.8B · 533 MB download · ~1.5–2 GB memory while AI is running. Runs through Ollama; nothing is downloaded until you choose.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

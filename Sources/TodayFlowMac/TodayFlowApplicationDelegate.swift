@@ -26,6 +26,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     /// AI planning and Q&A windows (driver.md §8).
     public private(set) var dayPlan: DayPlanWindowController?
     public private(set) var askAI: AskWindowController?
+    /// Optional first-run model download / AI choice.
+    public private(set) var aiSetup: AIOnboardingController?
 
     public override init() {}
 
@@ -50,6 +52,11 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             let askAI = AskWindowController(environment: environment)
             askAI.onOpenSettings = { [weak windowManager] in windowManager?.show(.settings) }
             self.askAI = askAI
+            let aiSetup = AIOnboardingController(environment: environment)
+            self.aiSetup = aiSetup
+            windowManager.onOpenAISetup = { [weak self] in
+                self?.aiSetup?.present(force: true)
+            }
             let controller = StatusItemController(
                 environment: environment,
                 windowManager: windowManager,
@@ -90,10 +97,22 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
                     onOpen: { windowManager.show(.panel) }
                 )
                 self.notifications = notifications
-                await notifications.requestAuthorization()
 
                 await summary.refresh()
                 windowManager.show(.panel)
+                // The optional AI choice comes first; the notification prompt
+                // waits until the setup window closes so a fresh install is
+                // not hit by two system dialogs at once.
+                if await self.shouldPresentAISetup(environment: environment) {
+                    if ProcessInfo.processInfo.environment["TODAYFLOW_UI_TESTING"] != "1" {
+                        self.aiSetup?.onClose = {
+                            Task { await notifications.requestAuthorization() }
+                        }
+                    }
+                    self.aiSetup?.present(force: true)
+                } else {
+                    await notifications.requestAuthorization()
+                }
                 summary.startPolling()
             }
         } catch {
@@ -130,6 +149,33 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         return true
     }
 
+    /// Shows the optional AI setup once. Existing users who already have AI
+    /// configured are migrated silently; UI tests skip it unless explicitly
+    /// asked, so they never block automation.
+    private func shouldPresentAISetup(environment: AppEnvironment) async -> Bool {
+        guard aiSetup != nil else { return false }
+        let process = ProcessInfo.processInfo.environment
+        let force = process["TODAYFLOW_SHOW_AI_SETUP"] == "1"
+        if force { return true }
+        if process["TODAYFLOW_UI_TESTING"] == "1" { return false }
+        if await environment.settings.value(for: SettingKeys.aiSetupComplete) == "true" {
+            return false
+        }
+        if let raw = await environment.settings.value(for: SettingKeys.aiEndpoint),
+           let data = raw.data(using: .utf8),
+           let stored = try? JSONDecoder().decode(AIEndpointSettings.self, from: data),
+           stored.enabled
+        {
+            // Existing installs already made this choice in Settings.
+            try? await environment.settings.set(
+                "true",
+                for: SettingKeys.aiSetupComplete
+            )
+            return false
+        }
+        return true
+    }
+
     /// A proper macOS menu bar: standard Edit commands (so text fields work),
     /// File capture/export, and View navigation. The status item remains the
     /// home, but every command is also discoverable here.
@@ -144,6 +190,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         appMenu.addItem(.separator())
         appMenu.addItem(
             item("Settings…", #selector(openSettingsMenu), key: ",")
+        )
+        appMenu.addItem(
+            item("Set Up AI…", #selector(openAISetupMenu), key: "")
         )
         appMenu.addItem(.separator())
         appMenu.addItem(
@@ -263,6 +312,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func openSettingsMenu() {
         windows?.show(.settings)
+    }
+
+    @objc private func openAISetupMenu() {
+        aiSetup?.present(force: true)
     }
 
     @objc private func quitApp() {

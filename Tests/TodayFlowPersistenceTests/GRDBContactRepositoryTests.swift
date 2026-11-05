@@ -57,6 +57,23 @@ struct GRDBContactRepositoryTests {
         #expect(await db.contacts.contacts(forTask: task.id).map(\.id) == [jane.id])
     }
 
+    @Test func groupHierarchyRoundTripsAndDeletingAParentReparentsChildren() async throws {
+        let db = try TestDB.inMemory()
+        let parent = ContactGroup(name: "Customers")
+        let child = ContactGroup(name: "VIP", parentId: parent.id)
+        try await db.contacts.saveGroup(parent)
+        try await db.contacts.saveGroup(child)
+
+        let stored = await db.contacts.groups()
+        #expect(stored.first { $0.id == child.id }?.parentId == parent.id)
+
+        try await db.contacts.deleteGroup(parent.id)
+
+        let after = await db.contacts.groups()
+        #expect(!after.contains { $0.id == parent.id })
+        #expect(after.first { $0.id == child.id }?.parentId == nil)
+    }
+
     @Test func mergeMovesGroupsAndTasksAndSoftDeletesSources() async throws {
         let db = try TestDB.inMemory()
         let group = ContactGroup(name: "Customers")

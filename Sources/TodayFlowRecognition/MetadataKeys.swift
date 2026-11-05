@@ -23,6 +23,10 @@ public enum MetadataKeys {
     public static let pageCount = "pageCount"
     public static let pageTitle = "pageTitle"
     public static let dimensions = "dimensions"
+    public static let jiraIssueKey = "jiraIssueKey"
+    public static let jiraProjectKey = "jiraProjectKey"
+    public static let jiraSummary = "jiraSummary"
+    public static let jiraURL = "jiraURL"
 }
 
 /// ISO-8601 formatting for the string-typed metadata values.

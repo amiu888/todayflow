@@ -190,3 +190,232 @@ struct ContactsViewModelGroupOrderTests {
         #expect(model.groups.map(\.name) == ["B", "C"])
     }
 }
+
+@Suite("ContactsViewModel group hierarchy")
+@MainActor
+struct ContactsViewModelGroupHierarchyTests {
+    private func make() -> (ContactsViewModel, InMemoryContactRepository, InMemoryWorkItemRepository) {
+        let contacts = InMemoryContactRepository()
+        let workItems = InMemoryWorkItemRepository()
+        let model = ContactsViewModel(
+            repository: contacts,
+            workItems: workItems,
+            clock: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
+        return (model, contacts, workItems)
+    }
+
+    @Test func addSubgroupNestsUnderTopLevelParent() async {
+        let (model, repository, _) = make()
+        await model.load()
+        await model.addGroup(name: "Customers")
+        let customers = try! #require(model.groups.first { $0.name == "Customers" })
+
+        await model.addGroup(name: "VIP", parentId: customers.id)
+
+        let vip = try! #require(model.groups.first { $0.name == "VIP" })
+        #expect(vip.parentId == customers.id)
+        #expect(model.topLevelGroups.map(\.name) == ["Customers"])
+        #expect(model.childGroups(of: customers).map(\.name) == ["VIP"])
+        #expect(!model.topLevelGroups.contains(where: { $0.id == vip.id }))
+        let stored = try! #require((await repository.groups()).first { $0.name == "VIP" })
+        #expect(stored.parentId == customers.id)
+    }
+
+    @Test func addSubgroupOfSubgroupIsRejected() async {
+        let (model, _, _) = make()
+        await model.load()
+        await model.addGroup(name: "Customers")
+        let customers = try! #require(model.groups.first { $0.name == "Customers" })
+        await model.addGroup(name: "VIP", parentId: customers.id)
+        let vip = try! #require(model.groups.first { $0.name == "VIP" })
+        let countBefore = model.groups.count
+
+        await model.addGroup(name: "Deep", parentId: vip.id)
+
+        #expect(model.groups.count == countBefore)
+        #expect(model.groups.first { $0.name == "Deep" } == nil)
+        #expect(model.lastMessage == "Groups can only be two levels deep.")
+    }
+
+    @Test func moveTopLevelGroupUnderAnotherTopLevelGroupReparentsIt() async {
+        let (model, repository, _) = make()
+        await model.load()
+        await model.addGroup(name: "Customers")
+        await model.addGroup(name: "Vendors")
+        let customers = try! #require(model.groups.first { $0.name == "Customers" })
+        let vendors = try! #require(model.groups.first { $0.name == "Vendors" })
+
+        await model.moveGroup(customers, toParent: vendors.id)
+
+        #expect(Set(model.topLevelGroups.map(\.name)) == ["Vendors"])
+        #expect(model.childGroups(of: vendors).map(\.name) == ["Customers"])
+        #expect(model.lastMessage == "Moved Customers under Vendors.")
+        let stored = try! #require((await repository.groups()).first { $0.name == "Customers" })
+        #expect(stored.parentId == vendors.id)
+
+        await model.moveGroup(stored, toParent: nil)
+
+        #expect(Set(model.topLevelGroups.map(\.name)) == ["Customers", "Vendors"])
+        #expect(await repository.groups().first { $0.name == "Customers" }?.parentId == nil)
+    }
+
+    @Test func groupWithSubgroupsCannotBecomeSubgroup() async {
+        let (model, repository, _) = make()
+        await model.load()
+        await model.addGroup(name: "Customers")
+        await model.addGroup(name: "Vendors")
+        let customers = try! #require(model.groups.first { $0.name == "Customers" })
+        let vendors = try! #require(model.groups.first { $0.name == "Vendors" })
+        await model.addGroup(name: "VIP", parentId: customers.id)
+
+        await model.moveGroup(customers, toParent: vendors.id)
+
+        let stored = try! #require((await repository.groups()).first { $0.name == "Customers" })
+        #expect(stored.parentId == nil)
+        #expect(Set(model.topLevelGroups.map(\.name)) == ["Customers", "Vendors"])
+        #expect(model.lastMessage == "A group with subgroups cannot become a subgroup.")
+    }
+
+    @Test func deleteGroupReparentsSubgroupsToTopLevel() async {
+        let (model, repository, _) = make()
+        await model.load()
+        await model.addGroup(name: "Customers")
+        let customers = try! #require(model.groups.first { $0.name == "Customers" })
+        await model.addGroup(name: "VIP", parentId: customers.id)
+        let vip = try! #require(model.groups.first { $0.name == "VIP" })
+        let jane = Contact(firstName: "Jane", lastName: "Doe")
+        try! await repository.save(jane)
+        try! await repository.setGroups([vip.id], for: jane.id)
+        await model.load()
+
+        await model.deleteGroup(customers)
+        await model.load()
+
+        let stored = await repository.groups()
+        #expect(stored.first { $0.name == "Customers" } == nil)
+        let storedVip = try! #require(stored.first { $0.name == "VIP" })
+        #expect(storedVip.parentId == nil)
+        #expect(await repository.groupIds(for: jane.id) == [vip.id])
+        #expect(model.topLevelGroups.map(\.name) == ["VIP"])
+    }
+}
+
+#if canImport(AppKit)
+@Suite("ContactsViewModel contact drag and drop")
+@MainActor
+struct ContactsViewModelDragTests {
+    private func make() -> (ContactsViewModel, InMemoryContactRepository, InMemoryWorkItemRepository) {
+        let contacts = InMemoryContactRepository()
+        let workItems = InMemoryWorkItemRepository()
+        let model = ContactsViewModel(
+            repository: contacts,
+            workItems: workItems,
+            clock: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
+        return (model, contacts, workItems)
+    }
+
+    /// Seeds Customers + Vendors + Personal with Jane a member of the first two.
+    private func seedContactInTwoGroups(
+        _ repository: InMemoryContactRepository
+    ) async -> (Customers: UUIDv7, Vendors: UUIDv7, Personal: UUIDv7, Jane: Contact) {
+        let customers = ContactGroup(name: "Customers")
+        let vendors = ContactGroup(name: "Vendors")
+        let personal = ContactGroup(name: "Personal")
+        let jane = Contact(firstName: "Jane", lastName: "Doe")
+        try! await repository.saveGroup(customers)
+        try! await repository.saveGroup(vendors)
+        try! await repository.saveGroup(personal)
+        try! await repository.save(jane)
+        try! await repository.setGroups([customers.id, vendors.id], for: jane.id)
+        return (customers.id, vendors.id, personal.id, jane)
+    }
+
+    @Test func draggingFromOneGroupToAnotherMovesMembership() async {
+        let (model, repository, _) = make()
+        let (customers, vendors, _, jane) = await seedContactInTwoGroups(repository)
+        await model.load()
+
+        let payload = ContactDragPayload(contactId: jane.id, sourceGroupId: customers)
+        await model.moveContact(payload, into: vendors)
+
+        #expect(await repository.groupIds(for: jane.id) == [vendors])
+        #expect(model.groups(for: jane).map(\.name) == ["Vendors"])
+        #expect(model.lastMessage == "Moved Jane Doe to Vendors.")
+    }
+
+    @Test func draggingFromAllContactsAddsWithoutRemovingExisting() async {
+        let (model, repository, _) = make()
+        let (customers, vendors, personal, jane) = await seedContactInTwoGroups(repository)
+        await model.load()
+
+        let payload = ContactDragPayload(contactId: jane.id, sourceGroupId: nil)
+        await model.moveContact(payload, into: personal)
+
+        #expect(
+            Set(await repository.groupIds(for: jane.id))
+                == [customers, vendors, personal]
+        )
+    }
+
+    @Test func droppingOnNoGroupRemovesSourceMembership() async {
+        let (model, repository, _) = make()
+        let (customers, vendors, _, jane) = await seedContactInTwoGroups(repository)
+        await model.load()
+
+        let payload = ContactDragPayload(contactId: jane.id, sourceGroupId: customers)
+        await model.moveContact(payload, into: nil)
+
+        #expect(await repository.groupIds(for: jane.id) == [vendors])
+        #expect(model.lastMessage == "Removed Jane Doe from the group.")
+    }
+
+    @Test func droppingOnAllContactsFromAllContactsIsANoOp() async {
+        let (model, repository, _) = make()
+        let (customers, vendors, _, jane) = await seedContactInTwoGroups(repository)
+        await model.load()
+
+        let payload = ContactDragPayload(contactId: jane.id, sourceGroupId: nil)
+        await model.moveContact(payload, into: nil)
+
+        #expect(
+            Set(await repository.groupIds(for: jane.id)) == [customers, vendors]
+        )
+        #expect(model.lastMessage == nil)
+    }
+}
+#endif
+
+@Suite("ContactsViewModel group contact counts")
+@MainActor
+struct ContactsViewModelGroupCountTests {
+    @Test func parentCountIncludesChildOnlyContactsWithoutDoubleCounting() async {
+        let contacts = InMemoryContactRepository()
+        let workItems = InMemoryWorkItemRepository()
+        let model = ContactsViewModel(
+            repository: contacts,
+            workItems: workItems,
+            clock: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
+        await model.load()
+        await model.addGroup(name: "Customers")
+        let customers = try! #require(model.groups.first { $0.name == "Customers" })
+        await model.addGroup(name: "VIP", parentId: customers.id)
+        let vip = try! #require(model.groups.first { $0.name == "VIP" })
+
+        let jane = Contact(firstName: "Jane") // VIP only
+        let bob = Contact(firstName: "Bob") // Customers and VIP
+        let amy = Contact(firstName: "Amy") // Customers only
+        for contact in [jane, bob, amy] { try! await contacts.save(contact) }
+        try! await contacts.setGroups([vip.id], for: jane.id)
+        try! await contacts.setGroups([customers.id, vip.id], for: bob.id)
+        try! await contacts.setGroups([customers.id], for: amy.id)
+        await model.load()
+
+        // Jane is reached through VIP; Bob is in both but must be counted once.
+        #expect(model.contactCount(in: customers) == 3)
+        #expect(model.contactCount(in: vip) == 2)
+        #expect(Set(model.groups(for: bob).map(\.id)) == [customers.id, vip.id])
+    }
+}

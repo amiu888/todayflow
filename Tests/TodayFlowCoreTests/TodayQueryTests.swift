@@ -34,6 +34,40 @@ struct TodayQueryTests {
         #expect(result.progress.overdue == 1)
     }
 
+    @Test func projectsAndEpicsAreNotDayTasks() async {
+        let (uc, repo) = makeUseCase()
+        let day = TestDates.monday
+        let now = TestDates.date(2026, 1, 5, hour: 15)
+        let project = WorkItem(
+            kind: .project,
+            title: "Website",
+            startAt: TestDates.date(2026, 1, 5, hour: 9),
+            endAt: TestDates.date(2026, 1, 5, hour: 17),
+            displayOrder: "1"
+        )
+        let epic = WorkItem(
+            kind: .epic,
+            title: "Q1",
+            startAt: TestDates.date(2026, 1, 5, hour: 9),
+            endAt: TestDates.date(2026, 1, 5, hour: 17),
+            displayOrder: "2"
+        )
+        let task = WorkItem(
+            title: "Ship it",
+            startAt: TestDates.date(2026, 1, 5, hour: 9),
+            endAt: TestDates.date(2026, 1, 5, hour: 17),
+            displayOrder: "3"
+        )
+        await repo.seed(project)
+        await repo.seed(epic)
+        await repo.seed(task)
+
+        let result = await uc.execute(on: day, at: now)
+
+        #expect(result.open.map(\.title) == ["Ship it"])
+        #expect(result.progress.total == 1)
+    }
+
     @Test func doneTodaySectionAndProgress() async {
         let (uc, repo) = makeUseCase()
         let day = TestDates.monday

@@ -12,7 +12,7 @@ final class TodayFlowUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launchApp() -> XCUIApplication {
+    private func launchApp(showAISetup: Bool = false) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "com.todayflow.app")
         // Every UI test gets a clean database; never touch the user's tasks.
         let db = FileManager.default.temporaryDirectory
@@ -21,6 +21,9 @@ final class TodayFlowUITests: XCTestCase {
         // Floating, non-activating panels are invisible to XCUITest's window
         // snapshot on current macOS; host the same views in normal windows.
         app.launchEnvironment["TODAYFLOW_UI_TESTING"] = "1"
+        if showAISetup {
+            app.launchEnvironment["TODAYFLOW_SHOW_AI_SETUP"] = "1"
+        }
         app.launch()
         app.activate()
         let appeared = app.windows.firstMatch.waitForExistence(timeout: 15)
@@ -664,6 +667,57 @@ final class TodayFlowUITests: XCTestCase {
         XCTAssertTrue(
             group.waitForExistence(timeout: 5),
             "The new group did not appear"
+        )
+    }
+
+    /// The optional AI setup shows the model's download, disk, and memory
+    /// footprint before the user commits, and skipping leaves AI off.
+    func testAISetupShowsFootprintAndCanSkip() throws {
+        let app = launchApp(showAISetup: true)
+        let window = app.windows["Set up AI"]
+        XCTAssertTrue(window.waitForExistence(timeout: 10))
+
+        XCTAssertTrue(window.staticTexts["Tiny local model"].exists)
+        XCTAssertTrue(
+            window.staticTexts["~1.5–2 GB while AI is running"].exists,
+            "The setup window must show the memory footprint"
+        )
+        XCTAssertGreaterThanOrEqual(
+            window.staticTexts.matching(
+                NSPredicate(format: "label == %@", "533 MB")
+            ).count,
+            1,
+            "The setup window must show the download/disk size"
+        )
+
+        window.buttons["ai-setup-skip"].click()
+        XCTAssertFalse(window.waitForExistence(timeout: 3))
+    }
+
+    /// The main panel's folder+ button creates a project, confirms it, and
+    /// adds it to the project filter without adding a fake Today task.
+    func testCreatingProjectFromMainPanel() throws {
+        let app = launchApp()
+        let name = "Project \(UUID().uuidString.prefix(6))"
+
+        app.buttons["new-project"].firstMatch.click()
+        let field = app.textFields["Project name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 4))
+        field.typeText(name)
+        app.buttons["Create"].click()
+
+        let confirmation = app.staticTexts.containing(
+            NSPredicate(format: "label CONTAINS %@", name)
+        ).firstMatch
+        XCTAssertTrue(
+            confirmation.waitForExistence(timeout: 5),
+            "The project creation confirmation did not appear"
+        )
+
+        app.menuButtons["Filter by project"].firstMatch.click()
+        XCTAssertTrue(
+            app.menuItems[name].waitForExistence(timeout: 4),
+            "The new project did not appear in the project filter"
         )
     }
 

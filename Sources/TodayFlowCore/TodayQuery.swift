@@ -59,10 +59,14 @@ public struct TodayQuery: Sendable {
     }
 
     public func execute(on day: Date, at: Date = .now) async -> Result {
+        // Epics and projects are containers, not day work. Keeping them out
+        // of the Today query also keeps the progress ring task-based.
         let open = await repository.todayItems(on: day, calendar: calendar)
+            .filter { $0.kind == .task }
         let overdue = open.filter { $0.endAt < at }
         let onTime = open.filter { $0.endAt >= at }
         let doneToday = await repository.completedToday(on: day, calendar: calendar)
+            .filter { $0.kind == .task }
 
         let done = doneToday.count
         let total = open.count + doneToday.count

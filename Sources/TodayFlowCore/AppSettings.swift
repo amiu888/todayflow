@@ -5,6 +5,9 @@ import Foundation
 public enum SettingKeys {
     public static let workCalendar = "work_calendar"
     public static let aiEndpoint = "ai_endpoint"
+    /// Set after the first-run AI choice (including "skip"), so the optional
+    /// setup window is not shown again on every launch.
+    public static let aiSetupComplete = "ai_setup_complete"
     /// The Today list's sort choice (driver.md FR-11: "Choice is persisted").
     /// Stored as the `TodaySort` raw value (a plain string, not JSON).
     public static let todaySort = "today_sort"
@@ -56,6 +59,15 @@ public struct WorkCalendarSettings: Codable, Hashable, Sendable {
 ///
 /// AI is optional and **off by default** (`enabled == false`).
 public struct AIEndpointSettings: Codable, Hashable, Sendable {
+    /// The optional first-run/local default. Pulled through Ollama from the
+    /// Unsloth GGUF (Q4_K_M, Apache 2.0) so the download stays around 533 MB
+    /// instead of the official Ollama Q8 + vision bundle.
+    public static let tinyLocalModel = "hf.co/unsloth/Qwen3.5-0.8B-GGUF:Q4_K_M"
+    public static let tinyLocalModelDisplayName = "Qwen3.5 0.8B"
+    public static let tinyLocalModelDownloadBytes: Int64 = 533_000_000
+    public static let tinyLocalModelDiskBytes: Int64 = 533_000_000
+    public static let tinyLocalModelMemoryFootnote = "~1.5–2 GB while AI is running"
+
     /// A provider preset; picking one fills in its base URL.
     public enum Provider: String, Codable, CaseIterable, Hashable, Sendable {
         case apple
@@ -101,7 +113,10 @@ public struct AIEndpointSettings: Codable, Hashable, Sendable {
     /// Keychain on load.
     public var apiKey: String = ""
     /// Free text; the "Fetch models" button (feature 7) lists the endpoint's models.
-    public var model: String = "llama3.1:8b"
+    ///
+    /// The small local default is a 4-bit Qwen3.5 0.8B (~533 MB) so a new
+    /// Ollama install never silently pulls a multi-gigabyte model.
+    public var model: String = AIEndpointSettings.tinyLocalModel
     /// Which AI features are on (`AIFeatures` keys).
     public var enabledFeatures: [String] = []
     /// Privacy: off sends only titles and metadata.

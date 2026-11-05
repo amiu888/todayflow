@@ -94,6 +94,9 @@ public struct Contact: Identifiable, Hashable, Sendable, Codable {
 public struct ContactGroup: Identifiable, Hashable, Sendable, Codable {
     public var id: UUIDv7
     public var name: String
+    /// Top-level groups have `nil`; child groups point at a top-level parent.
+    /// The UI enforces a maximum depth of two levels.
+    public var parentId: UUIDv7?
     public var colorHex: String
     public var sortOrder: String
     public var createdAt: Date
@@ -104,6 +107,7 @@ public struct ContactGroup: Identifiable, Hashable, Sendable, Codable {
     public init(
         id: UUIDv7 = .new(),
         name: String,
+        parentId: UUIDv7? = nil,
         colorHex: String = "#60A5FA",
         sortOrder: String = FractionalIndex.bottom,
         createdAt: Date = .now,
@@ -113,6 +117,7 @@ public struct ContactGroup: Identifiable, Hashable, Sendable, Codable {
     ) {
         self.id = id
         self.name = name
+        self.parentId = parentId
         self.colorHex = colorHex
         self.sortOrder = sortOrder
         self.createdAt = createdAt

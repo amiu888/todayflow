@@ -72,7 +72,7 @@ struct AIEndpointSettingsTests {
         #expect(settings.provider == .apple)
         #expect(settings.baseURL == "")
         #expect(settings.apiKey.isEmpty)
-        #expect(settings.model == "llama3.1:8b")
+        #expect(settings.model == AIEndpointSettings.tinyLocalModel)
         #expect(settings.enabledFeatures.isEmpty)
         #expect(settings.sendAttachmentText == false)
         #expect(settings.timeoutSeconds == 20)

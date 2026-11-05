@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import TodayFlowCore
 import TodayFlowDesign
 
@@ -17,8 +18,16 @@ public struct ContactsView: View {
     @State private var showingDuplicates = false
     @State private var showingNewGroup = false
     @State private var newGroupName = ""
+    @State private var newGroupParentId: UUIDv7?
     @State private var renamingGroup: ContactGroup?
     @State private var groupName = ""
+    @State private var dropTargetGroupID: UUIDv7?
+    @State private var allContactsTargeted = false
+    @State private var listTargeted = false
+
+    private var dropTypes: [UTType] {
+        [.todayFlowContact, .vCard, .fileURL, .commaSeparatedText, .plainText, .text]
+    }
 
     public init(
         model: ContactsViewModel,
@@ -39,6 +48,9 @@ public struct ContactsView: View {
     public var body: some View {
         VStack(spacing: 0) {
             header
+            if let message = model.lastMessage {
+                messageBanner(message)
+            }
             Divider()
             NavigationSplitView {
                 sidebar
@@ -71,15 +83,24 @@ public struct ContactsView: View {
         .sheet(isPresented: $showingDuplicates) {
             ContactDuplicatesView(model: model)
         }
-        .alert("New group", isPresented: $showingNewGroup) {
+        .alert(
+            newGroupParentId == nil ? "New group" : "New subgroup",
+            isPresented: $showingNewGroup
+        ) {
             TextField("Group name", text: $newGroupName)
-            Button("Cancel", role: .cancel) { newGroupName = "" }
+            Button("Cancel", role: .cancel) {
+                newGroupName = ""
+                newGroupParentId = nil
+            }
             Button("Create") {
                 let name = newGroupName
+                let parentId = newGroupParentId
                 newGroupName = ""
-                Task { await model.addGroup(name: name) }
+                newGroupParentId = nil
+                Task { await model.addGroup(name: name, parentId: parentId) }
             }
         }
+        .animation(.easeInOut(duration: 0.18), value: model.lastMessage)
         .alert(
             "Rename group",
             isPresented: Binding(
@@ -150,12 +171,41 @@ public struct ContactsView: View {
         .padding(.vertical, 10)
     }
 
+    private func messageBanner(_ message: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(DesignTokens.Palette.accent)
+            Text(message)
+                .font(.callout)
+                .lineLimit(2)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DesignTokens.Palette.accent.opacity(0.10))
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .accessibilityIdentifier("contacts-message")
+    }
+
     @MainActor
     private var sidebar: some View {
         List(selection: $model.selectedGroupID) {
             Label("All Contacts", systemImage: "person.2")
                 .tag(UUIDv7?.none)
                 .badge(model.contacts.count)
+                .listRowBackground(
+                    allContactsTargeted
+                        ? DesignTokens.Palette.accent.opacity(0.18)
+                        : Color.clear
+                )
+                .onDrop(
+                    of: dropTypes,
+                    isTargeted: $allContactsTargeted
+                ) { providers in
+                    handleDrop(providers, into: nil)
+                }
+                .accessibilityIdentifier("contact-group-all")
 
             Button {
                 model.refreshDuplicates()
@@ -173,27 +223,10 @@ public struct ContactsView: View {
             .buttonStyle(.plain)
 
             Section("Groups") {
-                ForEach(model.groups) { group in
-                    Label {
-                        HStack {
-                            Text(group.name)
-                            Spacer()
-                            Text("\(model.contactCount(in: group))")
-                                .foregroundStyle(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "folder.fill")
-                            .foregroundStyle(Color(hex: group.colorHex))
-                    }
-                    .tag(UUIDv7?.some(group.id))
-                    .contextMenu {
-                        Button("Rename…") {
-                            renamingGroup = group
-                            groupName = group.name
-                        }
-                        Button("Delete Group", role: .destructive) {
-                            Task { await model.deleteGroup(group) }
-                        }
+                ForEach(model.topLevelGroups) { group in
+                    groupRow(group, isChild: false)
+                    ForEach(model.childGroups(of: group)) { child in
+                        groupRow(child, isChild: true)
                     }
                 }
             }
@@ -201,6 +234,7 @@ public struct ContactsView: View {
         .safeAreaInset(edge: .bottom) {
             Button {
                 newGroupName = ""
+                newGroupParentId = nil
                 showingNewGroup = true
             } label: {
                 Label("New Group", systemImage: "folder.badge.plus")
@@ -213,13 +247,73 @@ public struct ContactsView: View {
     }
 
     @MainActor
+    @ViewBuilder
+    private func groupRow(_ group: ContactGroup, isChild: Bool) -> some View {
+        Label {
+            HStack {
+                Text(group.name)
+                Spacer()
+                Text("\(model.contactCount(in: group))")
+                    .foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: isChild ? "folder" : "folder.fill")
+                .foregroundStyle(Color(hex: group.colorHex))
+        }
+        .padding(.leading, isChild ? 16 : 0)
+        .tag(UUIDv7?.some(group.id))
+        .listRowBackground(
+            dropTargetGroupID == group.id
+                ? DesignTokens.Palette.accent.opacity(0.18)
+                : Color.clear
+        )
+        .onDrop(
+            of: dropTypes,
+            isTargeted: Binding(
+                get: { dropTargetGroupID == group.id },
+                set: { targeted in
+                    if targeted {
+                        dropTargetGroupID = group.id
+                    } else if dropTargetGroupID == group.id {
+                        dropTargetGroupID = nil
+                    }
+                }
+            )
+        ) { providers in
+            handleDrop(providers, into: group.id)
+        }
+        .contextMenu {
+            Button("Rename…") {
+                renamingGroup = group
+                groupName = group.name
+            }
+            if isChild {
+                Button("Move to Top Level") {
+                    Task { await model.moveGroup(group, toParent: nil) }
+                }
+            } else {
+                Button("New Subgroup…") {
+                    newGroupName = ""
+                    newGroupParentId = group.id
+                    showingNewGroup = true
+                }
+            }
+            Divider()
+            Button("Delete Group", role: .destructive) {
+                Task { await model.deleteGroup(group) }
+            }
+        }
+        .accessibilityIdentifier("contact-group-\(group.name)")
+    }
+
+    @MainActor
     private var contactList: some View {
         List(selection: $model.selectedContactID) {
             if model.contacts.isEmpty {
                 ContentUnavailableView(
                     "No contacts yet",
                     systemImage: "person.crop.circle.badge.plus",
-                    description: Text("Create a contact or import your address book.")
+                    description: Text("Create a contact or drag cards here from Contacts or your address book.")
                 )
             } else if model.filteredContacts.isEmpty {
                 ContentUnavailableView.search(text: model.searchText)
@@ -227,13 +321,50 @@ public struct ContactsView: View {
                 ForEach(model.filteredContacts) { contact in
                     ContactRow(contact: contact, groups: model.groups(for: contact))
                         .tag(contact.id)
+                        .onDrag {
+                            ContactDragPayload(
+                                contactId: contact.id,
+                                sourceGroupId: model.sourceGroupId(for: contact)
+                            )
+                            .itemProvider()
+                        }
+                        .help("Drag to a group, or to another app")
                 }
             }
+        }
+        .listRowBackground(
+            listTargeted
+                ? DesignTokens.Palette.accent.opacity(0.08)
+                : Color.clear
+        )
+        .onDrop(of: dropTypes, isTargeted: $listTargeted) { providers in
+            handleDrop(providers, into: model.selectedGroupID)
         }
         .onChange(of: model.selectedContactID) { _, newValue in
             Task { await model.selectContact(newValue) }
         }
         .navigationSplitViewColumnWidth(min: 260, ideal: 300)
+    }
+
+    /// Internal contact drags move or add; anything else is treated as an
+    /// external contact card (vCard, CSV, or text) and imported.
+    @MainActor
+    private func handleDrop(
+        _ providers: [NSItemProvider],
+        into groupId: UUIDv7?
+    ) -> Bool {
+        guard !providers.isEmpty else { return false }
+        Task {
+            let payloads = await ContactDragPayload.loadAll(from: providers)
+            if payloads.isEmpty {
+                await model.importDroppedContacts(providers, into: groupId)
+            } else {
+                for payload in payloads {
+                    await model.moveContact(payload, into: groupId)
+                }
+            }
+        }
+        return true
     }
 
     @MainActor

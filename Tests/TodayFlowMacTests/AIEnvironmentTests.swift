@@ -15,6 +15,20 @@ struct AIEnvironmentTests {
         return repository
     }
 
+    @Test func everyAIFeatureIsUnavailableWhenAIIsOff() async {
+        let repository = InMemorySettingRepository()
+        let ai = AIEnvironment(
+            settingsRepository: repository,
+            keychain: InMemoryKeychainStore()
+        )
+
+        for feature in AIFeatures.all {
+            #expect(await ai.assistant(for: feature) == nil)
+        }
+        #expect(await ai.assistantForConfiguration() == nil)
+        #expect(await ai.emailSummarizer() == nil)
+    }
+
     @Test func emailSummarizerIsNilWhenTheFeatureIsOff() async {
         var settings = AIEndpointSettings()
         settings.enabled = true

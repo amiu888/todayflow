@@ -255,6 +255,23 @@ func save_withNoObjects_createsItemOnly() async {
 }
 
 @Test @MainActor
+func save_withoutAnyAIConfiguration_stillCreatesTheTask() async {
+    let f = Fixture()
+    // CaptureViewModel starts with no assistant and no email summarizer when
+    // AI is off; saving must not depend on either.
+    #expect(f.vm.assistant == nil)
+    #expect(f.vm.emailSummarizer == nil)
+    f.vm.prepare(dropped: [], recognized: [])
+    f.vm.draft.title = "Offline task"
+
+    await f.vm.save()
+
+    #expect(f.vm.lastError == nil)
+    #expect(f.vm.savedItem?.title == "Offline task")
+    #expect(await f.repository.item(f.vm.savedItem?.id ?? UUIDv7.new()) != nil)
+}
+
+@Test @MainActor
 func save_withEmptyTitle_failsCleanly() async {
     let saved = SavedLog()
     let f = Fixture(onSaved: { saved.record($0) })

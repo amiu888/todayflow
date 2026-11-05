@@ -127,6 +127,58 @@ public struct ImageRecognizer: ObjectRecognizer {
     }
 }
 
+/// Recognizes a Jira issue dragged out of the web UI. The card's drag text
+/// usually contains the summary, so a drop becomes a useful task title instead
+/// of a bare URL or a login-page title.
+public struct JiraIssueRecognizer: ObjectRecognizer {
+    public init() {}
+
+    public func canHandle(_ object: DroppedObject) -> Bool {
+        guard let url = object.url else { return false }
+        return JiraIssueReference(url: url) != nil
+    }
+
+    public func recognize(_ object: DroppedObject) -> RecognizedObject {
+        guard let url = object.url,
+              let issue = JiraIssueReference(url: url)
+        else {
+            return RecognizedObject(type: .url, displayName: "Jira issue")
+        }
+        let summary = JiraIssueReference.summary(
+            from: object.text,
+            issueKey: issue.issueKey
+        )
+        let title = summary.map { "\(issue.issueKey) · \($0)" } ?? issue.issueKey
+        let host = (url.host() ?? "").replacingOccurrences(
+            of: "^www\\.",
+            with: "",
+            options: .regularExpression
+        )
+        var metadata = [
+            MetadataKeys.jiraIssueKey: issue.issueKey,
+            MetadataKeys.jiraProjectKey: issue.projectKey,
+            MetadataKeys.jiraURL: url.absoluteString,
+            MetadataKeys.link: url.absoluteString,
+        ]
+        if !host.isEmpty {
+            metadata[MetadataKeys.domain] = host
+        }
+        if let summary {
+            metadata[MetadataKeys.jiraSummary] = summary
+        }
+        return RecognizedObject(
+            type: .url,
+            uti: object.uti?.identifier,
+            displayName: issue.issueKey,
+            sourceApp: object.sourceApp,
+            reference: url.absoluteString,
+            metadata: metadata,
+            suggestedTitle: title,
+            previewText: summary
+        )
+    }
+}
+
 /// Recognizes web links (driver.md §7).
 ///
 /// The page title is fetched asynchronously by the enricher; the drop path

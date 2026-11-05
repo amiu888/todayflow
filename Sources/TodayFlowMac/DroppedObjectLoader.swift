@@ -64,13 +64,17 @@ public struct DroppedObjectLoader {
             // Some providers only advertise public.url even for a file.
             if url.isFileURL { return Self.object(forFileURL: url, sourceApp: sourceApp) }
             var object = DroppedObject(url: url, sourceApp: sourceApp, uti: .url)
-            // Mail and Outlook deep links often carry the message text on the
-            // same pasteboard item; keep it for the summary.
-            if Self.isMailScheme(url),
-               let (text, _) = await loadText(provider),
-               !text.isEmpty
-            {
-                object.text = text
+            // Mail/Outlook deep links and Jira cards carry readable text on
+            // the same pasteboard item; keep it for the summary/title.
+            if Self.isMailScheme(url) || JiraIssueReference(url: url) != nil {
+                if let (text, _) = await loadText(provider), !text.isEmpty {
+                    object.text = String(text.prefix(20_000))
+                } else if JiraIssueReference(url: url) != nil,
+                          let (text, _) = await loadRichText(provider),
+                          !text.isEmpty
+                {
+                    object.text = String(text.prefix(20_000))
+                }
             }
             return object
         }
@@ -115,6 +119,20 @@ public struct DroppedObjectLoader {
             return DroppedObject(imageData: data, sourceApp: sourceApp, uti: type)
         }
 
+        // Jira's browser drag sometimes exposes only plain text or HTML.
+        // Recover the issue URL so the Jira recognizer can title it.
+        let plain = await loadText(provider)
+        if let (text, _) = plain,
+           let jiraURL = JiraIssueReference.firstURL(in: text)
+        {
+            return DroppedObject(
+                url: jiraURL,
+                text: String(text.prefix(20_000)),
+                sourceApp: sourceApp,
+                uti: .url
+            )
+        }
+
         // Teams and other rich clients may only put HTML/RTF on the
         // pasteboard. Prefer rich text when the source app is Teams; plain
         // text is cleaner for every other source.
@@ -123,10 +141,18 @@ public struct DroppedObjectLoader {
         {
             return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
         }
-        if let (text, type) = await loadText(provider) {
+        if let (text, type) = plain {
             return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
         }
         if let (text, type) = await loadRichText(provider) {
+            if let jiraURL = JiraIssueReference.firstURL(in: text) {
+                return DroppedObject(
+                    url: jiraURL,
+                    text: String(text.prefix(20_000)),
+                    sourceApp: sourceApp,
+                    uti: .url
+                )
+            }
             return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
         }
 
@@ -392,12 +418,13 @@ public struct DroppedObjectLoader {
                let url = URL(string: string)
             {
                 var object = DroppedObject(url: url, sourceApp: sourceApp, uti: .url)
-                if Self.isMailScheme(url),
-                   let text = item.string(forType: .string),
+                let text = item.string(forType: .string)
+                if (Self.isMailScheme(url) || JiraIssueReference(url: url) != nil),
+                   let text,
                    !text.isEmpty,
                    text != string
                 {
-                    object.text = text
+                    object.text = String(text.prefix(20_000))
                 }
                 return object
             }
@@ -424,10 +451,26 @@ public struct DroppedObjectLoader {
                 if let data = item.data(
                     forType: NSPasteboard.PasteboardType(type.identifier)
                 ), let text = plainText(from: data, type: type) {
+                    if let jiraURL = JiraIssueReference.firstURL(in: text) {
+                        return DroppedObject(
+                            url: jiraURL,
+                            text: String(text.prefix(20_000)),
+                            sourceApp: sourceApp,
+                            uti: .url
+                        )
+                    }
                     return DroppedObject(text: text, sourceApp: sourceApp, uti: type)
                 }
             }
             if let text = item.string(forType: .string) {
+                if let jiraURL = JiraIssueReference.firstURL(in: text) {
+                    return DroppedObject(
+                        url: jiraURL,
+                        text: String(text.prefix(20_000)),
+                        sourceApp: sourceApp,
+                        uti: .url
+                    )
+                }
                 return DroppedObject(text: text, sourceApp: sourceApp, uti: .plainText)
             }
             return nil

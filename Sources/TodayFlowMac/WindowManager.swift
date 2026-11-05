@@ -25,6 +25,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// Shared contacts window model.
     public let contactsModel: ContactsViewModel
     private let contactsImporter = ContactsImporter()
+    /// Opens the optional first-run AI setup from Settings or the app menu.
+    public var onOpenAISetup: (@MainActor @Sendable () -> Void)?
     /// Snaps floating windows to screen edges and neighbouring windows.
     public let docking = WindowDockController()
     /// When true, all app windows follow the user across every Space.
@@ -518,7 +520,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 repository: environment.settings,
                 keychain: environment.keychain,
                 calendar: environment.workCalendar.calendar,
-                modelCatalog: environment.ai
+                modelCatalog: environment.ai,
+                onOpenAISetup: onOpenAISetup
             )
         case .contacts:
             ContactsView(

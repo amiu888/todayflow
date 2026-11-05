@@ -52,6 +52,7 @@ public struct RecognitionPipeline: Sendable {
                 OfficeDocumentRecognizer(),
                 PDFRecognizer(),
                 ImageRecognizer(),
+                JiraIssueRecognizer(),
                 WebURLRecognizer(),
                 GenericFileRecognizer(),
                 PlainTextRecognizer(),

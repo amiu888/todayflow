@@ -20,6 +20,7 @@ public struct Enricher: Sendable {
         var result = draft
         for index in result.objects.indices {
             guard result.objects[index].type == .url,
+                  result.objects[index].metadata[MetadataKeys.jiraIssueKey] == nil,
                   let reference = result.objects[index].reference,
                   let url = URL(string: reference),
                   let scheme = url.scheme?.lowercased(),

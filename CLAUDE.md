@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (no-op).
-- `swift build` is warning-free; `swift test` passes **641 tests**; the XCUITest suite has 19 cases.
+- `swift build` is warning-free; `swift test` passes **685 tests**; the XCUITest suite has 21 cases.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
@@ -26,6 +26,12 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
   macOS Contacts import, duplicate auto/manual merge, many-to-many task links,
   and contact-card drops that create a task and optionally add/group the contact
   (schema v6). Tray windows follow the panel until the user moves a tray window.
+  Jira tickets dragged from the web are recognized by issue key, use the card
+  summary as the task title, and keep the Jira URL/metadata. The Today header
+  has a folder+ project creator; projects are containers and are excluded from
+  Today/Upcoming/Calendar/Insights task counts. Optional first-run AI setup
+  offers Apple Intelligence, a 533 MB Qwen3.5 0.8B download through Ollama
+  (with disk/memory footprint shown), or skip.
 - Design references and the token plan live in `docs/design/todayflow-design.md`.
 - Installed official Anthropic skills: `frontend-design`, `theme-factory`;
   Superpowers development skills (`test-driven-development`, `systematic-debugging`,

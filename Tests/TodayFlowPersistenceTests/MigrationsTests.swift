@@ -122,3 +122,22 @@ struct MigrationsTests {
     #expect(tables.contains("contact_group_member"))
     #expect(tables.contains("task_contact"))
 }
+
+@Test func v7AddsTwoLevelContactGroups() throws {
+    let queue = try TodayFlowDatabase.makeInMemory()
+    defer { try? queue.close() }
+
+    let columns = try queue.read { db in
+        try Row.fetchAll(db, sql: "PRAGMA table_info(contact_group)")
+            .map { $0["name"] as String }
+    }
+    #expect(columns.contains("parent_id"))
+
+    let indexes = try queue.read { db in
+        try String.fetchAll(
+            db,
+            sql: "SELECT name FROM sqlite_master WHERE type = 'index'"
+        )
+    }
+    #expect(indexes.contains("idx_contact_group_parent"))
+}

@@ -117,6 +117,33 @@ func load_mapsOpenItemsInDisplayOrder() async {
 }
 
 @Test @MainActor
+func createProject_addsAFilterableProjectWithoutAddingATodayTask() async {
+    let f = Fixture()
+    await f.vm.load()
+
+    let project = await f.vm.createProject(named: "Website relaunch")
+
+    #expect(project?.kind == .project)
+    #expect(project?.title == "Website relaunch")
+    #expect(f.vm.projects.map(\.title).contains("Website relaunch"))
+    #expect(f.vm.visibleRows.isEmpty)
+    #expect(f.vm.progress.total == 0)
+    #expect(f.vm.lastError == nil)
+}
+
+@Test @MainActor
+func createProject_rejectsAnEmptyName() async {
+    let f = Fixture()
+    await f.vm.load()
+
+    let project = await f.vm.createProject(named: "   ")
+
+    #expect(project == nil)
+    #expect(f.vm.projects.isEmpty)
+    #expect(f.vm.lastError == "Project name can’t be empty.")
+}
+
+@Test @MainActor
 func load_pinsOverdueOnTop() async {
     let f = Fixture()
     await f.seed(f.item("OnTime", displayOrder: "a0"))
@@ -618,10 +645,13 @@ func projectFilter_limitsRowsToTheProjectsAncestry() async {
     #expect(f.vm.projects.map(\.title) == ["Website"])
 
     f.vm.projectFilter = project.id
-    #expect(Set(f.vm.visibleRows.map(\.title)) == Set(["Website", "Write copy", "Draft hero"]))
+    // The project is a container, not a day task; its tasks and subtasks
+    // remain visible through the ancestry filter.
+    #expect(Set(f.vm.visibleRows.map(\.title)) == Set(["Write copy", "Draft hero"]))
 
     f.vm.projectFilter = nil
-    #expect(f.vm.visibleRows.count == 4)
+    #expect(f.vm.visibleRows.count == 3)
+    #expect(!f.vm.visibleRows.contains { $0.title == "Website" })
 }
 
 // MARK: - Upcoming section (after-hours + tomorrow)

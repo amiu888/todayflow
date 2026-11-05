@@ -89,6 +89,13 @@ public actor InMemoryContactRepository: ContactRepository {
 
     public func deleteGroup(_ id: UUIDv7) async throws {
         groupItems[id] = nil
+        for (childId, child) in groupItems where child.parentId == id {
+            var updated = child
+            updated.parentId = nil
+            updated.updatedAt = Date()
+            updated.version += 1
+            groupItems[childId] = updated
+        }
         for contact in memberships.keys {
             memberships[contact]?.remove(id)
         }

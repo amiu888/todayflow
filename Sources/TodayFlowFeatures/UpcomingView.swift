@@ -40,6 +40,7 @@ public final class UpcomingViewModel {
         items = all
             .filter {
                 !$0.isDeleted
+                    && $0.kind == .task
                     && !$0.status.isTerminal
                     && $0.endAt >= today
                     && $0.endAt < end

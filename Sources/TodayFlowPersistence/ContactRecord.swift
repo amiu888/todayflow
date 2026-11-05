@@ -33,6 +33,7 @@ struct ContactGroupRecord {
         model = ContactGroup(
             id: UUIDv7(databaseString: row["id"] as String),
             name: row["name"] as String,
+            parentId: (row["parent_id"] as String?).map(UUIDv7.init(databaseString:)),
             colorHex: row["color_hex"] as String,
             sortOrder: row["sort_order"] as String,
             createdAt: SqlTimestamp.decode(row["created_at"] as String) ?? .distantPast,

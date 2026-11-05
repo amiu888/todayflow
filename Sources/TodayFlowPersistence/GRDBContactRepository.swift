@@ -134,11 +134,12 @@ public struct GRDBContactRepository: ContactRepository {
         try db.execute(
             sql: """
                 INSERT INTO contact_group (
-                  id, name, color_hex, sort_order,
+                  id, name, parent_id, color_hex, sort_order,
                   created_at, updated_at, version, device_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                   name = excluded.name,
+                  parent_id = excluded.parent_id,
                   color_hex = excluded.color_hex,
                   sort_order = excluded.sort_order,
                   updated_at = excluded.updated_at,
@@ -148,6 +149,7 @@ public struct GRDBContactRepository: ContactRepository {
             arguments: [
                 group.id.uuid.uuidString,
                 group.name,
+                group.parentId?.uuid.uuidString,
                 group.colorHex,
                 group.sortOrder,
                 SqlTimestamp.encode(group.createdAt),
@@ -160,6 +162,10 @@ public struct GRDBContactRepository: ContactRepository {
 
     public func deleteGroup(_ id: UUIDv7) async throws {
         try await queue.write { db in
+            try db.execute(
+                sql: "UPDATE contact_group SET parent_id = NULL WHERE parent_id = ?",
+                arguments: [id.uuid.uuidString]
+            )
             try db.execute(
                 sql: "DELETE FROM contact_group_member WHERE group_id = ?",
                 arguments: [id.uuid.uuidString]

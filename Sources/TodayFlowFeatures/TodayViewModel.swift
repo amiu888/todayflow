@@ -253,6 +253,7 @@ public final class TodayViewModel {
             else { return nil }
             let count = allItems.filter {
                 !$0.isDeleted
+                    && $0.kind == .task
                     && !$0.status.isTerminal
                     && calendar.calendar.isDate($0.endAt, inSameDayAs: date)
             }.count
@@ -269,6 +270,7 @@ public final class TodayViewModel {
         self.upcomingRows = allItems
             .filter {
                 !$0.isDeleted
+                    && $0.kind == .task
                     && !$0.status.isTerminal
                     && $0.endAt > eob
                     && $0.endAt <= windowEnd
@@ -366,6 +368,40 @@ public final class TodayViewModel {
     /// Returns to the real current day.
     public func goToToday() async {
         await selectDay(calendar.calendar.startOfDay(for: clock()))
+    }
+
+    /// Creates a top-level project from the main panel's folder+ button.
+    /// Projects are containers, so they never appear as Today tasks; the
+    /// project filter and Hierarchy are where they surface.
+    @discardableResult
+    public func createProject(named name: String) async -> WorkItem? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            lastError = "Project name can’t be empty."
+            return nil
+        }
+        do {
+            let project = try await CreateTask(
+                repository: repository,
+                calendar: calendar,
+                deviceId: deviceId
+            ).execute(
+                .init(
+                    kind: .project,
+                    title: trimmed,
+                    startAt: clock(),
+                    color: DesignTokens.TrayPalette.colorHex(
+                        at: projects.count
+                    ),
+                    placement: .top
+                )
+            )
+            await load()
+            return project
+        } catch {
+            lastError = error.localizedDescription
+            return nil
+        }
     }
 
     // MARK: Working trays

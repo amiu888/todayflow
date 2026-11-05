@@ -43,6 +43,8 @@ public struct TodayView: View {
     @State private var dockAppBundle = ""
     @State private var dockEdge = "left"
     @State private var localDockedName: String?
+    @State private var showingNewProject = false
+    @State private var newProjectName = ""
 
     public init(model: TodayViewModel) {
         self.model = model
@@ -273,6 +275,22 @@ public struct TodayView: View {
         }
         .overlay(alignment: .bottom) { undoBar }
         .overlay(alignment: .top) { captureToast }
+        .alert("New project", isPresented: $showingNewProject) {
+            TextField("Project name", text: $newProjectName)
+            Button("Cancel", role: .cancel) { newProjectName = "" }
+            Button("Create") {
+                let name = newProjectName
+                newProjectName = ""
+                Task { @MainActor in
+                    if let project = await model.createProject(named: name) {
+                        showCaptureConfirmation("Created project “\(project.title)”")
+                    }
+                }
+            }
+            .keyboardShortcut(.defaultAction)
+        } message: {
+            Text("Projects group related tasks and appear in the project filter and Hierarchy.")
+        }
         .tint(DesignTokens.Palette.accent)
         .task { await model.observe() }
     }
@@ -613,6 +631,19 @@ public struct TodayView: View {
                 .help("Minimize to the mini day/week calendar")
                 .accessibilityLabel("Minimize to mini calendar")
             }
+
+            Button {
+                newProjectName = ""
+                showingNewProject = true
+            } label: {
+                Image(systemName: "folder.badge.plus")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .help("Create a project")
+            .accessibilityLabel("New project")
+            .accessibilityIdentifier("new-project")
 
             if let onOpenContacts {
                 Button {
