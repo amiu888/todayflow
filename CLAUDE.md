@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (no-op).
-- `swift build` is warning-free; `swift test` passes **508 tests**.
+- `swift build` is warning-free; `swift test` passes **512 tests**.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - v1 is local-only. Sync outbox rows stay pending for the v2 CloudKit engine.
 
