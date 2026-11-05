@@ -146,3 +146,13 @@ func handleDrop_pngProviderOpensTheCaptureSheet() async throws {
     manager.closeAll()
 }
 #endif
+
+@Test @MainActor
+func panelContentViewFitsMinimumWidth() async throws {
+    let manager = WindowManager(environment: makeEnvironment())
+    manager.show(.panel)
+    let window = try #require(manager.window(for: .panel))
+    window.setContentSize(NSSize(width: DesignTokens.Window.panelMinimum.width, height: 640))
+    try await Task.sleep(for: .milliseconds(150))
+    #expect(window.contentView?.frame.width == DesignTokens.Window.panelMinimum.width)
+}

@@ -201,15 +201,29 @@ public struct TrayStripView: View {
                             )
                     )
             } else {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 3) {
-                        ForEach(column.items) { item in
-                            chip(item, trayId: column.tray.id)
+                Group {
+                    if isCompact {
+                        // In the single-column layout every tray is a full
+                        // column: show all of its tasks and let the panel's
+                        // main scroll view handle overflow.
+                        VStack(spacing: 3) {
+                            ForEach(column.items) { item in
+                                chip(item, trayId: column.tray.id)
+                            }
                         }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(spacing: 3) {
+                                ForEach(column.items) { item in
+                                    chip(item, trayId: column.tray.id)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .frame(maxHeight: 112)
                     }
-                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxHeight: 112)
                 .onDrop(of: [.todayFlowWorkItem], isTargeted: nil) { providers in
                     drop(providers, into: column.tray.id)
                 }
