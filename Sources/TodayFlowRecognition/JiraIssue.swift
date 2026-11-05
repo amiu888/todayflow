@@ -102,6 +102,15 @@ public struct JiraIssueReference: Sendable, Hashable {
             if let key = normalizedKey(component) { return key }
         }
 
+        // A bare key in a path is only Jira-shaped on a Jira host. This avoids
+        // turning arbitrary product URLs like /products/ABC-123 into tickets.
+        let host = (url.host() ?? "").lowercased()
+        let looksLikeJira = host.contains("jira")
+            || host.contains("atlassian")
+            || host.contains("servicedesk")
+            || path.lowercased().contains("/jira/")
+        guard looksLikeJira else { return nil }
+
         guard let regex = try? NSRegularExpression(
             pattern: "(?<![A-Za-z0-9])[A-Z][A-Z0-9_]{0,19}-\\d{1,7}(?![A-Za-z0-9])"
         ) else { return nil }

@@ -28,6 +28,11 @@ struct JiraIssueTests {
         #expect(JiraIssueReference(url: example)?.issueKey == "ABC-123")
     }
 
+    @Test func rejectsAKeyShapedPathOnANonJiraHost() throws {
+        let url = try #require(URL(string: "https://example.com/products/ABC-123"))
+        #expect(JiraIssueReference(url: url) == nil)
+    }
+
     @Test func findsIssueURLInsidePlainText() throws {
         let text = """
         ABC-123 Fix login timeout
