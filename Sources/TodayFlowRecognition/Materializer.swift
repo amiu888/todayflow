@@ -49,9 +49,10 @@ public struct Materializer: Sendable {
             return result
         }
 
-        // Persistent files and folders: keep a security-scoped bookmark so the
-        // attachment can reopen the original later, without a copy.
-        if (object.type == .file || object.type == .folder),
+        // Persistent files, folders, and image files: keep a security-scoped
+        // bookmark so the attachment can reopen the original later, without a
+        // copy. (Pasted image bytes took the branch above.)
+        if (object.type == .file || object.type == .folder || object.type == .image),
            let fileURL = source.fileURL
         {
             if let bookmark = fileAccess.securityScopedBookmark(for: fileURL) {

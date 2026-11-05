@@ -84,6 +84,23 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         false
     }
 
+    /// FR-01: files dropped on the Dock icon open the capture sheet. (The
+    /// SwiftPM executable has no bundle yet, but this is the path a bundled
+    /// build uses; it also handles Finder "Open With".)
+    public func application(_ application: NSApplication, open urls: [URL]) {
+        let objects = urls.map { DroppedObjectLoader.object(forFileURL: $0) }
+        windows?.receiveDrop(objects)
+    }
+
+    /// Clicking the app in the Dock brings Today forward.
+    public func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        windows?.show(.panel)
+        return true
+    }
+
     /// Releases the Carbon hotkey before the process exits.
     public func applicationWillTerminate(_ notification: Notification) {
         hotKey?.unregister()

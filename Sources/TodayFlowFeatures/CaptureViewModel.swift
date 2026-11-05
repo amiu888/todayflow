@@ -122,6 +122,33 @@ public final class CaptureViewModel {
         droppedObjects.remove(at: index)
     }
 
+    /// Applies the slow enrichment result (driver.md §7 step 5) without
+    /// disturbing anything the user has edited since the sheet opened.
+    ///
+    /// Only objects keep their new metadata; the title follows the enriched
+    /// suggestion while it is still the inferred title (or empty). If the user
+    /// has typed their own title, it is left alone.
+    public func applyEnrichment(_ enriched: CaptureDraft) {
+        guard enriched.objects.count == draft.objects.count else { return }
+        let previous = draft.objects
+
+        for index in draft.objects.indices
+        where previous[index].type == enriched.objects[index].type {
+            draft.objects[index] = enriched.objects[index]
+        }
+
+        for index in previous.indices {
+            let inferred = previous[index].suggestedTitle ?? previous[index].displayName
+            let titleIsInferred = draft.title.isEmpty || draft.title == inferred
+            guard titleIsInferred,
+                  let suggestion = enriched.objects[index].suggestedTitle,
+                  !suggestion.isEmpty
+            else { continue }
+            draft.title = suggestion
+            break
+        }
+    }
+
     /// Creates the work item and its attachments from the current draft.
     public func save() async {
         guard !isSaving else { return }
@@ -147,9 +174,14 @@ public final class CaptureViewModel {
             ).execute(input)
 
             for (dropped, object) in zip(droppedObjects, draft.objects) {
-                var attachment = materializer
-                    .materialize(object, source: dropped)
-                    .attachment(for: item.id, at: now)
+                // The recognition pipeline already materialized this object
+                // (a transient copy or a bookmark). Materializing again would
+                // duplicate transient files; only do it when the caller handed
+                // us bare recognized objects.
+                let materialized = object.localCopyPath == nil && object.bookmark == nil
+                    ? materializer.materialize(object, source: dropped)
+                    : object
+                var attachment = materialized.attachment(for: item.id, at: now)
                 attachment.deviceId = deviceId
                 try await attachmentRepository.save(attachment)
             }

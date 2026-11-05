@@ -44,10 +44,41 @@ public final class StatusItemController: NSObject {
                 attachmentRepository: environment.attachments,
                 settingRepository: environment.settings,
                 calendar: environment.workCalendar,
-                onOpenTask: { [weak windowManager] id in windowManager?.show(.detail(id)) }
+                onOpenTask: { [weak windowManager] id in windowManager?.show(.detail(id)) },
+                onDrop: { [weak windowManager] providers, itemId in
+                    windowManager?.handleDrop(providers, onto: itemId) ?? false
+                }
             )
         )
+
+        installDropTarget(on: button)
         apply(progress: summary.progress)
+    }
+
+    /// FR-01: the menu-bar icon accepts drops. The transparent overlay forwards
+    /// clicks to this controller and turns drops into a capture sheet.
+    private func installDropTarget(on button: NSStatusBarButton) {
+        let dropView = StatusDropView()
+        dropView.translatesAutoresizingMaskIntoConstraints = false
+        dropView.canDrop = { DroppedObjectLoader.canRead($0) }
+        dropView.onDrop = { [weak self] pasteboard in
+            guard let self else { return false }
+            let objects = DroppedObjectLoader.objects(from: pasteboard)
+            guard !objects.isEmpty else { return false }
+            self.windowManager.receiveDrop(objects)
+            return true
+        }
+        dropView.onClick = { [weak self] isRightClick in
+            self?.handleStatusClick(isRightClick: isRightClick)
+        }
+        dropView.registerForDraggedTypes(DroppedObjectLoader.pasteboardTypes)
+        button.addSubview(dropView)
+        NSLayoutConstraint.activate([
+            dropView.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            dropView.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+            dropView.topAnchor.constraint(equalTo: button.topAnchor),
+            dropView.bottomAnchor.constraint(equalTo: button.bottomAnchor),
+        ])
     }
 
     /// FR-40: remaining count + mini progress ring.
@@ -60,7 +91,12 @@ public final class StatusItemController: NSObject {
     }
 
     @objc private func handleClick() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        handleStatusClick(isRightClick: NSApp.currentEvent?.type == .rightMouseUp)
+    }
+
+    /// Shared by the status button action and the drop overlay.
+    func handleStatusClick(isRightClick: Bool) {
+        if isRightClick {
             showMenu()
         } else {
             toggle()

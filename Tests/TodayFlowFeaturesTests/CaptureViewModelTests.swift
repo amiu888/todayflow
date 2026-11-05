@@ -435,3 +435,71 @@ func setParents_exposesOptionsToSheet() {
 
     #expect(f.vm.parents == options)
 }
+
+// MARK: - Async enrichment (driver.md §7 step 5)
+
+@Test @MainActor
+func applyEnrichment_updatesUrlTitleWhileStillInferred() {
+    let f = Fixture()
+    let source = URL(string: "https://example.com/article")!
+    f.vm.prepare(
+        dropped: [DroppedObject(url: source)],
+        recognized: [
+            RecognizedObject(
+                type: .url,
+                displayName: "example.com",
+                reference: source.absoluteString,
+                suggestedTitle: "example.com"
+            )
+        ]
+    )
+    #expect(f.vm.draft.title == "example.com")
+
+    var enriched = f.vm.draft
+    enriched.objects[0].displayName = "Example Domain"
+    enriched.objects[0].suggestedTitle = "Example Domain"
+    f.vm.applyEnrichment(enriched)
+
+    #expect(f.vm.draft.objects[0].displayName == "Example Domain")
+    #expect(f.vm.draft.title == "Example Domain")
+}
+
+@Test @MainActor
+func applyEnrichment_preservesUserEditedTitle() {
+    let f = Fixture()
+    let source = URL(string: "https://example.com/article")!
+    f.vm.prepare(
+        dropped: [DroppedObject(url: source)],
+        recognized: [
+            RecognizedObject(
+                type: .url,
+                displayName: "example.com",
+                reference: source.absoluteString,
+                suggestedTitle: "example.com"
+            )
+        ]
+    )
+    f.vm.draft.title = "Read the article"
+
+    var enriched = f.vm.draft
+    enriched.objects[0].displayName = "Example Domain"
+    enriched.objects[0].suggestedTitle = "Example Domain"
+    f.vm.applyEnrichment(enriched)
+
+    #expect(f.vm.draft.objects[0].displayName == "Example Domain")
+    #expect(f.vm.draft.title == "Read the article")
+}
+
+@Test @MainActor
+func applyEnrichment_ignoresMismatchedDrafts() {
+    let f = Fixture()
+    f.vm.prepare(dropped: [], recognized: [])
+    f.vm.draft.title = "Keep me"
+
+    var enriched = f.vm.draft
+    enriched.objects = [RecognizedObject(type: .text, displayName: "Unexpected")]
+    f.vm.applyEnrichment(enriched)
+
+    #expect(f.vm.draft.objects.isEmpty)
+    #expect(f.vm.draft.title == "Keep me")
+}

@@ -2,6 +2,9 @@ import SwiftUI
 import Foundation
 import TodayFlowCore
 import TodayFlowDesign
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// The Today panel: progress header, filter chips, optional search row,
 /// and the task list (overdue / today / done sections).
@@ -11,16 +14,29 @@ import TodayFlowDesign
 /// view model.
 public struct TodayView: View {
     private let model: TodayViewModel
+    #if canImport(AppKit)
+    /// Handles a drop/paste; the second argument is the target task when the
+    /// drop landed on a row (FR-04), or `nil` for the panel background (FR-01).
+    private let onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)?
+    #endif
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isSearching: Bool = false
     @State private var searchText: String = ""
+    @State private var isPanelDropTargeted: Bool = false
+    @State private var dropTargetId: UUIDv7?
 
     public init(model: TodayViewModel) {
         self.model = model
+        #if canImport(AppKit)
+        self.onDrop = nil
+        #endif
     }
 
     /// Convenience initializer for hosts that own the repositories.
+    ///
+    /// `onDrop` is optional so previews and tests can build the panel without
+    /// an AppKit drop receiver; the production host supplies it.
     @MainActor
     public init(
         repository: any WorkItemRepository,
@@ -29,7 +45,8 @@ public struct TodayView: View {
         settingRepository: (any SettingRepository)? = nil,
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
-        onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil
+        onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil,
+        onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil
     ) {
         self.model = TodayViewModel(
             repository: repository,
@@ -40,6 +57,9 @@ public struct TodayView: View {
             deviceId: deviceId,
             onOpenTask: onOpenTask
         )
+        #if canImport(AppKit)
+        self.onDrop = onDrop
+        #endif
     }
 
     private var motion: Motion {
@@ -93,8 +113,54 @@ public struct TodayView: View {
             minHeight: DesignTokens.Window.panelMinimum.height
         )
         .background { keyboardShortcuts }
+        #if canImport(AppKit)
+        .onDrop(of: CaptureDropTypes.supported, isTargeted: $isPanelDropTargeted) { providers in
+            onDrop?(providers, nil) ?? false
+        }
+        // FR-06: ⌘V behaves like a drop of the clipboard. The focused text
+        // field consumes its own paste first, so typing is never hijacked.
+        .onPasteCommand(of: CaptureDropTypes.supported) { providers in
+            guard !isSearching else { return }
+            _ = onDrop?(providers, nil)
+        }
+        .overlay { panelDropIndicator }
+        #endif
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.attachmentsChanged)) { _ in
+            Task { @MainActor in
+                await model.load()
+            }
+        }
         .task { await model.observe() }
     }
+
+    #if canImport(AppKit)
+    /// A thin accent border while a drag hovers anywhere over the panel.
+    @MainActor
+    @ViewBuilder
+    private var panelDropIndicator: some View {
+        if isPanelDropTargeted {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.accentColor, lineWidth: 2)
+                .padding(3)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// Per-row targeting state, so only the hovered row highlights (FR-04).
+    private func dropBinding(for id: UUIDv7) -> Binding<Bool> {
+        Binding(
+            get: { dropTargetId == id },
+            set: { targeted in
+                if targeted {
+                    dropTargetId = id
+                } else if dropTargetId == id {
+                    dropTargetId = nil
+                }
+            }
+        )
+    }
+    #endif
 
     // MARK: - Keyboard (driver.md FR-12)
 
@@ -196,7 +262,7 @@ public struct TodayView: View {
 
     @MainActor
     private func rowView(_ row: TaskRowModel) -> some View {
-        TaskRowView(
+        let content = TaskRowView(
             model: row,
             onToggle: { id in
                 Task { @MainActor in
@@ -221,6 +287,23 @@ public struct TodayView: View {
                 }
             }
         )
+
+        #if canImport(AppKit)
+        return content
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(dropTargetId == row.id ? Color.accentColor.opacity(0.12) : Color.clear)
+            }
+            .onDrop(
+                of: CaptureDropTypes.supported,
+                isTargeted: dropBinding(for: row.id)
+            ) { providers in
+                // FR-04: a drop on a row adds attachments to that task.
+                onDrop?(providers, row.id) ?? false
+            }
+        #else
+        return content
+        #endif
     }
 
     @MainActor

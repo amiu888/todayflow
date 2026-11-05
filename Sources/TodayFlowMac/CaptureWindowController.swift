@@ -5,17 +5,19 @@ import SwiftUI
 import TodayFlowCore
 import TodayFlowDesign
 import TodayFlowFeatures
+import TodayFlowRecognition
 
 /// Owns the quick-add capture panel (driver.md FR-02/FR-05).
 ///
 /// One reusable floating panel: every presentation builds a fresh
-/// `CaptureViewModel` (an empty draft) and replaces the hosted view, so the
-/// title field focuses itself again and no stale draft survives. Saving or
-/// cancelling closes the panel; the Today list updates through its live query.
+/// `CaptureViewModel` and replaces the hosted view, so the title field focuses
+/// itself again and no stale draft survives. Saving or cancelling closes the
+/// panel; the Today list updates through its live query.
 @MainActor
 public final class CaptureWindowController {
     private let environment: AppEnvironment
     private var panel: PanelWindow?
+    private var currentModel: CaptureViewModel?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -26,10 +28,18 @@ public final class CaptureWindowController {
         panel?.isVisible ?? false
     }
 
-    /// Opens an empty capture panel and focuses the title field.
-    public func present() {
+    /// Opens the capture panel, optionally seeded with dropped objects.
+    ///
+    /// Recognition is synchronous and stays inside the 300 ms budget
+    /// (NFR-01); enrichment (URL page titles) starts only after the panel is
+    /// on screen, so a slow network never delays the sheet.
+    public func present(
+        dropped: [DroppedObject] = [],
+        recognized: [RecognizedObject] = []
+    ) {
         let model = makeModel()
-        model.prepare(dropped: [], recognized: [])
+        model.prepare(dropped: dropped, recognized: recognized)
+        currentModel = model
 
         let host = NSHostingView(rootView: CaptureSheetHost(model: model))
         let panel = panel ?? makePanel()
@@ -40,6 +50,13 @@ public final class CaptureWindowController {
         NSApp.activate(ignoringOtherApps: true)
         panel.center()
         panel.makeKeyAndOrderFront(nil)
+
+        guard !recognized.isEmpty else { return }
+        Task { @MainActor [weak self] in
+            let enriched = await Enricher(fetcher: URLSessionFetcher()).enrich(model.draft)
+            guard let self, self.currentModel === model, self.isPresenting else { return }
+            model.applyEnrichment(enriched)
+        }
     }
 
     /// Hides the panel, keeping it for the next presentation.

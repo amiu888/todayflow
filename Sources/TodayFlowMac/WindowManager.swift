@@ -5,6 +5,7 @@ import SwiftUI
 import TodayFlowCore
 import TodayFlowDesign
 import TodayFlowFeatures
+import TodayFlowRecognition
 
 /// Owns the app's windows (driver.md lines 145-152). Windows are created on
 /// demand, keyed by `WindowKind`, and reused while open. The panel and slim
@@ -14,6 +15,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private let environment: AppEnvironment
     private var windows: [WindowKind: NSWindow] = [:]
     private let capture: CaptureWindowController
+    private let dropLoader = DroppedObjectLoader()
 
     /// The shared summary model (driver.md FR-40); the delegate assigns it
     /// after construction. The slim bar reads it in `body` so it stays live.
@@ -25,9 +27,69 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         super.init()
     }
 
-    /// Opens the quick-add capture panel (FR-02 drop, FR-05 hotkey).
+    /// Opens an empty quick-add capture panel (FR-05 hotkey).
     public func showCapture() {
         capture.present()
+    }
+
+    /// Opens the quick-add panel seeded with dropped objects (FR-01/FR-06).
+    public func showCapture(dropped: [DroppedObject]) {
+        guard !dropped.isEmpty else {
+            showCapture()
+            return
+        }
+        let recognized = dropped.map { environment.pipeline.recognize($0) }
+        capture.present(dropped: dropped, recognized: recognized)
+    }
+
+    /// Converts an AppKit drop and routes it: onto a row, it becomes
+    /// attachments on that task (FR-04); anywhere else it opens the sheet.
+    /// Returns immediately so the drag operation completes without waiting for
+    /// the provider loads.
+    @discardableResult
+    public func handleDrop(_ providers: [NSItemProvider], onto itemId: UUIDv7? = nil) -> Bool {
+        guard !providers.isEmpty else { return false }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let objects = await self.dropLoader.load(from: providers)
+            guard !objects.isEmpty else { return }
+            if let itemId {
+                await self.attach(objects, to: itemId)
+            } else {
+                self.showCapture(dropped: objects)
+            }
+        }
+        return true
+    }
+
+    /// Handles objects that were already converted (menu-bar drags and
+    /// `application(_:open:)` file drops).
+    public func receiveDrop(_ objects: [DroppedObject]) {
+        showCapture(dropped: objects)
+    }
+
+    /// Adds the dropped objects to an existing task (FR-04).
+    private func attach(_ objects: [DroppedObject], to itemId: UUIDv7) async {
+        guard await environment.workItems.item(itemId) != nil else { return }
+        let recognized = objects.map { environment.pipeline.recognize($0) }
+        let importer = TaskAttachmentImporter(
+            attachmentRepository: environment.attachments,
+            materializer: environment.materializer
+        )
+        do {
+            try await importer.add(recognized, from: objects, to: itemId)
+            NotificationCenter.default.post(name: TodayFlowEvents.attachmentsChanged, object: nil)
+        } catch {
+            presentAttachmentError(error)
+        }
+    }
+
+    private func presentAttachmentError(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Couldn’t add the attachment"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.runModal()
     }
 
     /// True while the quick-add panel is on screen.
@@ -126,7 +188,10 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 attachmentRepository: environment.attachments,
                 settingRepository: environment.settings,
                 calendar: environment.workCalendar,
-                onOpenTask: { [weak self] id in self?.show(.detail(id)) }
+                onOpenTask: { [weak self] id in self?.show(.detail(id)) },
+                onDrop: { [weak self] providers, itemId in
+                    self?.handleDrop(providers, onto: itemId) ?? false
+                }
             )
         case .hierarchy:
             HierarchyView(
