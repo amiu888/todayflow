@@ -166,12 +166,7 @@ final class TodayFlowUITests: XCTestCase {
         let dragArea = workingWindow.descendants(matching: .any)
             .matching(identifier: "task-drag-area-\(title)").firstMatch
         XCTAssertTrue(dragArea.waitForExistence(timeout: 4))
-        dragArea.press(
-            forDuration: 0.6,
-            thenDragTo: secondWindow.coordinate(
-                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)
-            )
-        )
+        dragArea.press(forDuration: 0.6, thenDragTo: secondWindow)
 
         XCTAssertTrue(
             secondWindow.descendants(matching: .any)
