@@ -91,4 +91,33 @@ struct WindowManagerTests {
         #expect(window?.contentMaxSize == DesignTokens.Window.slimBar)
     }
 }
+
+// MARK: - Drop routing
+
+@Test @MainActor
+func handleDrop_pngProviderOpensTheCaptureSheet() async throws {
+    let manager = WindowManager(environment: makeEnvironment())
+
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("TodayFlowDropRouting-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let image = root.appendingPathComponent("photo.png")
+    let png = Data(base64Encoded:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    )!
+    try png.write(to: image)
+
+    let provider = try #require(NSItemProvider(contentsOf: image))
+    #expect(manager.handleDrop([provider], onto: nil))
+
+    let deadline = ContinuousClock.now + .seconds(2)
+    while !manager.isCapturePresenting, ContinuousClock.now < deadline {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(manager.isCapturePresenting, "a PNG drop must open the quick-add sheet")
+
+    manager.closeAll()
+}
 #endif
