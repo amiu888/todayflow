@@ -394,7 +394,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             )
         }
         window.title = kind.title
-        window.isMovableByWindowBackground = true
+        // The main panel is dragged by its title bar only; a background drag
+        // makes an ordinary content click nudge the whole UI.
+        window.isMovableByWindowBackground = kind != .panel
         if case .panel = kind {
             window.contentMinSize = DesignTokens.Window.panelMinimum
         }

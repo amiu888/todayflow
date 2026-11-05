@@ -101,6 +101,7 @@ struct WindowManagerTests {
         let window = manager.window(for: .panel)
         #expect(window is PanelWindow)
         #expect((window as? PanelWindow)?.isFloatingPanel == true)
+        #expect(window?.isMovableByWindowBackground == false)
         #expect(window?.level == .floating)
     }
 
