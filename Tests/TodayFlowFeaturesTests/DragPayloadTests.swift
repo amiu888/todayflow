@@ -1,4 +1,5 @@
 #if canImport(AppKit)
+import AppKit
 import Foundation
 import Testing
 import UniformTypeIdentifiers
@@ -79,5 +80,72 @@ struct DragPayloadLoadingTests {
         let payload = await WorkItemDragPayload.load(from: box.provider)
 
         #expect(payload == nil)
+    }
+}
+
+@MainActor
+struct DragPasteboardSnapshotTests {
+    private func pasteboard() -> NSPasteboard {
+        NSPasteboard(name: NSPasteboard.Name("todayflow-tests-\(UUID().uuidString)"))
+    }
+
+    private var dragType: NSPasteboard.PasteboardType {
+        NSPasteboard.PasteboardType(UTType.todayFlowWorkItem.identifier)
+    }
+
+    @Test func snapshotsStringPayloads() {
+        let item = UUIDv7.new()
+        let tray = UUIDv7.new()
+        let board = pasteboard()
+        board.clearContents()
+        let pasteboardItem = NSPasteboardItem()
+        pasteboardItem.setString(
+            "\(item.uuid.uuidString)|\(tray.uuid.uuidString)",
+            forType: dragType
+        )
+        board.writeObjects([pasteboardItem])
+
+        let payloads = WorkItemDragPayload.loadAll(from: board)
+
+        #expect(payloads.count == 1)
+        #expect(payloads.first?.itemId == item)
+        #expect(payloads.first?.sourceTrayId == tray)
+    }
+
+    @Test func snapshotsMultiplePayloads() {
+        let board = pasteboard()
+        board.clearContents()
+        let items = (0..<3).map { _ -> NSPasteboardItem in
+            let item = NSPasteboardItem()
+            item.setString(
+                UUIDv7.new().uuid.uuidString,
+                forType: dragType
+            )
+            return item
+        }
+        board.writeObjects(items)
+
+        let payloads = WorkItemDragPayload.loadAll(from: board)
+
+        #expect(payloads.count == 3)
+        #expect(payloads.allSatisfy { $0.sourceTrayId == nil })
+    }
+
+    @Test func snapshotsCodablePayloads() throws {
+        let item = UUIDv7.new()
+        let tray = UUIDv7.new()
+        let board = pasteboard()
+        board.clearContents()
+        let data = try JSONEncoder().encode(
+            WorkItemDragPayload(itemId: item, sourceTrayId: tray)
+        )
+        let pasteboardItem = NSPasteboardItem()
+        pasteboardItem.setData(data, forType: dragType)
+        board.writeObjects([pasteboardItem])
+
+        let payloads = WorkItemDragPayload.loadAll(from: board)
+
+        #expect(payloads.first?.itemId == item)
+        #expect(payloads.first?.sourceTrayId == tray)
     }
 }

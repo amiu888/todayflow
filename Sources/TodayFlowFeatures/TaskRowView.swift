@@ -547,12 +547,20 @@ public struct TaskRowView: View {
 
         func performDrop(info: DropInfo) -> Bool {
             isTargeted.wrappedValue = false
-            guard let provider = info.itemProviders(for: [.todayFlowWorkItem]).first
-            else { return false }
 
             let before = info.location.y < DesignTokens.Spacing.rowHeight / 2
             let target = targetId
             let move = onMove
+
+            let snapshotted = WorkItemDragPayload.loadFromDragPasteboard()
+            if let payload = snapshotted.first(where: { $0.itemId != target }) {
+                move(payload.itemId, target, before)
+                return true
+            }
+
+            guard let provider = info.itemProviders(for: [.todayFlowWorkItem]).first
+            else { return false }
+
             let box = WorkItemDragPayload.ProviderBox(provider)
             Task { @MainActor in
                 guard let payload = await WorkItemDragPayload.load(from: box.provider),

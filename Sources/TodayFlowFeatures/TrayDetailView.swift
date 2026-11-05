@@ -245,6 +245,20 @@ public struct TrayDetailView: View {
 
     @MainActor
     private func accept(_ providers: [NSItemProvider]) -> Bool {
+        let snapshotted = WorkItemDragPayload.loadFromDragPasteboard()
+        if !snapshotted.isEmpty {
+            for payload in snapshotted {
+                Task { @MainActor in
+                    if let source = payload.sourceTrayId {
+                        await model.moveToTray(payload.itemId, from: source, to: trayId)
+                    } else {
+                        await model.addToTray(payload.itemId, trayId: trayId)
+                    }
+                }
+            }
+            return true
+        }
+
         guard !providers.isEmpty else { return false }
         for provider in providers {
             let box = WorkItemDragPayload.ProviderBox(provider)

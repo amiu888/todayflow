@@ -310,6 +310,16 @@ public struct TrayStripView: View {
     @MainActor
     private func accept(_ providers: [NSItemProvider], into trayId: UUIDv7) -> Bool {
         Diagnostics.log("tray", "drop into tray=\(trayId) providers=\(providers.count)")
+
+        // Read the drag pasteboard before returning from the drop callback;
+        // providers can be invalidated immediately afterwards.
+        let snapshotted = WorkItemDragPayload.loadFromDragPasteboard()
+        if !snapshotted.isEmpty {
+            Diagnostics.log("tray", "snapshot payloads=\(snapshotted.count)")
+            apply(snapshotted, into: trayId)
+            return true
+        }
+
         guard !providers.isEmpty else { return false }
         for provider in providers {
             let box = WorkItemDragPayload.ProviderBox(provider)
@@ -325,6 +335,19 @@ public struct TrayStripView: View {
             }
         }
         return true
+    }
+
+    @MainActor
+    private func apply(_ payloads: [WorkItemDragPayload], into trayId: UUIDv7) {
+        for payload in payloads {
+            Task { @MainActor in
+                if let source = payload.sourceTrayId {
+                    await model.moveToTray(payload.itemId, from: source, to: trayId)
+                } else {
+                    await model.addToTray(payload.itemId, trayId: trayId)
+                }
+            }
+        }
     }
 
     @MainActor

@@ -88,6 +88,44 @@ public struct WorkItemDragPayload: Codable, Transferable {
         return nil
     }
 
+    /// Snapshots every payload on the drag pasteboard. Drop callbacks must
+    /// read this synchronously: an `NSItemProvider` handed to us by the drag
+    /// system can be invalidated as soon as the callback returns, which made
+    /// drops appear to be accepted and then silently do nothing.
+    public static func loadAll(from pasteboard: NSPasteboard) -> [WorkItemDragPayload] {
+        var payloads: [WorkItemDragPayload] = []
+        let type = NSPasteboard.PasteboardType(UTType.todayFlowWorkItem.identifier)
+
+        for item in pasteboard.pasteboardItems ?? [] {
+            if let string = item.string(forType: type),
+               let decoded = decode(string)
+            {
+                payloads.append(
+                    WorkItemDragPayload(
+                        itemId: decoded.itemId,
+                        sourceTrayId: decoded.sourceTray
+                    )
+                )
+                continue
+            }
+
+            if let data = item.data(forType: type),
+               let payload = try? JSONDecoder().decode(
+                    WorkItemDragPayload.self,
+                    from: data
+               )
+            {
+                payloads.append(payload)
+            }
+        }
+        return payloads
+    }
+
+    /// The common case: the in-app drag pasteboard.
+    public static func loadFromDragPasteboard() -> [WorkItemDragPayload] {
+        loadAll(from: NSPasteboard(name: .drag))
+    }
+
     /// Parses the provider string into the item and, when the drag started in
     /// a tray, its source tray (for move-between-trays).
     public static func decode(_ value: String) -> (itemId: UUIDv7, sourceTray: UUIDv7?)? {
