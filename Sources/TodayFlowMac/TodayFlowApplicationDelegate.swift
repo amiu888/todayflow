@@ -58,6 +58,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             controller.onAskAI = { [weak askAI] in askAI?.present() }
             controller.onExportJSON = { [weak self] in self?.export(.json) }
             controller.onExportCSV = { [weak self] in self?.export(.csv) }
+            controller.onExportExcel = { [weak self] in self?.export(.xlsx) }
             self.statusItem = controller
             installMainMenu()
             summary.onRefreshed = { [weak controller, weak self] progress in
@@ -162,6 +163,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         fileMenu.addItem(.separator())
         fileMenu.addItem(item("Export JSON…", #selector(exportJSONMenu), key: ""))
         fileMenu.addItem(item("Export CSV…", #selector(exportCSVMenu), key: ""))
+        fileMenu.addItem(item("Export Excel…", #selector(exportExcelMenu), key: ""))
         fileMenu.addItem(.separator())
         fileMenu.addItem(item("Minimize", #selector(minimizeMenu), key: "m"))
         fileMenu.addItem(responderItem("Close Window", #selector(NSWindow.performClose(_:)), key: "w"))
@@ -191,6 +193,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewMenu.addItem(appearanceItem)
         viewMenu.addItem(.separator())
         viewMenu.addItem(item("Today", #selector(showTodayMenu), key: "1"))
+        viewMenu.addItem(item("Calendar", #selector(showCalendarMenu), key: "5"))
         viewMenu.addItem(item("Upcoming", #selector(showUpcomingMenu), key: "2"))
         viewMenu.addItem(item("Completed", #selector(showCompletedMenu), key: "3"))
         viewMenu.addItem(item("Hierarchy", #selector(showHierarchyMenu), key: "4"))
@@ -276,6 +279,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         export(.csv)
     }
 
+    @objc private func exportExcelMenu() {
+        export(.xlsx)
+    }
+
     // MARK: - Appearance
 
     private static let appearanceKey = "todayflow.appearance"
@@ -312,6 +319,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         windows?.show(.panel)
     }
 
+    @objc private func showCalendarMenu() {
+        windows?.show(.calendar)
+    }
+
     @objc private func showUpcomingMenu() {
         windows?.show(.upcoming)
     }
@@ -339,22 +350,26 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         guard let environment else { return }
         Task { @MainActor in
             let items = await environment.workItems.allItems()
-            let data: Data
-            do {
-                data = try DataExport().data(for: items, format: format)
-            } catch {
-                self.presentExportError(error)
-                return
-            }
 
             let panel = NSSavePanel()
             panel.nameFieldStringValue = "TodayFlow.\(format.fileExtension)"
-            panel.allowedContentTypes = [format == .json ? .json : .commaSeparatedText]
+            switch format {
+            case .json:
+                panel.allowedContentTypes = [.json]
+            case .csv:
+                panel.allowedContentTypes = [.commaSeparatedText]
+            case .xlsx:
+                panel.allowedContentTypes = [
+                    UTType(filenameExtension: "xlsx")
+                        ?? UTType(filenameExtension: "zip")
+                        ?? .data
+                ]
+            }
             panel.canCreateDirectories = true
             guard panel.runModal() == .OK, let url = panel.url else { return }
 
             do {
-                try data.write(to: url, options: .atomic)
+                try DataExport().write(items: items, format: format, to: url)
             } catch {
                 self.presentExportError(error)
             }

@@ -11,15 +11,15 @@ public enum Priority: Int, Codable, CaseIterable, Sendable, Comparable, Hashable
         lhs.rawValue < rhs.rawValue
     }
 
-    /// Default priority for a newly captured task (driver.md §2: P3 Normal).
+    /// Default priority for a newly captured task (driver.md §2: P3 Medium).
     public static let `default` = Priority.normal
 
-    /// Human-readable label, e.g. "P1 Urgent".
+    /// Human-readable label, e.g. "P1 Critical".
     public var label: String {
         switch self {
-        case .urgent: return "P1 Urgent"
+        case .urgent: return "P1 Critical"
         case .high:   return "P2 High"
-        case .normal: return "P3 Normal"
+        case .normal: return "P3 Medium"
         case .low:    return "P4 Low"
         }
     }

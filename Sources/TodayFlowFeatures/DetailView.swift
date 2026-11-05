@@ -27,6 +27,8 @@ public struct DetailView: View {
     @FocusState private var focusedField: Field?
     @State private var selectedSuggestions: Set<String> = []
     @State private var isAttachmentDropTargeted = false
+    @State private var showSaved = false
+    @State private var savedFeedbackTask: Task<Void, Never>?
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -117,6 +119,16 @@ public struct DetailView: View {
         }
         .onChange(of: model.subtaskSuggestions) { _, new in
             selectedSuggestions = Set(new.map(\.title))
+        }
+        .onChange(of: model.lastSavedAt) { _, saved in
+            guard saved != nil else { return }
+            savedFeedbackTask?.cancel()
+            withAnimation(.easeOut(duration: 0.18)) { showSaved = true }
+            savedFeedbackTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeIn(duration: 0.25)) { showSaved = false }
+            }
         }
         .onChange(of: focusedField) { old, _ in
             // FR-22: inline edits commit on interaction — here, on focus loss.
@@ -227,6 +239,21 @@ public struct DetailView: View {
                 }
             }
 
+            if model.isSaving {
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.mini)
+                    Text("Saving…")
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            } else if showSaved {
+                Label("Saved", systemImage: "checkmark.circle.fill")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.success)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    .accessibilityLabel("Changes saved")
+            }
+
             // FR-20: the roll-up ring is always visible on containers.
             if item.kind == .project || item.kind == .epic {
                 let ring = ProgressRingModel(result: model.progress)
@@ -262,6 +289,7 @@ public struct DetailView: View {
             .foregroundStyle(statusTint(model.displayStatus))
         }
         .disabled(model.isSaving)
+        .help("Change status")
     }
 
     @MainActor
@@ -290,6 +318,7 @@ public struct DetailView: View {
             .background(Capsule().fill(.quaternary.opacity(0.4)))
         }
         .disabled(model.isSaving)
+        .help("Change priority")
     }
 
     @MainActor
@@ -706,11 +735,21 @@ public struct DetailView: View {
                     Label("Complete", systemImage: "checkmark")
                 }
                 .keyboardShortcut(.defaultAction)
+                .help("Mark this task done")
             }
+
+            Button {
+                Task { await model.commit() }
+            } label: {
+                Label("Save", systemImage: "checkmark.circle")
+            }
+            .help("Save changes now")
+            .disabled(model.isSaving)
 
             Button("Move to tomorrow") {
                 Task { await model.moveToTomorrow() }
             }
+            .help("Reschedule to the next working day")
 
             Spacer()
 
@@ -719,6 +758,7 @@ public struct DetailView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+            .help("Delete this task")
         }
         .disabled(model.isSaving)
     }

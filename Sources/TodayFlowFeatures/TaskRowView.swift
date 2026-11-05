@@ -1,6 +1,9 @@
 import SwiftUI
 import TodayFlowCore
 import TodayFlowDesign
+#if canImport(AppKit)
+import AppKit
+#endif
 
 public struct TaskRowView: View {
     public let model: TaskRowModel
@@ -36,6 +39,8 @@ public struct TaskRowView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovering: Bool = false
+    @State private var showsAttachments = false
+    @State private var attachmentHoverTask: Task<Void, Never>?
 
     @MainActor
     public var body: some View {
@@ -70,8 +75,12 @@ public struct TaskRowView: View {
                 )
             }
             .contentShape(Rectangle())
-            .onTapGesture { onSelect(model.id) }
-            .onTapGesture(count: 2) { onQuickAction(model.id, .open) }
+            .onTapGesture {
+                onSelect(model.id)
+                // A click opens the detail view; reordering is drag or the
+                // explicit move actions.
+                onQuickAction(model.id, .open)
+            }
             .onHover { isHovering = $0 }
             .overlay(alignment: .trailing) {
                 if isHovering {
@@ -89,6 +98,22 @@ public struct TaskRowView: View {
                 let isBefore = location.y < DesignTokens.Spacing.rowHeight / 2
                 onMove(payload.itemId, model.id, isBefore)
                 return true
+            }
+            .contextMenu {
+                Button("Open") { onQuickAction(model.id, .open) }
+                Divider()
+                Button("Move up") { onQuickAction(model.id, .moveUp) }
+                Button("Move down") { onQuickAction(model.id, .moveDown) }
+                Menu("Priority") {
+                    ForEach(Priority.allCases, id: \.self) { priority in
+                        Button(priority.label) {
+                            onQuickAction(model.id, .setPriority(priority))
+                        }
+                    }
+                }
+                Button("Move to tomorrow") {
+                    onQuickAction(model.id, .moveToTomorrow)
+                }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityLabel(dueTime: dueTime))
@@ -108,6 +133,7 @@ public struct TaskRowView: View {
             Circle()
                 .fill(PriorityColor.color(for: model.priority, in: colorScheme))
                 .frame(width: 8, height: 8)
+                .help("Priority: \(model.priority.label)")
 
             Text(model.title)
                 .lineLimit(1)
@@ -115,6 +141,7 @@ public struct TaskRowView: View {
                 .strikethrough(model.isDone)
                 .foregroundStyle(model.isDone ? Color.secondary : Color.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .help(model.descriptionPreview ?? "Open “\(model.title)”")
 
             if model.isBlocked {
                 Image(systemName: "lock.fill")
@@ -128,13 +155,18 @@ public struct TaskRowView: View {
                 Image(systemName: "clock.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(DesignTokens.Palette.warning)
-                    .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)
+                    .help("Due soon: \(dueTime)")
                     .accessibilityHidden(true)
             }
 
             Text(dueTime)
                 .font(.system(size: 12))
-                .foregroundStyle(model.isOverdue ? Color(hex: "#d03b3b") : Color.secondary)
+                .foregroundStyle(
+                    model.isOverdue
+                        ? DesignTokens.Palette.danger
+                        : DesignTokens.Palette.textSecondary
+                )
+                .help(model.isOverdue ? "Overdue — was due \(dueTime)" : "Due at \(dueTime)")
         }
     }
 
@@ -160,6 +192,7 @@ public struct TaskRowView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(isDone ? "Reopen task" : "Mark done")
         .overlay {
             if hasChain {
                 Rectangle()
@@ -179,15 +212,7 @@ public struct TaskRowView: View {
 
         return HStack(spacing: 4) {
             ForEach(hints, id: \.self) { hint in
-                let style = AttachmentIconStyle.style(
-                    uti: nil,
-                    displayName: hint.displayName,
-                    kind: hint.kind
-                )
-
-                Image(systemName: style.symbolName)
-                    .font(.system(size: 12))
-                    .foregroundStyle(style.tint(in: scheme))
+                attachmentIcon(hint, scheme: scheme)
             }
 
             if extra > 0 {
@@ -195,6 +220,102 @@ public struct TaskRowView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(Color.secondary)
             }
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .help(attachmentTooltip)
+        .onHover { hovering in
+            attachmentHoverTask?.cancel()
+            if hovering {
+                showsAttachments = true
+            } else {
+                attachmentHoverTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(180))
+                    guard !Task.isCancelled else { return }
+                    showsAttachments = false
+                }
+            }
+        }
+        .popover(isPresented: $showsAttachments, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Attachments")
+                    .font(.caption.weight(.semibold))
+                ForEach(model.allAttachments, id: \.self) { hint in
+                    HStack(spacing: 6) {
+                        attachmentIcon(hint, scheme: scheme)
+                        Text(hint.displayName)
+                            .font(.caption)
+                            .lineLimit(1)
+                        if let app = hint.sourceApp {
+                            Text("· \(shortAppName(app))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .frame(minWidth: 180, maxWidth: 300, alignment: .leading)
+        }
+    }
+
+    @MainActor
+    @ViewBuilder
+    private func attachmentIcon(
+        _ hint: TaskRowModel.AttachmentHint,
+        scheme: ColorScheme
+    ) -> some View {
+        #if canImport(AppKit)
+        if let app = hint.sourceApp,
+           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app)
+        {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path))
+                .resizable()
+                .frame(width: 13, height: 13)
+        } else {
+            kindIcon(hint, scheme: scheme)
+        }
+        #else
+        kindIcon(hint, scheme: scheme)
+        #endif
+    }
+
+    @MainActor
+    private func kindIcon(
+        _ hint: TaskRowModel.AttachmentHint,
+        scheme: ColorScheme
+    ) -> some View {
+        let style = AttachmentIconStyle.style(
+            uti: nil,
+            displayName: hint.displayName,
+            kind: hint.kind
+        )
+        return Image(systemName: style.symbolName)
+            .font(.system(size: 12))
+            .foregroundStyle(style.tint(in: scheme))
+    }
+
+    private var attachmentTooltip: String {
+        guard !model.allAttachments.isEmpty else { return "No attachments" }
+        return model.allAttachments
+            .map { hint in
+                if let app = hint.sourceApp {
+                    return "\(hint.displayName) (\(shortAppName(app)))"
+                }
+                return hint.displayName
+            }
+            .joined(separator: "\n")
+    }
+
+    private func shortAppName(_ bundleId: String) -> String {
+        switch bundleId {
+        case "com.apple.finder": return "Finder"
+        case "com.apple.Safari": return "Safari"
+        case "com.apple.mail": return "Mail"
+        case "com.microsoft.Outlook": return "Outlook"
+        case "com.microsoft.teams2", "com.microsoft.teams": return "Teams"
+        case "com.apple.Preview": return "Preview"
+        default: return bundleId.split(separator: ".").last.map(String.init) ?? bundleId
         }
     }
 
@@ -223,6 +344,7 @@ public struct TaskRowView: View {
                         .foregroundStyle(Color.secondary)
                 }
             }
+            .help("Change priority")
 
             Button {
                 quick(id, .moveToTomorrow)
@@ -232,6 +354,7 @@ public struct TaskRowView: View {
                     .foregroundStyle(Color.primary)
             }
             .buttonStyle(.plain)
+            .help("Move to tomorrow")
 
             Button {
                 quick(id, .open)
@@ -241,6 +364,7 @@ public struct TaskRowView: View {
                     .foregroundStyle(Color.primary)
             }
             .buttonStyle(.plain)
+            .help("Open details")
         }
         .padding(4)
         .background(

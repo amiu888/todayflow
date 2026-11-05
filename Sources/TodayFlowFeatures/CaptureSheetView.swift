@@ -57,54 +57,58 @@ public struct CaptureSheetView: View {
 
     @MainActor
     public var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 0) {
             header
-            titleField
-            descriptionSection
-            dateRow
 
-            if !draft.objects.isEmpty {
-                attachmentChips
-            } else {
-                dropHint
-            }
+            VStack(alignment: .leading, spacing: 14) {
+                titleField
+                attachmentSection
 
-            if let errorMessage {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color(hex: "#fab219"))
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
+                if let errorMessage {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(DesignTokens.Palette.warning)
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(DesignTokens.Palette.textSecondary)
+                        Spacer()
+                    }
+                    .padding(8)
+                    .background(
+                        DesignTokens.Palette.warning.opacity(0.14),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
+                    .accessibilityElement(children: .combine)
                 }
-                .padding(8)
-                .background(
-                    Color(hex: "#fab219").opacity(0.14),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .accessibilityElement(children: .combine)
-            }
 
-            Spacer(minLength: 0)
+                scheduleCard
+                descriptionSection
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+
             footer
         }
-        .padding(18)
         .frame(
             width: DesignTokens.Window.capture.width,
             height: DesignTokens.Window.capture.height,
             alignment: .top
         )
-        .background(
-            DesignTokens.Palette.surface,
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(DesignTokens.Palette.background)
+        .background(alignment: .top) {
+            DesignTokens.Palette.aurora
+                .frame(height: 220)
+                .allowsHitTesting(false)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(DesignTokens.Palette.gradient, lineWidth: 1)
         )
-        .shadow(color: DesignTokens.Palette.shadow, radius: 24, y: 10)
+        .shadow(color: DesignTokens.Palette.shadow, radius: 28, y: 12)
         .tint(DesignTokens.Palette.accent)
     }
 
@@ -112,12 +116,31 @@ public struct CaptureSheetView: View {
 
     @MainActor
     private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "square.and.pencil")
-                .foregroundStyle(DesignTokens.Palette.accent)
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            DesignTokens.Palette.accent,
+                            DesignTokens.Palette.violet,
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
 
-            Text("New task")
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Capture something")
+                    .font(.headline)
+                    .foregroundStyle(DesignTokens.Palette.textPrimary)
+                Text("Drop anything, or type a task with a date")
+                    .font(.caption2)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+            }
 
             Spacer()
 
@@ -125,11 +148,16 @@ public struct CaptureSheetView: View {
                 onCancel()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 16))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
             }
             .buttonStyle(.plain)
+            .help("Close without saving")
             .accessibilityLabel("Close")
         }
+        .padding(.horizontal, 18)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
     }
 
     // MARK: - Title
@@ -138,16 +166,26 @@ public struct CaptureSheetView: View {
     private var titleField: some View {
         TextField("What needs doing?", text: $draft.title)
             .textFieldStyle(.plain)
-            .font(.title3.weight(.medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .font(.system(.title3, design: .rounded).weight(.semibold))
+            .foregroundStyle(DesignTokens.Palette.textPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(DesignTokens.Palette.surfaceRaised)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(DesignTokens.Palette.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(
+                        isTitleFocused
+                            ? DesignTokens.Palette.accent.opacity(0.8)
+                            : DesignTokens.Palette.hairline,
+                        lineWidth: 1
+                    )
+            )
+            .shadow(
+                color: isTitleFocused ? DesignTokens.Palette.accent.opacity(0.15) : .clear,
+                radius: 8
             )
             .focused($isTitleFocused)
             .onAppear {
@@ -158,20 +196,59 @@ public struct CaptureSheetView: View {
                 if focused { selectAllTitleText() }
             }
             .accessibilityLabel("Title")
+            .help("Type a task; dates like “tomorrow 3pm” are understood")
     }
 
-    /// Shown when the sheet has no attachments — a quiet reminder that the
-    /// panel accepts more than the keyboard.
+    // MARK: - Attachments
+
     @MainActor
-    private var dropHint: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "arrow.down.doc")
-            Text("Drop a file, link, image, or text here — or press ⌘V.")
+    private var attachmentSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text("Attachments")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                if !draft.objects.isEmpty {
+                    Text("\(draft.objects.count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(DesignTokens.Palette.accent))
+                }
+                Spacer()
+                Text(draft.objects.isEmpty ? "optional" : "drop more to add")
+                    .font(.caption2)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary.opacity(0.8))
+            }
+
+            if draft.objects.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.doc")
+                        .foregroundStyle(DesignTokens.Palette.accent)
+                    Text("Drop a file, image, link, or text · or ⌘V")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(DesignTokens.Palette.surface.opacity(0.5))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(
+                            DesignTokens.Palette.hairline,
+                            style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                        )
+                )
+                .accessibilityElement(children: .combine)
+            } else {
+                attachmentChips
+            }
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
     }
 
     /// Selects the prefilled title so the first keystroke overwrites the
@@ -252,33 +329,79 @@ public struct CaptureSheetView: View {
         }
     }
 
-    // MARK: - Date row
+    // MARK: - Schedule
 
     @MainActor
-    private var dateRow: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "calendar")
-                .foregroundStyle(.secondary)
+    private var scheduleCard: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Label("Schedule", systemImage: "calendar")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                Spacer()
+                priorityMenu
+            }
 
-            Text(dayLabel(for: draft.startAt))
+            HStack(spacing: 10) {
+                dateColumn(
+                    title: "Starts",
+                    day: dayLabel(for: draft.startAt),
+                    selection: $draft.startAt
+                )
+                Image(systemName: "arrow.right")
+                    .font(.caption2)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                dateColumn(
+                    title: "Due",
+                    day: dayLabel(for: draft.endAt),
+                    selection: $draft.endAt
+                )
+            }
 
-            DatePicker("", selection: $draft.startAt, displayedComponents: [.hourAndMinute])
+            HStack(spacing: 6) {
+                Image(systemName: "folder")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                Picker("Project", selection: $draft.parentId) {
+                    Text("No project").tag(UUIDv7?.none)
+                    ForEach(parents) { parent in
+                        Text(parent.title).tag(Optional(parent.id))
+                    }
+                }
                 .labelsHidden()
-                .accessibilityLabel("Start")
-
-            Text("→")
-                .foregroundStyle(.secondary)
-
-            Text(dayLabel(for: draft.endAt))
-
-            DatePicker("", selection: $draft.endAt, displayedComponents: [.hourAndMinute])
-                .labelsHidden()
-                .accessibilityLabel("End")
-
-            Spacer()
-
-            priorityMenu
+                .fixedSize()
+                .accessibilityLabel("Project")
+            }
         }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(DesignTokens.Palette.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+        )
+    }
+
+    @MainActor
+    private func dateColumn(
+        title: String,
+        day: String,
+        selection: Binding<Date>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+            Text(day)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DesignTokens.Palette.textPrimary)
+            DatePicker("", selection: selection, displayedComponents: [.hourAndMinute])
+                .labelsHidden()
+                .accessibilityLabel(title)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// "Today" / "Tomorrow" / "EEE d MMM" for a date.
@@ -317,17 +440,27 @@ public struct CaptureSheetView: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Circle()
                     .fill(PriorityColor.color(for: current, in: scheme))
-                    .frame(width: 8, height: 8)
+                    .frame(width: 7, height: 7)
 
                 Text(current.label)
+                    .font(.caption.weight(.semibold))
 
                 Image(systemName: "chevron.down")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule().fill(DesignTokens.Palette.surfaceRaised)
+            )
         }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Set priority")
         .accessibilityLabel("Priority")
     }
 
@@ -421,16 +554,10 @@ public struct CaptureSheetView: View {
 
     @MainActor
     private var footer: some View {
-        HStack {
-            Picker("Project", selection: $draft.parentId) {
-                Text("None").tag(UUIDv7?.none)
-
-                ForEach(parents) { parent in
-                    Text(parent.title).tag(Optional(parent.id))
-                }
-            }
-            .fixedSize()
-            .accessibilityLabel("Project")
+        HStack(spacing: 10) {
+            Text("↩ add · esc cancel")
+                .font(.caption2)
+                .foregroundStyle(DesignTokens.Palette.textSecondary.opacity(0.8))
 
             Spacer()
 
@@ -438,18 +565,40 @@ public struct CaptureSheetView: View {
                 onCancel()
             }
             .keyboardShortcut(.cancelAction)
+            .controlSize(.large)
+            .help("Discard this capture")
             .accessibilityLabel("Cancel")
 
-            Button(isSaving ? "Adding…" : "Add") {
+            Button {
                 onSave()
+            } label: {
+                HStack(spacing: 6) {
+                    if isSaving {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "plus")
+                    }
+                    Text(isSaving ? "Adding…" : "Add task")
+                }
+                .frame(minWidth: 92)
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.borderedProminent)
+            .controlSize(.large)
             .disabled(
                 isSaving
                     || draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             )
+            .help("Create the task (Return)")
             .accessibilityLabel("Add task")
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(DesignTokens.Palette.surface)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(DesignTokens.Palette.hairline)
+                .frame(height: 1)
         }
     }
 

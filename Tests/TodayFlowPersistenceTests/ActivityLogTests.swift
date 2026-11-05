@@ -46,7 +46,7 @@ struct ActivityLogTests {
         #expect(events.first?.summary == "Created “Ship the release”")
         #expect(events.first?.actor == "tester")
         #expect(events.first?.occurredAt == activityDate(10))
-        #expect(events.first?.metadata["priority"] == "P3 Normal")
+        #expect(events.first?.metadata["priority"] == "P3 Medium")
     }
 
     @Test func statusChange_recordsCompletedAndReopened() async throws {

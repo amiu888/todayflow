@@ -116,6 +116,8 @@ public final class DetailViewModel {
     public private(set) var isLoading = false
     public private(set) var isSaving = false
     public private(set) var lastError: String?
+    /// Timestamp of the last successful write, for the visible “Saved” state.
+    public private(set) var lastSavedAt: Date?
 
     /// Optional AI client, set by the host only when AI and the "Break down"
     /// feature are enabled (driver.md §8). Suggestions are never persisted
@@ -284,6 +286,7 @@ public final class DetailViewModel {
             try await reminderRepository.save(value)
             reminder = value
             reminderDate = date
+            lastSavedAt = clock()
             NotificationCenter.default.post(name: TodayFlowEvents.remindersChanged, object: nil)
         } catch {
             lastError = error.localizedDescription
@@ -340,6 +343,7 @@ public final class DetailViewModel {
         do {
             try await repository.save(updated)
             item = updated
+            lastSavedAt = now
             await reloadRelated()
         } catch {
             lastError = error.localizedDescription
@@ -366,6 +370,7 @@ public final class DetailViewModel {
             ).execute(item.id, at: clock(), force: force)
             self.item = updated
             status = updated.status
+            lastSavedAt = clock()
             await reloadRelated()
         } catch CompleteTask.Error.blocked {
             let names = blockers.map(\.title).joined(separator: ", ")
@@ -401,6 +406,7 @@ public final class DetailViewModel {
             }
             self.item = updated
             status = updated.status
+            lastSavedAt = clock()
             await reloadRelated()
         } catch CompleteTask.Error.blocked {
             let names = blockers.map(\.title).joined(separator: ", ")
@@ -424,6 +430,7 @@ public final class DetailViewModel {
             let updated = try await SetPriority(repository: repository, deviceId: deviceId)
                 .execute(item.id, to: priority, at: clock())
             self.item = updated
+            lastSavedAt = clock()
         } catch {
             lastError = error.localizedDescription
         }
@@ -448,6 +455,7 @@ public final class DetailViewModel {
             isApplying = true
             edit.endAt = updated.endAt
             isApplying = false
+            lastSavedAt = clock()
             await reloadRelated()
         } catch {
             lastError = error.localizedDescription
@@ -492,6 +500,7 @@ public final class DetailViewModel {
                 itemRepository: repository,
                 deviceId: deviceId
             ).execute(from: from, to: to, kind: kind, at: clock())
+            lastSavedAt = clock()
             await reloadRelated()
         } catch LinkTasks.Error.wouldCreateLoop {
             lastError = "This would create a loop."
@@ -571,6 +580,7 @@ public final class DetailViewModel {
                 )
             }
             subtaskSuggestions = []
+            lastSavedAt = clock()
             await reloadRelated()
         } catch {
             lastError = error.localizedDescription

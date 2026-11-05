@@ -328,6 +328,12 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 calendar: environment.workCalendar,
                 onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
             )
+        case .calendar:
+            CalendarView(
+                repository: environment.workItems,
+                calendar: environment.workCalendar.calendar,
+                onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
+            )
         case .upcoming:
             UpcomingView(
                 repository: environment.workItems,

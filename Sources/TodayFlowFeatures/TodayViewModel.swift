@@ -11,6 +11,9 @@ public enum TaskRowQuickAction: Hashable, Sendable {
     case setPriority(Priority)
     /// Reschedule the item to the next working day (driver.md FR-12).
     case moveToTomorrow
+    /// Move one position up/down in the visible list.
+    case moveUp
+    case moveDown
     /// Open the item in the detail view.
     case open
 }
@@ -25,6 +28,7 @@ extension TaskRowModel {
         TaskRowModel(
             id: id,
             title: title,
+            descriptionPreview: descriptionPreview,
             priority: priority,
             isDone: isDone,
             isBlocked: isBlocked,
@@ -33,6 +37,7 @@ extension TaskRowModel {
             isDueSoon: isDueSoon,
             completedAt: completedAt,
             attachments: attachments,
+            allAttachments: allAttachments,
             attachmentCount: attachmentCount,
             parentColorHex: parentColorHex,
             hasChainBelow: hasChainBelow
@@ -91,6 +96,17 @@ public final class TodayViewModel {
         public let parentColorHex: String?
     }
     public private(set) var upcomingRows: [UpcomingRow] = []
+
+    // MARK: Working trays
+
+    public struct TrayColumn: Identifiable, Hashable, Sendable {
+        public let tray: WorkTray
+        public let items: [WorkItem]
+        public var id: UUIDv7 { tray.id }
+    }
+
+    public private(set) var trays: [WorkTray] = []
+    @ObservationIgnored private var traysLoaded = false
 
     /// The day currently shown in the panel. Selecting a future day turns the
     /// same list into a planning surface without changing the task model.
@@ -181,6 +197,11 @@ public final class TodayViewModel {
            let raw = await settingRepository.value(for: SettingKeys.todaySort),
            let saved = TodaySort(rawValue: raw) {
             sort = saved
+        }
+
+        if !traysLoaded {
+            await loadTrays()
+            traysLoaded = true
         }
 
         let now = clock()
@@ -326,6 +347,115 @@ public final class TodayViewModel {
         await selectDay(calendar.calendar.startOfDay(for: clock()))
     }
 
+    // MARK: Working trays
+
+    /// Trays in strip order, with their currently open tasks resolved.
+    public var trayColumns: [TrayColumn] {
+        trays
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .map { tray in
+                TrayColumn(
+                    tray: tray,
+                    items: tray.itemIds.compactMap { allItemsById[$0] }
+                        .filter { !$0.isDeleted && !$0.status.isTerminal }
+                )
+            }
+    }
+
+    public func addTray(name: String, after trayId: UUIDv7? = nil) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let ordered = trays.sorted { $0.sortOrder < $1.sortOrder }
+        let index: Int
+        if let trayId, let existing = ordered.firstIndex(where: { $0.id == trayId }) {
+            index = existing + 1
+        } else {
+            index = ordered.count
+        }
+        var updated = ordered
+        updated.insert(WorkTray(name: trimmed, sortOrder: index), at: index)
+        trays = renumbered(updated)
+        await persistTrays()
+    }
+
+    public func renameTray(_ id: UUIDv7, to name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let index = trays.firstIndex(where: { $0.id == id })
+        else { return }
+        trays[index].name = trimmed
+        await persistTrays()
+    }
+
+    public func deleteTray(_ id: UUIDv7) async {
+        trays.removeAll { $0.id == id }
+        trays = renumbered(trays.sorted { $0.sortOrder < $1.sortOrder })
+        await persistTrays()
+    }
+
+    public func moveTrayLeft(_ id: UUIDv7) async {
+        await moveTray(id, by: -1)
+    }
+
+    public func moveTrayRight(_ id: UUIDv7) async {
+        await moveTray(id, by: 1)
+    }
+
+    public func addToTray(_ itemId: UUIDv7, trayId: UUIDv7) async {
+        guard let index = trays.firstIndex(where: { $0.id == trayId }) else { return }
+        guard !trays[index].itemIds.contains(itemId) else { return }
+        trays[index].itemIds.append(itemId)
+        await persistTrays()
+    }
+
+    public func removeFromTray(_ itemId: UUIDv7, trayId: UUIDv7) async {
+        guard let index = trays.firstIndex(where: { $0.id == trayId }) else { return }
+        trays[index].itemIds.removeAll { $0 == itemId }
+        await persistTrays()
+    }
+
+    private func moveTray(_ id: UUIDv7, by offset: Int) async {
+        var ordered = trays.sorted { $0.sortOrder < $1.sortOrder }
+        guard let index = ordered.firstIndex(where: { $0.id == id }) else { return }
+        let target = index + offset
+        guard (0..<ordered.count).contains(target) else { return }
+        ordered.swapAt(index, target)
+        trays = renumbered(ordered)
+        await persistTrays()
+    }
+
+    private func renumbered(_ trays: [WorkTray]) -> [WorkTray] {
+        trays.enumerated().map { index, tray in
+            var copy = tray
+            copy.sortOrder = index
+            return copy
+        }
+    }
+
+    private func loadTrays() async {
+        guard let settingRepository else { return }
+        if let raw = await settingRepository.value(for: SettingKeys.workTrays),
+           let data = raw.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([WorkTray].self, from: data),
+           !decoded.isEmpty
+        {
+            trays = decoded.sorted { $0.sortOrder < $1.sortOrder }
+        } else {
+            // A first-run tray gives the user somewhere to drop the task they
+            // are working on without a setup step.
+            trays = [WorkTray(name: "Working tray", sortOrder: 0)]
+            await persistTrays()
+        }
+    }
+
+    private func persistTrays() async {
+        guard let settingRepository else { return }
+        guard let data = try? JSONEncoder().encode(trays),
+              let raw = String(data: data, encoding: .utf8)
+        else { return }
+        try? await settingRepository.set(raw, for: SettingKeys.workTrays)
+    }
+
     // MARK: Derived rows
 
     /// Progress for the header (worker's `ProgressHeaderView`).
@@ -389,9 +519,16 @@ public final class TodayViewModel {
             && item.endAt.timeIntervalSince(now) <= 15 * 60
         let itemAttachments = attachments[item.id] ?? []
 
+        let preview = item.descriptionMd
+            .replacingOccurrences(of: "#", with: "")
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
         return TaskRowModel(
             id: item.id,
             title: item.title,
+            descriptionPreview: preview.isEmpty ? nil : String(preview.prefix(180)),
             priority: item.priority,
             isDone: isDone,
             isBlocked: isBlocked,
@@ -400,7 +537,18 @@ public final class TodayViewModel {
             isDueSoon: isDueSoon,
             completedAt: item.completedAt,
             attachments: itemAttachments.prefix(3).map {
-                TaskRowModel.AttachmentHint(kind: $0.kind, displayName: $0.displayName)
+                TaskRowModel.AttachmentHint(
+                    kind: $0.kind,
+                    displayName: $0.displayName,
+                    sourceApp: $0.sourceApp
+                )
+            },
+            allAttachments: itemAttachments.map {
+                TaskRowModel.AttachmentHint(
+                    kind: $0.kind,
+                    displayName: $0.displayName,
+                    sourceApp: $0.sourceApp
+                )
             },
             attachmentCount: itemAttachments.count,
             parentColorHex: item.parentId.flatMap { known[$0]?.color },
@@ -693,6 +841,10 @@ public final class TodayViewModel {
             } catch {
                 lastError = error.localizedDescription
             }
+        case .moveUp:
+            await moveUp(id)
+        case .moveDown:
+            await moveDown(id)
         case .open:
             onOpenTask?(id)
         }

@@ -8,6 +8,8 @@ public enum SettingKeys {
     /// The Today list's sort choice (driver.md FR-11: "Choice is persisted").
     /// Stored as the `TodaySort` raw value (a plain string, not JSON).
     public static let todaySort = "today_sort"
+    /// The working-tray strip, encoded as `[WorkTray]` JSON.
+    public static let workTrays = "work_trays"
 }
 
 /// The user's business hours (driver.md line 49: the WorkCalendar settings

@@ -720,3 +720,38 @@ func setUpcomingPriority_updatesTheTask() async {
 
     #expect(await f.repository.item(task.id)?.priority == .urgent)
 }
+
+// MARK: - Working trays
+
+@Test @MainActor
+func trays_startWithAWorkingTrayAndPersistCustomNames() async {
+    let f = Fixture()
+    await f.vm.load()
+
+    #expect(f.vm.trays.map(\.name) == ["Working tray"])
+
+    let first = f.vm.trays[0].id
+    await f.vm.addTray(name: "Now", after: first)
+    #expect(f.vm.trays.map(\.name) == ["Working tray", "Now"])
+
+    let now = try! #require(f.vm.trays.last)
+    let task = f.item("Focus task", displayOrder: "a1")
+    await f.seed(task)
+    await f.vm.load()
+    await f.vm.addToTray(task.id, trayId: now.id)
+
+    let column = f.vm.trayColumns.first { $0.tray.id == now.id }
+    #expect(column?.items.map(\.title) == ["Focus task"])
+
+    // A fresh model with the same setting store sees the same trays.
+    let fresh = TodayViewModel(
+        repository: f.repository,
+        linkRepository: f.linkRepository,
+        attachmentRepository: f.attachmentRepository,
+        settingRepository: f.settingRepository,
+        calendar: f.calendar,
+        clock: { f.now }
+    )
+    await fresh.load()
+    #expect(fresh.trays.map(\.name) == ["Working tray", "Now"])
+}

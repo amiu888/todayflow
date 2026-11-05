@@ -8,6 +8,7 @@ public enum WindowKind: Hashable, Sendable {
     case panel
     case slimBar
     case hierarchy
+    case calendar
     case upcoming
     case completed
     case settings
@@ -18,6 +19,7 @@ public enum WindowKind: Hashable, Sendable {
         case .panel: "Today"
         case .slimBar: "Today"
         case .hierarchy: "Hierarchy"
+        case .calendar: "Calendar"
         case .upcoming: "Upcoming"
         case .completed: "Completed"
         case .settings: "Settings"
@@ -30,6 +32,7 @@ public enum WindowKind: Hashable, Sendable {
         case .panel: DesignTokens.Window.panel
         case .slimBar: DesignTokens.Window.slimBar
         case .hierarchy: DesignTokens.Window.hierarchy
+        case .calendar: DesignTokens.Window.calendar
         case .upcoming: DesignTokens.Window.upcoming
         case .completed: DesignTokens.Window.completed
         case .settings: DesignTokens.Window.settings

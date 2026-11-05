@@ -118,6 +118,9 @@ public struct TodayView: View {
                 }
             )
 
+            TrayStripView(model: model)
+                .padding(.top, 2)
+
             if isSearching {
                 searchField
             }

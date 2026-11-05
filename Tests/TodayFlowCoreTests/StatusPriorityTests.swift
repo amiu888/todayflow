@@ -39,8 +39,8 @@ struct PriorityTests {
     }
 
     @Test func labels() {
-        #expect(Priority.urgent.label == "P1 Urgent")
-        #expect(Priority.normal.label == "P3 Normal")
+        #expect(Priority.urgent.label == "P1 Critical")
+        #expect(Priority.normal.label == "P3 Medium")
     }
 }
 

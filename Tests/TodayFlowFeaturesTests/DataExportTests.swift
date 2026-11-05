@@ -56,4 +56,31 @@ struct DataExportTests {
         let laterIndex = try #require(text.range(of: "Later")?.lowerBound)
         #expect(earlierIndex < laterIndex)
     }
+
+    @Test func xlsx_writesARealWorkbookWithTheTask() throws {
+    let item = self.item
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("TodayFlow-\(UUID().uuidString).xlsx")
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    try DataExport().write(items: [item], format: .xlsx, to: url)
+
+    #expect(FileManager.default.fileExists(atPath: url.path))
+    let header = try Data(contentsOf: url).prefix(2)
+    #expect(header == Data([0x50, 0x4B])) // ZIP magic "PK"
+
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+    process.arguments = ["-p", url.path, "xl/worksheets/sheet1.xml"]
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    try process.run()
+    process.waitUntilExit()
+    let xml = String(
+        decoding: pipe.fileHandleForReading.readDataToEndOfFile(),
+        as: UTF8.self
+    )
+    #expect(xml.contains("Ship, then celebrate"))
+    #expect(xml.contains("P2"))
+}
 }

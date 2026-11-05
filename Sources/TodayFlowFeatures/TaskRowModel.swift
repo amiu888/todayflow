@@ -9,6 +9,8 @@ import TodayFlowCore
 public struct TaskRowModel: Identifiable, Hashable, Sendable {
     public let id: UUIDv7
     public let title: String
+    /// Short plain-text description for the row's hover tooltip.
+    public let descriptionPreview: String?
     public let priority: Priority
     public let isDone: Bool
     /// A prerequisite (`.blocks` link) is not yet complete — the row shows a lock.
@@ -20,6 +22,8 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
     public let completedAt: Date?
     /// Up to 3 attachment hints for the row's icon cluster.
     public let attachments: [AttachmentHint]
+    /// Every attachment, for the hover overlay.
+    public let allAttachments: [AttachmentHint]
     /// Total attachment count (drives the "+n" overflow).
     public let attachmentCount: Int
     /// Parent project/epic color strip hex; nil for root items.
@@ -31,16 +35,24 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
     public struct AttachmentHint: Hashable, Sendable {
         public let kind: Attachment.Kind
         public let displayName: String
+        /// Bundle id of the app that supplied it (Finder, Outlook, Teams…).
+        public let sourceApp: String?
 
-        public init(kind: Attachment.Kind, displayName: String) {
+        public init(
+            kind: Attachment.Kind,
+            displayName: String,
+            sourceApp: String? = nil
+        ) {
             self.kind = kind
             self.displayName = displayName
+            self.sourceApp = sourceApp
         }
     }
 
     public init(
         id: UUIDv7,
         title: String,
+        descriptionPreview: String? = nil,
         priority: Priority,
         isDone: Bool,
         isBlocked: Bool,
@@ -49,12 +61,14 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
         isDueSoon: Bool = false,
         completedAt: Date? = nil,
         attachments: [AttachmentHint] = [],
+        allAttachments: [AttachmentHint] = [],
         attachmentCount: Int = 0,
         parentColorHex: String? = nil,
         hasChainBelow: Bool = false
     ) {
         self.id = id
         self.title = title
+        self.descriptionPreview = descriptionPreview
         self.priority = priority
         self.isDone = isDone
         self.isBlocked = isBlocked
@@ -63,6 +77,7 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
         self.isDueSoon = isDueSoon
         self.completedAt = completedAt
         self.attachments = attachments
+        self.allAttachments = allAttachments
         self.attachmentCount = attachmentCount
         self.parentColorHex = parentColorHex
         self.hasChainBelow = hasChainBelow

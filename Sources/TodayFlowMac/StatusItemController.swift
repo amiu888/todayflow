@@ -25,6 +25,7 @@ public final class StatusItemController: NSObject {
     /// NFR-09 export commands.
     public var onExportJSON: (() -> Void)?
     public var onExportCSV: (() -> Void)?
+    public var onExportExcel: (() -> Void)?
 
     public init(
         environment: AppEnvironment,
@@ -150,6 +151,7 @@ public final class StatusItemController: NSObject {
         menu.addItem(item("Ask about tasks…", #selector(openAskAI)))
         menu.addItem(.separator())
         menu.addItem(item("Slim bar", #selector(toggleSlimBar)))
+        menu.addItem(item("Calendar", #selector(openCalendar)))
         menu.addItem(item("Upcoming", #selector(openUpcoming)))
         menu.addItem(item("Completed", #selector(openCompleted)))
         menu.addItem(item("Hierarchy", #selector(openHierarchy)))
@@ -157,6 +159,7 @@ public final class StatusItemController: NSObject {
         menu.addItem(.separator())
         menu.addItem(item("Export JSON…", #selector(exportJSON)))
         menu.addItem(item("Export CSV…", #selector(exportCSV)))
+        menu.addItem(item("Export Excel…", #selector(exportExcel)))
         menu.addItem(.separator())
         menu.addItem(item("Quit TodayFlow", #selector(quit)))
         return menu
@@ -186,6 +189,8 @@ public final class StatusItemController: NSObject {
         }
     }
 
+    @objc private func openCalendar() { windowManager.show(.calendar) }
+
     @objc private func openUpcoming() { windowManager.show(.upcoming) }
 
     @objc private func openCompleted() { windowManager.show(.completed) }
@@ -197,6 +202,8 @@ public final class StatusItemController: NSObject {
     @objc private func exportJSON() { onExportJSON?() }
 
     @objc private func exportCSV() { onExportCSV?() }
+
+    @objc private func exportExcel() { onExportExcel?() }
 
     @objc private func quit() { NSApp.terminate(nil) }
 }
