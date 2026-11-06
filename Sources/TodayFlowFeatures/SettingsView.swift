@@ -85,6 +85,39 @@ public struct SettingsView: View {
                 Toggle("Sync with Obsidian", isOn: $model.obsidianSettings.enabled)
 
                 HStack(spacing: 8) {
+                    Menu {
+                        ForEach(model.obsidianVaults) { vault in
+                            Button {
+                                applyObsidianVault(vault)
+                            } label: {
+                                HStack {
+                                    Text(vault.name)
+                                    if vault.path == model.obsidianSettings.vaultPath {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+
+                        if !model.obsidianVaults.isEmpty {
+                            Divider()
+                        }
+
+                        Button("Choose Folder…") {
+                            chooseObsidianVault()
+                        }
+                    } label: {
+                        Label(
+                            model.obsidianSettings.vaultPath.isEmpty
+                                ? "Choose Vault"
+                                : model.obsidianSettings.resolvedVaultName,
+                            systemImage: "folder"
+                        )
+                    }
+                    .fixedSize()
+
+                    Spacer()
+
                     Text(
                         model.obsidianSettings.vaultPath.isEmpty
                             ? "No vault selected"
@@ -94,23 +127,30 @@ public struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-
-                    Spacer()
-
-                    Button("Choose Vault…") {
-                        chooseObsidianVault()
-                    }
                 }
+
+                Text("Vaults detected from Obsidian appear here — for example NBCBrain or HermesBrain. Choose Folder… for any other vault.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 TextField("Vault name", text: $model.obsidianSettings.vaultName)
                 Text("Vault name is used for obsidian:// links; it is usually the folder name.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                TextField("Note path", text: $model.obsidianSettings.notePath)
-                Text("The note path is relative to the vault, for example TodayFlow/Tasks.md.")
+                HStack(spacing: 8) {
+                    TextField("Note path", text: $model.obsidianSettings.notePath)
+                    Button("Folder…") {
+                        chooseObsidianNoteFolder()
+                    }
+                    .disabled(model.obsidianSettings.vaultPath.isEmpty)
+                    .help("Choose a folder inside the vault for the sync note")
+                }
+                Text("The note path is relative to the vault, for example TodayFlow/Tasks.md or Conversations/Daily/TodayFlow.md.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
                     Button("Sync now") {
@@ -304,6 +344,42 @@ public struct SettingsView: View {
         }
         #endif
         return false
+    }
+
+    private func applyObsidianVault(_ vault: ObsidianVault) {
+        model.obsidianSettings.vaultPath = vault.path
+        model.obsidianSettings.vaultName = vault.name
+        if model.obsidianSettings.notePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            model.obsidianSettings.notePath = ObsidianSettings.defaultNotePath
+        }
+        model.obsidianSettings.enabled = true
+    }
+
+    private func chooseObsidianNoteFolder() {
+        #if canImport(AppKit)
+        let vaultPath = model.obsidianSettings.vaultPath
+        guard !vaultPath.isEmpty else { return }
+        let vaultURL = URL(fileURLWithPath: vaultPath, isDirectory: true)
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = vaultURL
+        panel.prompt = "Use This Folder"
+        panel.message = "Choose a folder inside the vault for the TodayFlow sync note."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let vault = vaultURL.standardizedFileURL.path
+        let selected = url.standardizedFileURL.path
+        var relative = ""
+        if selected.hasPrefix(vault + "/") {
+            relative = String(selected.dropFirst(vault.count + 1))
+        }
+        while relative.hasPrefix("/") { relative.removeFirst() }
+        model.obsidianSettings.notePath = relative.isEmpty
+            ? "TodayFlow.md"
+            : "\(relative)/TodayFlow.md"
+        #endif
     }
 
     private func chooseObsidianVault() {

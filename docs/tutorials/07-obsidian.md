@@ -5,9 +5,9 @@ TodayFlow can connect to an Obsidian vault. The connection is optional: if Obsid
 ## Set up the connection
 
 1. Open **Settings → Obsidian**.
-2. Click **Choose Vault…** and pick your Obsidian vault folder.
+2. Open the **Vault** menu. TodayFlow lists the vaults registered with Obsidian, such as **NBCBrain** or **HermesBrain**; choose one. For any other folder, choose **Choose Folder…**.
 3. Check the **Vault name** field. It must match the vault name Obsidian uses; it is normally the folder name.
-4. Leave the sync note at `TodayFlow/Tasks.md`, or enter another vault-relative path.
+4. Leave the sync note at `TodayFlow/Tasks.md`, or enter another vault-relative path. Use **Folder…** to put the note inside a folder such as `Conversations/Daily/TodayFlow.md`.
 5. Turn on **Sync with Obsidian** and press **Save**.
 6. Press **Sync now**, or wait a few seconds.
 
@@ -51,7 +51,8 @@ Keep the markers if you edit around the block.
 
 ## Reconfigure or turn it off
 
-- Open **Settings → Obsidian** at any time to choose a different vault, change the note path, or edit the vault name used in links.
+- Open **Settings → Obsidian** at any time to choose a different vault — for example switch from HermesBrain to NBCBrain — change the note folder, or edit the vault name used in links.
+- One vault is synced at a time. Switching vaults stops writing the old note and starts the new one; the old note is left in place.
 - Turn **Sync with Obsidian** off to stop reading and writing the vault. The existing note stays in the vault; TodayFlow does not delete it.
 - If the vault path disappears, TodayFlow keeps running normally. Press **Sync now** in Settings to see the specific error.
 

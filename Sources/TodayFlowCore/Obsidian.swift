@@ -451,3 +451,57 @@ public enum ObsidianItemNote {
         return body
     }
 }
+
+/// A vault registered with the Obsidian desktop app.
+public struct ObsidianVault: Identifiable, Hashable, Sendable {
+    public let name: String
+    public let path: String
+
+    public var id: String { path }
+
+    public init(name: String, path: String) {
+        self.name = name
+        self.path = path
+    }
+}
+
+/// Parses Obsidian's `obsidian.json` vault registry so Settings can offer the
+/// same vaults the user sees in Obsidian's switcher.
+public enum ObsidianVaultRegistry {
+    private struct Registry: Decodable {
+        struct Entry: Decodable {
+            let path: String
+        }
+        let vaults: [String: Entry]
+    }
+
+    public static func parse(_ json: String) -> [ObsidianVault] {
+        guard let data = json.data(using: .utf8),
+              let registry = try? JSONDecoder().decode(Registry.self, from: data)
+        else { return [] }
+
+        var seen = Set<String>()
+        let vaults = registry.vaults.values
+            .map { entry in
+                let url = URL(fileURLWithPath: entry.path)
+                return ObsidianVault(
+                    name: url.lastPathComponent,
+                    path: entry.path
+                )
+            }
+            .filter { seen.insert($0.path).inserted }
+        let paths = Set(vaults.map(\.path))
+        return vaults
+            .filter { vault in
+                // A parent folder registered as a vault is shown by Obsidian
+                // as a container for its nested vaults; don't duplicate it in
+                // the picker when a child vault is present.
+                !paths.contains { other in
+                    other != vault.path && other.hasPrefix(vault.path + "/")
+                }
+            }
+            .sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+    }
+}

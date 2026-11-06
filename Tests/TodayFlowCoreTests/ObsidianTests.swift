@@ -142,6 +142,23 @@ struct ObsidianTests {
         #expect(note.contains("Check the pricing section."))
     }
 
+    @Test func parsesObsidianVaultRegistry() {
+        let json = """
+        {"vaults":{
+          "root":{"path":"/Users/me/Vaults"},
+          "a":{"path":"/Users/me/Vaults/NBCBrain"},
+          "b":{"path":"/Users/me/Vaults/HermesBrain"},
+          "c":{"path":"/Users/me/Vaults/NBCBrain"}
+        }}
+        """
+        let vaults = ObsidianVaultRegistry.parse(json)
+        #expect(vaults.map(\.name) == ["HermesBrain", "NBCBrain"])
+        #expect(vaults.map(\.path) == [
+            "/Users/me/Vaults/HermesBrain",
+            "/Users/me/Vaults/NBCBrain",
+        ])
+    }
+
     @Test func normalizesVaultRelativeNotePaths() {
         let settings = ObsidianSettings(
             enabled: true,

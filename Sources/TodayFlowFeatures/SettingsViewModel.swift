@@ -23,6 +23,8 @@ public final class SettingsViewModel {
 
     /// Optional Obsidian bridge (off by default).
     public var obsidianSettings = ObsidianSettings()
+    /// Vaults registered with the Obsidian desktop app, if any.
+    public private(set) var obsidianVaults: [ObsidianVault] = []
 
     /// AI endpoint (off by default).
     public var aiSettings = AIEndpointSettings() {
@@ -99,6 +101,7 @@ public final class SettingsViewModel {
         calendarSettings = Self.calendarSettings(from: await repository.value(for: SettingKeys.workCalendar))
         aiSettings = Self.aiSettings(from: await repository.value(for: SettingKeys.aiEndpoint))
         obsidianSettings = Self.obsidianSettings(from: await repository.value(for: SettingKeys.obsidian))
+        obsidianVaults = Self.discoverObsidianVaults()
         await applyKeychainKey()
     }
 
@@ -188,6 +191,20 @@ public final class SettingsViewModel {
             return WorkCalendarSettings()
         }
         return decoded
+    }
+
+    private static func discoverObsidianVaults() -> [ObsidianVault] {
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first
+        guard let url = support?
+            .appendingPathComponent("obsidian", isDirectory: true)
+            .appendingPathComponent("obsidian.json"),
+              let data = try? Data(contentsOf: url),
+              let json = String(data: data, encoding: .utf8)
+        else { return [] }
+        return ObsidianVaultRegistry.parse(json)
     }
 
     private static func obsidianSettings(from value: String?) -> ObsidianSettings {
