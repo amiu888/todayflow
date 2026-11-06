@@ -51,6 +51,18 @@ struct TodaySectionCollapsePolicyTests {
         #expect(!height450.contains(.today))
     }
 
+    @Test func overdueStaysVisibleAtTheMinimumHeight() {
+        let sections = TodaySectionCollapsePolicy.autoCollapsed(
+            forHeight: 420,
+            hasDone: true,
+            hasUpcoming: true,
+            hasOverdue: true
+        )
+        #expect(sections == [.done, .upcoming, .trays, .week])
+        #expect(!sections.contains(.overdue))
+        #expect(!sections.contains(.today))
+    }
+
     @Test func onlySectionsWithContentAreFolded() {
         let sections = TodaySectionCollapsePolicy.autoCollapsed(
             forHeight: 400,

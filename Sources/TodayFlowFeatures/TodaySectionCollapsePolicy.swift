@@ -21,7 +21,6 @@ public enum TodaySectionCollapsePolicy {
     public static let upcomingThreshold: CGFloat = 560
     public static let traysThreshold: CGFloat = 500
     public static let weekThreshold: CGFloat = 450
-    public static let overdueThreshold: CGFloat = 430
 
     public static func autoCollapsed(
         forHeight height: CGFloat,
@@ -29,6 +28,10 @@ public enum TodaySectionCollapsePolicy {
         hasUpcoming: Bool = true,
         hasOverdue: Bool = true
     ) -> Set<TodayPanelSection> {
+        // Overdue is deliberately never folded automatically: it is the
+        // urgent part of the day and should stay visible at the minimum height.
+        _ = hasOverdue
+
         var sections: Set<TodayPanelSection> = []
 
         if hasDone, height < doneThreshold {
@@ -42,9 +45,6 @@ public enum TodaySectionCollapsePolicy {
         }
         if height < weekThreshold {
             sections.insert(.week)
-        }
-        if hasOverdue, height < overdueThreshold {
-            sections.insert(.overdue)
         }
 
         return sections

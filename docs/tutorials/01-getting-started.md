@@ -51,9 +51,8 @@ As you make the panel shorter, sections fold automatically from the bottom up:
 2. **Tomorrow & upcoming**
 3. **Working trays**
 4. **The week strip**
-5. **Overdue**
 
-The open **Today** list stays visible. Opening a folded section with its chevron keeps it open, even at a small height; the panel scrolls if needed.
+The open **Today** list and the urgent **Overdue** list stay visible. Opening a folded section with its chevron keeps it open, even at a small height; the panel scrolls if needed.
 
 ## 6. Find the tutorials again
 
