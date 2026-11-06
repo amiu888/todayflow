@@ -22,6 +22,7 @@ Watch the bundled walkthroughs from **TodayFlow → Watch Video Walkthrough** or
 3. Open a task and use **Contacts → Add Contact** to link a person.
 4. Click the **folder+** icon to create a project.
 5. Click the **sparkles** icon for AI actions and local model setup.
+6. Add tags to tasks and projects; use the tag icon in the filter row to narrow Today.
 
 ## Keeping the panel on one desktop
 
