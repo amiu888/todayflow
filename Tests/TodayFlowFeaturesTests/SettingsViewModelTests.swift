@@ -213,6 +213,42 @@ struct SettingsViewModelTests {
         #expect(decoded.workWeekdays == [2, 3, 4, 5, 6, 7])
     }
 
+    @Test @MainActor
+    func edits_markUnsaved_andSaveClears() async {
+        let f = Fixture()
+        await f.vm.load()
+        #expect(!f.vm.hasUnsavedChanges)
+        #expect(!f.vm.didSave)
+
+        f.vm.obsidianSettings.notePath = "Other/Tasks.md"
+        #expect(f.vm.hasUnsavedChanges)
+        #expect(!f.vm.didSave)
+
+        await f.vm.save()
+        #expect(!f.vm.hasUnsavedChanges)
+        #expect(f.vm.didSave)
+
+        f.vm.obsidianAPIKey = "remote-key"
+        #expect(f.vm.hasUnsavedChanges)
+        #expect(!f.vm.didSave)
+    }
+
+    @Test @MainActor
+    func failedSave_keepsUnsavedChanges() async {
+        let vm = SettingsViewModel(
+            repository: FailingSettingRepository(),
+            keychain: InMemoryKeychainStore(),
+            calendar: testCalendar
+        )
+        vm.calendarSettings = WorkCalendarSettings(startHour: 7, endHour: 15)
+        #expect(vm.hasUnsavedChanges)
+
+        await vm.save()
+        #expect(vm.lastError != nil)
+        #expect(vm.hasUnsavedChanges)
+        #expect(!vm.didSave)
+    }
+
     // MARK: reset
 
     @Test @MainActor

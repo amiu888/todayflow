@@ -453,6 +453,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             window.contentMinSize = DesignTokens.Window.slimBar
             window.contentMaxSize = DesignTokens.Window.slimBar
         }
+        if case .settings = kind {
+            window.contentMinSize = DesignTokens.Window.settings
+        }
         if case .contacts = kind {
             window.contentMinSize = DesignTokens.Window.contactsMinimum
         }

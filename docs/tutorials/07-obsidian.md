@@ -3,7 +3,7 @@
 TodayFlow can connect to an Obsidian vault in two ways:
 
 - **Local folder / iCloud** — Obsidian and the vault are on this Mac, or iCloud syncs the vault here.
-- **Remote via Local REST API** — Obsidian runs on another Mac. Obsidian has **no native LAN/API server**; the **Local REST API** community plugin adds one. No folder sharing or iCloud is required.
+- **Remote via Local REST API** — Obsidian runs on another Mac. Obsidian has **no native LAN/API server**; the **Local REST API with MCP** community plugin adds one. No folder sharing or iCloud is required.
 
 The connection is optional: if Obsidian is not installed or not configured, TodayFlow works exactly as before.
 
@@ -13,19 +13,19 @@ The connection is optional: if Obsidian is not installed or not configured, Toda
 2. Open the **Vault** menu. TodayFlow lists the vaults registered with Obsidian, such as **NBCBrain** or **HermesBrain**; choose one. For any other folder, choose **Choose Folder…**.
 3. Check the **Vault name** field. It must match the vault name Obsidian uses; it is normally the folder name.
 4. Leave the sync note at `TodayFlow/Tasks.md`, or enter another vault-relative path. Use **Folder…** to put the note inside a folder such as `Conversations/Daily/TodayFlow.md`.
-5. Turn on **Sync with Obsidian** and press **Save**.
+5. Turn on **Sync with Obsidian** and press **Save** in the bar at the bottom of Settings (or press **⌘S**). The bar stays visible while the form scrolls.
 6. Press **Sync now**, or wait a few seconds.
 
 TodayFlow creates the note and its folders inside the vault. If the note already exists, anything outside TodayFlow's markers is preserved.
 
 ## Set up a remote Obsidian via Local REST API
 
-Obsidian itself does not listen on the network. Install the **Local REST API** plugin inside the remote Obsidian first, and open the target vault (for example **NBCBrain**) in that Obsidian window. The plugin serves the vault that is currently open.
+Obsidian itself does not listen on the network. Install the **Local REST API with MCP** plugin inside the remote Obsidian first, and open the target vault (for example **NBCBrain**) in that Obsidian window. The plugin serves the vault that is currently open.
 
 On the remote Obsidian:
 
-1. **Settings → Community plugins → Browse**, install **Local REST API**, and enable it.
-2. Open **Settings → Local REST API**.
+1. **Settings → Community plugins → Browse**, install **Local REST API with MCP**, and enable it.
+2. Open **Settings → Local REST API with MCP**.
 3. Set the binding host to **`0.0.0.0`** so it accepts LAN connections.
 4. Enable the **HTTP server** (`27123`) or use HTTPS (`27124`).
 5. Copy the **API key**.

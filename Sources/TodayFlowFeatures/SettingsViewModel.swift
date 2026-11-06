@@ -19,14 +19,20 @@ public final class SettingsViewModel {
 
     /// Business hours. Editing these changes the `workCalendar` below, which
     /// is what computes default end dates.
-    public var calendarSettings = WorkCalendarSettings()
+    public var calendarSettings = WorkCalendarSettings() {
+        didSet { noteEdited() }
+    }
 
     /// Optional Obsidian bridge (off by default).
-    public var obsidianSettings = ObsidianSettings()
+    public var obsidianSettings = ObsidianSettings() {
+        didSet { noteEdited() }
+    }
     /// Vaults registered with the Obsidian desktop app, if any.
     public private(set) var obsidianVaults: [ObsidianVault] = []
     /// Remote-mode API key (stored in the Keychain, never the settings JSON).
-    public var obsidianAPIKey = ""
+    public var obsidianAPIKey = "" {
+        didSet { noteEdited() }
+    }
     public private(set) var obsidianDiscoveredServers: [DiscoveredObsidianServer] = []
     public private(set) var isScanningObsidian = false
     public private(set) var obsidianScanStatus: String?
@@ -35,6 +41,7 @@ public final class SettingsViewModel {
     /// AI endpoint (off by default).
     public var aiSettings = AIEndpointSettings() {
         didSet {
+            noteEdited()
             // When the user picks a different provider, fill in the preset's
             // base URL — but only if the current URL is still a preset default
             // (or empty); a user-customized URL is preserved.
@@ -51,6 +58,11 @@ public final class SettingsViewModel {
     public private(set) var isLoading = false
     public private(set) var isSaving = false
     public private(set) var lastError: String?
+    /// True when an edit has not been written to the store yet. Drives the
+    /// always-visible Save bar at the bottom of Settings.
+    public private(set) var hasUnsavedChanges = false
+    /// True after a successful save, cleared by the next edit.
+    public private(set) var didSave = false
     /// Models reported by the endpoint's `GET /models` (driver.md §8).
     public private(set) var availableModels: [String] = []
     public private(set) var isFetchingModels = false
@@ -134,6 +146,7 @@ public final class SettingsViewModel {
     public func save() async {
         guard !isSaving else { return }
         isSaving = true
+        didSave = false
         defer { isSaving = false }
         lastError = nil
         do {
@@ -164,9 +177,26 @@ public final class SettingsViewModel {
                 try Self.encode(obsidianSettings),
                 for: SettingKeys.obsidian
             )
+            hasUnsavedChanges = false
+            didSave = true
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    /// Marks the form dirty for the always-visible Save bar. Programmatic
+    /// writes during `load()`/`resetToDefaults()` do not count as edits.
+    private func noteEdited() {
+        guard !isApplying else { return }
+        hasUnsavedChanges = true
+        didSave = false
+        lastError = nil
+    }
+
+    /// Clears the last Test connection result when the remote address or key
+    /// changes, so a stale "Connected" message cannot describe new input.
+    public func clearObsidianConnectionStatus() {
+        obsidianConnectionStatus = nil
     }
 
     /// Lists the saved endpoint's models (driver.md §8 "Fetch models"). The

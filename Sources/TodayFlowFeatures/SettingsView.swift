@@ -16,6 +16,7 @@ public struct SettingsView: View {
     private let onWatchTutorial: (@MainActor @Sendable () -> Void)?
     private let onObsidianSyncNow: (@MainActor @Sendable () -> Void)?
     private let onObsidianOpenNote: (@MainActor @Sendable () -> Void)?
+    @State private var showResetConfirmation = false
 
     public init(
         model: SettingsViewModel,
@@ -58,375 +59,454 @@ public struct SettingsView: View {
     @MainActor
     public var body: some View {
         @Bindable var model = model
-        return Form {
-            if let error = model.lastError {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-
-            Section("Business hours") {
-                Picker("Start", selection: $model.calendarSettings.startHour) {
-                    ForEach(0..<24) { hour in
-                        Text(String(format: "%02d:00", hour)).tag(Double(hour))
+        return VStack(spacing: 0) {
+            ScrollView {
+                Form {
+                    Section("Business hours") {
+                        Picker("Start", selection: $model.calendarSettings.startHour) {
+                            ForEach(0..<24) { hour in
+                                Text(String(format: "%02d:00", hour)).tag(Double(hour))
+                            }
+                        }
+                        Picker("End", selection: $model.calendarSettings.endHour) {
+                            ForEach(0..<24) { hour in
+                                Text(String(format: "%02d:00", hour)).tag(Double(hour))
+                            }
+                        }
+                        ForEach(1...7, id: \.self) { weekday in
+                            Toggle(Self.weekdayName(weekday), isOn: weekdayBinding(weekday))
+                        }
                     }
-                }
-                Picker("End", selection: $model.calendarSettings.endHour) {
-                    ForEach(0..<24) { hour in
-                        Text(String(format: "%02d:00", hour)).tag(Double(hour))
-                    }
-                }
-                ForEach(1...7, id: \.self) { weekday in
-                    Toggle(Self.weekdayName(weekday), isOn: weekdayBinding(weekday))
-                }
-            }
 
-            Section("Obsidian") {
-                Toggle("Sync with Obsidian", isOn: $model.obsidianSettings.enabled)
+                    Section("Obsidian") {
+                        Toggle("Sync with Obsidian", isOn: $model.obsidianSettings.enabled)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Connection")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Connection")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
 
-                    Picker("Connection", selection: $model.obsidianSettings.mode) {
-                        Text("This Mac").tag(ObsidianSettings.Mode.local)
-                        Text("Remote").tag(ObsidianSettings.Mode.remote)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                }
+                            Picker("Connection", selection: $model.obsidianSettings.mode) {
+                                Text("This Mac").tag(ObsidianSettings.Mode.local)
+                                Text("Remote").tag(ObsidianSettings.Mode.remote)
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                        }
 
-                Text("Remote uses the Local REST API plugin running inside Obsidian on another Mac.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                        Text("Remote mode uses the Local REST API plugin inside Obsidian on another Mac.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                if model.obsidianSettings.mode == .local {
-                    LabeledContent("Vault") {
-                        HStack(spacing: 8) {
-                            Menu {
-                                ForEach(model.obsidianVaults) { vault in
-                                    Button {
-                                        applyObsidianVault(vault)
-                                    } label: {
-                                        HStack {
-                                            Text(vault.name)
-                                            if vault.path == model.obsidianSettings.vaultPath {
-                                                Image(systemName: "checkmark")
+                        if model.obsidianSettings.mode == .local {
+                            LabeledContent("Vault") {
+                                HStack(spacing: 8) {
+                                    Menu {
+                                        ForEach(model.obsidianVaults) { vault in
+                                            Button {
+                                                applyObsidianVault(vault)
+                                            } label: {
+                                                HStack {
+                                                    Text(vault.name)
+                                                    if vault.path == model.obsidianSettings.vaultPath {
+                                                        Image(systemName: "checkmark")
+                                                    }
+                                                }
                                             }
                                         }
+
+                                        if !model.obsidianVaults.isEmpty {
+                                            Divider()
+                                        }
+
+                                        Button("Choose Folder…") {
+                                            chooseObsidianVault()
+                                        }
+                                    } label: {
+                                        Label(
+                                            model.obsidianSettings.vaultPath.isEmpty
+                                                ? "Choose Vault"
+                                                : model.obsidianSettings.resolvedVaultName,
+                                            systemImage: "folder"
+                                        )
                                     }
+                                    .fixedSize()
                                 }
-
-                                if !model.obsidianVaults.isEmpty {
-                                    Divider()
-                                }
-
-                                Button("Choose Folder…") {
-                                    chooseObsidianVault()
-                                }
-                            } label: {
-                                Label(
-                                    model.obsidianSettings.vaultPath.isEmpty
-                                        ? "Choose Vault"
-                                        : model.obsidianSettings.resolvedVaultName,
-                                    systemImage: "folder"
-                                )
                             }
-                            .fixedSize()
-
-                            Spacer(minLength: 8)
 
                             Text(
                                 model.obsidianSettings.vaultPath.isEmpty
-                                    ? "No vault selected"
+                                    ? "No vault selected. Choose Folder… to add one."
                                     : model.obsidianSettings.vaultPath
                             )
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
-                        }
-                    }
+                            .textSelection(.enabled)
 
-                    Text("Vaults detected from Obsidian appear in the menu. Choose Folder… for any other vault.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    TextField("Vault name", text: $model.obsidianSettings.vaultName)
-                    Text("Vault name is used for obsidian:// links; it is usually the folder name.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Button {
-                            Task { @MainActor in await self.model.scanObsidianLAN() }
-                        } label: {
-                            Label("Find Local REST API on LAN", systemImage: "wifi")
-                        }
-                        .disabled(model.isScanningObsidian)
-
-                        if model.isScanningObsidian {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-
-                        if let status = model.obsidianScanStatus {
-                            Text(status)
+                            Text("Vaults detected from Obsidian appear in the menu. Choose Folder… for any other vault.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
 
-                    if !model.obsidianDiscoveredServers.isEmpty {
-                        Picker("Server", selection: Binding(
-                            get: {
-                                model.obsidianDiscoveredServers.first {
-                                    $0.host == model.obsidianSettings.remoteHost
-                                        && $0.port == model.obsidianSettings.remotePort
-                                        && $0.useHTTPS == model.obsidianSettings.remoteUseHTTPS
-                                }?.id ?? ""
-                            },
-                            set: { id in
-                                if let server = model.obsidianDiscoveredServers.first(where: { $0.id == id }) {
-                                    model.applyObsidianServer(server)
-                                }
-                            }
-                        )) {
-                            Text("Choose a server…").tag("")
-                            ForEach(model.obsidianDiscoveredServers) { server in
-                                Text(server.displayName).tag(server.id)
-                            }
-                        }
-                    }
-
-                    LabeledContent("Host") {
-                        TextField("", text: $model.obsidianSettings.remoteHost)
-                    }
-                    Text("Enter the remote Mac's IP address, or use Find Local REST API on LAN above.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    LabeledContent("Port") {
-                        TextField(
-                            "",
-                            value: $model.obsidianSettings.remotePort,
-                            format: .number
-                        )
-                        .frame(width: 80)
-                    }
-                    LabeledContent("Use HTTPS") {
-                        Toggle("Accept self-signed certificate", isOn: $model.obsidianSettings.remoteUseHTTPS)
-                            .labelsHidden()
-                    }
-                    Text("Accept the plugin's self-signed certificate for HTTPS connections.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    LabeledContent("API key") {
-                        SecureField("", text: $model.obsidianAPIKey)
-                    }
-
-                    Picker("Transport", selection: $model.obsidianSettings.remoteTransport) {
-                        ForEach(ObsidianSettings.Transport.allCases, id: \.self) { transport in
-                            Text(transport.label).tag(transport)
-                        }
-                    }
-                    Text("REST is the plugin's direct vault API. MCP uses its MCP endpoint; both need the same API key.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Button("Test connection") {
-                            Task { @MainActor in await self.model.testObsidianConnection() }
-                        }
-                        if let status = model.obsidianConnectionStatus {
-                            Text(status)
+                            TextField("Vault name", text: $model.obsidianSettings.vaultName)
+                                .textFieldStyle(.squareBorder)
+                                .accessibilityLabel("Vault name")
+                            Text("Vault name is used for obsidian:// links; it is usually the folder name.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-
-                    Text("On the remote Obsidian: install Local REST API, set its binding host to 0.0.0.0, enable HTTP (27123) or HTTPS (27124), and copy the API key.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Link("Install Local REST API", destination: TutorialLinks.obsidianPlugin)
-                }
-
-                LabeledContent("Note path") {
-                    HStack(spacing: 8) {
-                        TextField("", text: $model.obsidianSettings.notePath)
-                        if model.obsidianSettings.mode == .local {
-                            Button("Folder…") {
-                                chooseObsidianNoteFolder()
-                            }
-                            .help("Choose a folder inside the vault for the sync note")
-                        }
-                    }
-                }
-                Text("Note path is relative to the vault. In remote mode it is relative to the vault open in the remote Obsidian.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 10) {
-                    Button("Sync now") {
-                        Task { @MainActor in
-                            await model.save()
-                            onObsidianSyncNow?()
-                        }
-                    }
-                    .disabled(model.isSaving)
-
-                    Button("Open sync note") {
-                        Task { @MainActor in
-                            await model.save()
-                            onObsidianOpenNote?()
-                        }
-                    }
-                    .disabled(model.isSaving)
-                }
-
-                Text("Two-way sync for status, titles, tags, and due dates. New checklist lines become tasks. Text outside TodayFlow's markers is preserved. Disable this anytime.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Link("Obsidian guide", destination: TutorialLinks.obsidian)
-            }
-
-            Section("AI") {
-                Toggle("Enable AI", isOn: $model.aiSettings.enabled)
-                if model.aiSettings.enabled {
-                    Picker("Provider", selection: $model.aiSettings.provider) {
-                        ForEach(AIEndpointSettings.Provider.allCases, id: \.self) { provider in
-                            Text(provider.label).tag(provider)
-                        }
-                    }
-                    if model.aiSettings.provider == .apple {
-                        if appleIntelligenceAvailable {
-                            Label(
-                                "Apple Intelligence is available on this Mac. No API key or network request.",
-                                systemImage: "checkmark.seal"
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                         } else {
-                            Label(
-                                "Apple Intelligence is not available here. Choose Ollama, LM Studio, OpenAI, or a custom OpenAI-compatible endpoint.",
-                                systemImage: "exclamationmark.triangle"
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                        }
-                    } else {
-                        TextField("Base URL", text: $model.aiSettings.baseURL)
-                        TextField("API key", text: $model.aiSettings.apiKey)
-
-                        HStack {
-                            TextField("Model", text: $model.aiSettings.model)
-
-                            if model.modelCatalogAvailable {
-                                Button(model.isFetchingModels ? "Fetching…" : "Fetch models") {
-                                    Task { @MainActor in await model.fetchModels() }
+                            VStack(alignment: .leading, spacing: 8) {
+                                Button {
+                                    Task { @MainActor in await self.model.scanObsidianLAN() }
+                                } label: {
+                                    Label("Find Local REST API on LAN", systemImage: "wifi")
                                 }
-                                .disabled(model.isFetchingModels)
-                            }
-                        }
+                                .disabled(model.isScanningObsidian)
 
-                        if !model.availableModels.isEmpty {
-                            Picker("Available models", selection: $model.aiSettings.model) {
-                                ForEach(model.availableModels, id: \.self) { identifier in
-                                    Text(identifier).tag(identifier)
+                                if model.isScanningObsidian {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+
+                                if let status = model.obsidianScanStatus {
+                                    Text(status)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
+
+                            if !model.obsidianDiscoveredServers.isEmpty {
+                                Picker("Server", selection: Binding(
+                                    get: {
+                                        model.obsidianDiscoveredServers.first {
+                                            $0.host == model.obsidianSettings.remoteHost
+                                                && $0.port == model.obsidianSettings.remotePort
+                                                && $0.useHTTPS == model.obsidianSettings.remoteUseHTTPS
+                                        }?.id ?? ""
+                                    },
+                                    set: { id in
+                                        if let server = model.obsidianDiscoveredServers.first(where: { $0.id == id }) {
+                                            model.applyObsidianServer(server)
+                                        }
+                                    }
+                                )) {
+                                    Text("Choose a server…").tag("")
+                                    ForEach(model.obsidianDiscoveredServers) { server in
+                                        Text(server.displayName).tag(server.id)
+                                    }
+                                }
+                            }
+
+                            LabeledContent("Host") {
+                                TextField("", text: $model.obsidianSettings.remoteHost)
+                                    .textFieldStyle(.squareBorder)
+                                    .accessibilityLabel("Host")
+                            }
+                            Text("Enter the remote Mac's IP address, or use Find Local REST API on LAN above.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            LabeledContent("Port") {
+                                TextField(
+                                    "",
+                                    value: $model.obsidianSettings.remotePort,
+                                    format: .number.grouping(.never)
+                                )
+                                .textFieldStyle(.squareBorder)
+                                .frame(width: 80)
+                                .accessibilityLabel("Port")
+                            }
+                            LabeledContent("Use HTTPS") {
+                                Toggle("Use HTTPS", isOn: $model.obsidianSettings.remoteUseHTTPS)
+                                    .labelsHidden()
+                            }
+                            Text("Uses the plugin's self-signed certificate; TodayFlow trusts it for this connection.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            LabeledContent("API key") {
+                                SecureField("", text: $model.obsidianAPIKey)
+                                    .textFieldStyle(.squareBorder)
+                                    .accessibilityLabel("Obsidian API key")
+                            }
+
+                            Picker("Transport", selection: $model.obsidianSettings.remoteTransport) {
+                                ForEach(ObsidianSettings.Transport.allCases, id: \.self) { transport in
+                                    Text(transport.label).tag(transport)
+                                }
+                            }
+                            Text("REST is the plugin's direct vault API. MCP uses its MCP endpoint; both need the same API key.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Button("Test connection") {
+                                    Task { @MainActor in await self.model.testObsidianConnection() }
+                                }
+                                if let status = model.obsidianConnectionStatus {
+                                    Text(status)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+
+                            Text("On the remote Obsidian: install Local REST API, set its binding host to 0.0.0.0, enable HTTP (27123) or HTTPS (27124), and copy the API key.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Link("Install Local REST API", destination: TutorialLinks.obsidianPlugin)
                         }
 
-                        Toggle("Send attachment text", isOn: $model.aiSettings.sendAttachmentText)
-                        Stepper(
-                            "Timeout \(Int(model.aiSettings.timeoutSeconds)) s",
-                            value: $model.aiSettings.timeoutSeconds,
-                            in: 5.0...120.0,
-                            step: 5.0
-                        )
-                    }
-                    if model.aiSettings.provider == .apple {
-                        Toggle(
-                            AIFeatures.label(for: AIFeatures.summarizeEmail),
-                            isOn: featureBinding(AIFeatures.summarizeEmail)
-                        )
-                        Text("Apple Intelligence currently powers on-device email summaries.")
+                        LabeledContent("Note path") {
+                            HStack(spacing: 8) {
+                                TextField("", text: $model.obsidianSettings.notePath)
+                                    .textFieldStyle(.squareBorder)
+                                if model.obsidianSettings.mode == .local {
+                                    Button("Folder…") {
+                                        chooseObsidianNoteFolder()
+                                    }
+                                    .help("Choose a folder inside the vault for the sync note")
+                                }
+                            }
+                        }
+                        Text("Note path is relative to the vault. In remote mode it is relative to the vault open in the remote Obsidian.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(AIFeatures.all, id: \.self) { feature in
-                            Toggle(AIFeatures.label(for: feature), isOn: featureBinding(feature))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(spacing: 10) {
+                            Button("Sync now") {
+                                Task { @MainActor in
+                                    await model.save()
+                                    onObsidianSyncNow?()
+                                }
+                            }
+                            .disabled(model.isSaving)
+
+                            Button("Open sync note") {
+                                Task { @MainActor in
+                                    await model.save()
+                                    onObsidianOpenNote?()
+                                }
+                            }
+                            .disabled(model.isSaving)
+                        }
+
+                        Text("Sync now and Open sync note save these settings first. Two-way sync for status, titles, tags, and due dates. New checklist lines become tasks. Text outside TodayFlow's markers is preserved. Disable this anytime.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Link("Obsidian guide", destination: TutorialLinks.obsidian)
+                    }
+
+                    Section("AI") {
+                        Toggle("Enable AI", isOn: $model.aiSettings.enabled)
+                        if model.aiSettings.enabled {
+                            Picker("Provider", selection: $model.aiSettings.provider) {
+                                ForEach(AIEndpointSettings.Provider.allCases, id: \.self) { provider in
+                                    Text(provider.label).tag(provider)
+                                }
+                            }
+                            if model.aiSettings.provider == .apple {
+                                if appleIntelligenceAvailable {
+                                    Label(
+                                        "Apple Intelligence is available on this Mac. No API key or network request.",
+                                        systemImage: "checkmark.seal"
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                } else {
+                                    Label(
+                                        "Apple Intelligence is not available here. Choose Ollama, LM Studio, OpenAI, or a custom OpenAI-compatible endpoint.",
+                                        systemImage: "exclamationmark.triangle"
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                                }
+                            } else {
+                                TextField("Base URL", text: $model.aiSettings.baseURL)
+                                    .textFieldStyle(.squareBorder)
+                                TextField("API key", text: $model.aiSettings.apiKey)
+                                    .textFieldStyle(.squareBorder)
+
+                                HStack {
+                                    TextField("Model", text: $model.aiSettings.model)
+                                        .textFieldStyle(.squareBorder)
+
+                                    if model.modelCatalogAvailable {
+                                        Button(model.isFetchingModels ? "Fetching…" : "Fetch models") {
+                                            Task { @MainActor in await model.fetchModels() }
+                                        }
+                                        .disabled(model.isFetchingModels)
+                                    }
+                                }
+
+                                if !model.availableModels.isEmpty {
+                                    Picker("Available models", selection: $model.aiSettings.model) {
+                                        ForEach(model.availableModels, id: \.self) { identifier in
+                                            Text(identifier).tag(identifier)
+                                        }
+                                    }
+                                }
+
+                                Toggle("Send attachment text", isOn: $model.aiSettings.sendAttachmentText)
+                                Stepper(
+                                    "Timeout \(Int(model.aiSettings.timeoutSeconds)) s",
+                                    value: $model.aiSettings.timeoutSeconds,
+                                    in: 5.0...120.0,
+                                    step: 5.0
+                                )
+                            }
+                            if model.aiSettings.provider == .apple {
+                                Toggle(
+                                    AIFeatures.label(for: AIFeatures.summarizeEmail),
+                                    isOn: featureBinding(AIFeatures.summarizeEmail)
+                                )
+                                Text("Apple Intelligence currently powers on-device email summaries.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(AIFeatures.all, id: \.self) { feature in
+                                    Toggle(AIFeatures.label(for: feature), isOn: featureBinding(feature))
+                                }
+                            }
+                        } else {
+                            Text("AI is off by default. Enable it to use the AI features.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let onOpenAISetup {
+                            Button {
+                                onOpenAISetup()
+                            } label: {
+                                Label("AI setup & local models…", systemImage: "sparkles")
+                            }
+                            Text("Scans GPU Buddy/llama.cpp, Ollama, LM Studio, vLLM, text-generation-webui, and Jan on localhost. Also offers a 533 MB Qwen3.5 0.8B download; nothing is downloaded until you choose.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                } else {
-                    Text("AI is off by default. Enable it to use the AI features.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
 
-                if let onOpenAISetup {
-                    Divider()
-                    Button {
-                        onOpenAISetup()
-                    } label: {
-                        Label("AI setup & local models…", systemImage: "sparkles")
+                    Section("Help") {
+                        if let onWatchTutorial {
+                            Button {
+                                onWatchTutorial()
+                            } label: {
+                                Label("Watch the video walkthrough", systemImage: "play.rectangle")
+                            }
+                        } else {
+                            Link(destination: TutorialLinks.video) {
+                                Label("Watch the video walkthrough", systemImage: "play.rectangle")
+                            }
+                        }
+                        Link(destination: TutorialLinks.index) {
+                            Label("Tutorials & guides on GitHub", systemImage: "book")
+                        }
                     }
-                    Text("Scans GPU Buddy/llama.cpp, Ollama, LM Studio, vLLM, text-generation-webui, and Jan on localhost. Also offers a 533 MB Qwen3.5 0.8B download; nothing is downloaded until you choose.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+
+                    Section {
+                        HStack(alignment: .center) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Button(role: .destructive) {
+                                    showResetConfirmation = true
+                                } label: {
+                                    Text("Reset to defaults…")
+                                        .foregroundStyle(.red)
+                                }
+                                .disabled(model.isLoading || model.isSaving)
+
+                                Text("Clears business hours, AI, Obsidian, and saved API keys.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+                        }
+                    }
                 }
+                .formStyle(.grouped)
+                .frame(maxWidth: .infinity)
             }
-
-            Section("Help") {
-                if let onWatchTutorial {
-                    Button {
-                        onWatchTutorial()
-                    } label: {
-                        Label("Watch the video walkthrough", systemImage: "play.rectangle")
-                    }
-                } else {
-                    Link(destination: TutorialLinks.video) {
-                        Label("Watch the video walkthrough", systemImage: "play.rectangle")
-                    }
-                }
-                Link(destination: TutorialLinks.index) {
-                    Label("Tutorials & guides on GitHub", systemImage: "book")
-                }
-            }
-
-            Section {
-                HStack {
-                    Button("Reset to defaults") {
-                        Task { @MainActor in await model.resetToDefaults() }
-                    }
-                    .disabled(model.isLoading || model.isSaving)
-
-                    Spacer()
-
-                    Button("Save") {
-                        Task { @MainActor in await model.save() }
-                    }
-                    .disabled(model.isLoading || model.isSaving)
-                }
-            }
+            Divider()
+            saveBar
         }
-        .frame(width: DesignTokens.Window.settings.width, height: DesignTokens.Window.settings.height)
+        .frame(
+            minWidth: DesignTokens.Window.settings.width,
+            minHeight: DesignTokens.Window.settings.height
+        )
         .task { await model.load() }
+        .onChange(of: model.obsidianSettings) { _, _ in
+            model.clearObsidianConnectionStatus()
+        }
+        .onChange(of: model.obsidianAPIKey) { _, _ in
+            model.clearObsidianConnectionStatus()
+        }
+        .confirmationDialog(
+            "Reset all settings to defaults?",
+            isPresented: $showResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reset All Settings", role: .destructive) {
+                Task { @MainActor in await model.resetToDefaults() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Business hours, AI, Obsidian, and saved API keys will be cleared. This cannot be undone.")
+        }
+    }
+
+    /// Always-visible Save bar. The form itself scrolls, but Save never does,
+    /// so the button cannot be missed at the bottom of a long section.
+    private var saveBar: some View {
+        HStack(spacing: 10) {
+            if model.isSaving {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Saving…")
+                    .foregroundStyle(.secondary)
+            } else if let error = model.lastError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+                    .help(error)
+            } else if model.hasUnsavedChanges {
+                Label("Unsaved changes", systemImage: "circle.fill")
+                    .foregroundStyle(.orange)
+            } else if model.didSave {
+                Label("Saved", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                Text("Changes are saved when you click Save.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Save") {
+                Task { @MainActor in await model.save() }
+            }
+            .keyboardShortcut("s", modifiers: .command)
+            .buttonStyle(.borderedProminent)
+            .help("Save settings (⌘S)")
+            .disabled(model.isLoading || model.isSaving)
+        }
+        .font(.caption)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
     }
 
     // MARK: Bindings (manual — the stored `model` is a plain `let`)
