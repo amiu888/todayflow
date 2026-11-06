@@ -62,10 +62,12 @@ struct TutorialSnapshotTests {
             model: today,
             onOpenTask: { _ in },
             onFocusTask: { _ in },
+            onNewTask: {},
             onOpenUpcoming: {},
             onShowMiniCalendar: {},
             onOpenTray: { _ in },
             onOpenContacts: {},
+            onOpenWorkflows: {},
             onDockToApp: { _, _ in false },
             onUndockApp: {},
             windowActions: windowActions,
@@ -77,8 +79,8 @@ struct TutorialSnapshotTests {
             to: root.appendingPathComponent("today-panel.png")
         )
         try await render(
-            todayView.frame(width: 320, height: 640),
-            size: CGSize(width: 320, height: 640),
+            todayView.frame(width: 260, height: 640),
+            size: CGSize(width: 260, height: 640),
             to: root.appendingPathComponent("today-panel-narrow.png")
         )
 

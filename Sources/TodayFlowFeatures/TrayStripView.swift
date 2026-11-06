@@ -51,12 +51,18 @@ public struct TrayStripView: View {
                     Button {
                         onOpenWorkflows()
                     } label: {
-                        Label("Workflows", systemImage: "arrow.triangle.branch")
-                            .font(.caption2.weight(.semibold))
+                        if isCompact {
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.system(size: 10, weight: .semibold))
+                        } else {
+                            Label("Workflows", systemImage: "arrow.triangle.branch")
+                                .font(.caption2.weight(.semibold))
+                        }
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(DesignTokens.Palette.accent)
                     .help("Build a simple tray automation")
+                    .accessibilityLabel("Workflows")
                     .accessibilityIdentifier("open-workflows")
                 }
 

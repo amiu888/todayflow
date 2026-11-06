@@ -35,9 +35,9 @@ The **anchor** button is on by default. Today stays on the current virtual deskt
 
 ## 5. Squeeze the panel
 
-- The panel can be resized down to **280 points** wide.
-- Below 320 points it switches to a single-column layout: the week strip becomes a vertical day list, trays become full-width columns, and task metadata moves under the title.
-- Below 320 the interface is laid out at 320 and scaled into the window, so nothing is clipped on the left or right.
+- The panel can be resized down to **260 points** wide.
+- Below 360 points it switches to a single-column layout: the week strip becomes a vertical day list, trays become full-width columns, and task metadata moves under the title.
+- The layout shrinks element shapes and spacing rather than text; the window stops at 260 points before anything clips.
 
 ![Narrow Today panel](images/today-panel-narrow.png)
 
