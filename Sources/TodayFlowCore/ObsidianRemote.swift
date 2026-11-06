@@ -8,6 +8,7 @@ public enum ObsidianRemoteError: LocalizedError, Equatable {
     case unauthorized
     case unreachable(String)
     case server(Int)
+    case tool(String)
 
     public var errorDescription: String? {
         switch self {
@@ -19,13 +20,24 @@ public enum ObsidianRemoteError: LocalizedError, Equatable {
             "Could not reach Obsidian: \(message)"
         case .server(let status):
             "Obsidian returned HTTP \(status)."
+        case .tool(let message):
+            message
         }
     }
 }
 
+/// The operations TodayFlow needs from a remote Obsidian plugin. REST and MCP
+/// are interchangeable transports over the same Local REST API plugin.
+public protocol ObsidianRemoteTransport: Sendable {
+    func verify() async throws
+    func read(_ path: String) async throws -> String?
+    func write(_ path: String, content: String) async throws
+    func open(_ path: String) async throws
+}
+
 /// Talks to the Obsidian Local REST API plugin on another machine.
 /// HTTPS accepts the plugin's self-signed certificate for this connection.
-public final class ObsidianRemoteClient: @unchecked Sendable {
+public final class ObsidianRemoteClient: ObsidianRemoteTransport, @unchecked Sendable {
     private let baseURL: URL
     private let apiKey: String
     private let trust: ObsidianTrustDelegate

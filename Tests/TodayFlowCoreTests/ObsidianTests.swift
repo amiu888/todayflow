@@ -200,12 +200,14 @@ struct ObsidianTests {
             remoteHost: "10.0.2.50",
             remotePort: 27123,
             remoteUseHTTPS: false,
+            remoteTransport: .mcp,
             remoteDisplayName: "NBCBrain Mac",
             notePath: "Conversations/Daily/TodayFlow.md"
         )
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(ObsidianSettings.self, from: data)
         #expect(decoded == settings)
+        #expect(decoded.remoteTransport == .mcp)
         #expect(decoded.remoteBaseURL?.absoluteString == "http://10.0.2.50:27123")
         #expect(decoded.isConfigured)
     }

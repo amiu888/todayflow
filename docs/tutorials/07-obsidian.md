@@ -3,7 +3,7 @@
 TodayFlow can connect to an Obsidian vault in two ways:
 
 - **Local folder / iCloud** — Obsidian and the vault are on this Mac, or iCloud syncs the vault here.
-- **Remote LAN** — Obsidian runs on another Mac. The **Local REST API** community plugin provides the network connection; no folder sharing or iCloud is required.
+- **Remote via Local REST API** — Obsidian runs on another Mac. Obsidian has **no native LAN/API server**; the **Local REST API** community plugin adds one. No folder sharing or iCloud is required.
 
 The connection is optional: if Obsidian is not installed or not configured, TodayFlow works exactly as before.
 
@@ -18,7 +18,7 @@ The connection is optional: if Obsidian is not installed or not configured, Toda
 
 TodayFlow creates the note and its folders inside the vault. If the note already exists, anything outside TodayFlow's markers is preserved.
 
-## Set up a remote Obsidian on the LAN
+## Set up a remote Obsidian via Local REST API
 
 Obsidian itself does not listen on the network. Install the **Local REST API** plugin inside the remote Obsidian first, and open the target vault (for example **NBCBrain**) in that Obsidian window. The plugin serves the vault that is currently open.
 
@@ -29,12 +29,15 @@ On the remote Obsidian:
 3. Set the binding host to **`0.0.0.0`** so it accepts LAN connections.
 4. Enable the **HTTP server** (`27123`) or use HTTPS (`27124`).
 5. Copy the **API key**.
+6. Choose **Transport** in TodayFlow:
+   - **REST** (default) uses the plugin's direct vault API.
+   - **MCP** uses the plugin's MCP endpoint. Both use the same API key and reach the same vault.
 
 On this Mac:
 
 1. Open **TodayFlow → Settings → Obsidian**.
-2. Choose **Remote (LAN)**.
-3. Click **Find Obsidian on LAN**. Allow the macOS **Local Network** permission when asked.
+2. Choose **Remote**.
+3. Click **Find Local REST API on LAN**. Allow the macOS **Local Network** permission when asked.
 4. Select the discovered server. If it is not found, enter the host and port manually:
    - HTTP: `27123`
    - HTTPS: `27124`
@@ -90,7 +93,7 @@ Keep the markers if you edit around the block.
 
 ## Reconfigure or turn it off
 
-- Open **Settings → Obsidian** at any time to switch between **This Mac** and **Remote (LAN)**, choose a different vault — for example HermesBrain or NBCBrain — change the note folder, or edit the vault name used in local links.
+- Open **Settings → Obsidian** at any time to switch between **This Mac** and **Remote**, choose a different vault — for example HermesBrain or NBCBrain — change the note folder, or edit the vault name used in local links.
 - One connection is active at a time. Switching stops writing the old note and starts the new one; the old note is left in place.
 - Turn **Sync with Obsidian** off to stop reading and writing the vault. The existing note stays in the vault; TodayFlow does not delete it.
 - If the vault path disappears, TodayFlow keeps running normally. Press **Sync now** in Settings to see the specific error.

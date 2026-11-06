@@ -29,6 +29,7 @@ public final class SettingsViewModel {
     public var obsidianAPIKey = ""
     public private(set) var obsidianDiscoveredServers: [DiscoveredObsidianServer] = []
     public private(set) var isScanningObsidian = false
+    public private(set) var obsidianScanStatus: String?
     public private(set) var obsidianConnectionStatus: String?
 
     /// AI endpoint (off by default).
@@ -191,15 +192,15 @@ public final class SettingsViewModel {
     public func scanObsidianLAN() async {
         guard !isScanningObsidian else { return }
         isScanningObsidian = true
-        obsidianConnectionStatus = nil
+        obsidianScanStatus = nil
         defer { isScanningObsidian = false }
 
         let found = await ObsidianLANDiscovery.scan()
         obsidianDiscoveredServers = found
         if found.isEmpty {
-            obsidianConnectionStatus = "No Obsidian server found. Install Local REST API on the remote Obsidian, bind it to 0.0.0.0, and enable HTTP or HTTPS."
+            obsidianScanStatus = "No Local REST API server found. Install the plugin on the remote Obsidian, bind it to 0.0.0.0, and enable HTTP or HTTPS."
         } else {
-            obsidianConnectionStatus = "Found \(found.count) server\(found.count == 1 ? "" : "s"). Select one, then paste its API key."
+            obsidianScanStatus = "Found \(found.count) Local REST API server\(found.count == 1 ? "" : "s"). Select one, then paste its API key."
             if obsidianSettings.remoteHost.isEmpty, let first = found.first {
                 applyObsidianServer(first)
             }
@@ -213,21 +214,32 @@ public final class SettingsViewModel {
         obsidianSettings.remoteUseHTTPS = server.useHTTPS
         obsidianSettings.remoteDisplayName = server.displayName
         obsidianSettings.enabled = true
+        obsidianConnectionStatus = nil
     }
 
     /// Verifies the current remote host/port and API key without saving.
     public func testObsidianConnection() async {
         obsidianConnectionStatus = nil
-        guard let client = ObsidianRemoteClient(
-            settings: obsidianSettings,
-            apiKey: obsidianAPIKey
-        ) else {
+        let transport: (any ObsidianRemoteTransport)?
+        switch obsidianSettings.remoteTransport {
+        case .rest:
+            transport = ObsidianRemoteClient(
+                settings: obsidianSettings,
+                apiKey: obsidianAPIKey
+            )
+        case .mcp:
+            transport = ObsidianMCPClient(
+                settings: obsidianSettings,
+                apiKey: obsidianAPIKey
+            )
+        }
+        guard let transport else {
             obsidianConnectionStatus = "Enter a remote host and port first."
             return
         }
         do {
-            try await client.verify()
-            obsidianConnectionStatus = "Connected to \(obsidianSettings.sanitizedRemoteHost):\(obsidianSettings.remotePort)."
+            try await transport.verify()
+            obsidianConnectionStatus = "Connected via \(obsidianSettings.remoteTransport.label) to \(obsidianSettings.sanitizedRemoteHost):\(obsidianSettings.remotePort)."
         } catch {
             obsidianConnectionStatus = error.localizedDescription
         }

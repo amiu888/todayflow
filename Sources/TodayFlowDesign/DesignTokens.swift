@@ -104,7 +104,7 @@ public enum DesignTokens {
         public static let calendar = CGSize(width: 780, height: 600)
         public static let upcoming = CGSize(width: 420, height: 520)
         public static let completed = CGSize(width: 420, height: 520)
-        public static let settings = CGSize(width: 480, height: 560)
+        public static let settings = CGSize(width: 600, height: 620)
         public static let contacts = CGSize(width: 760, height: 600)
         public static let contactsMinimum = CGSize(width: 580, height: 420)
     }

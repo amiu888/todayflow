@@ -84,59 +84,73 @@ public struct SettingsView: View {
             Section("Obsidian") {
                 Toggle("Sync with Obsidian", isOn: $model.obsidianSettings.enabled)
 
-                Picker("Connection", selection: $model.obsidianSettings.mode) {
-                    Text("This Mac").tag(ObsidianSettings.Mode.local)
-                    Text("Remote (LAN)").tag(ObsidianSettings.Mode.remote)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Connection")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Picker("Connection", selection: $model.obsidianSettings.mode) {
+                        Text("This Mac").tag(ObsidianSettings.Mode.local)
+                        Text("Remote").tag(ObsidianSettings.Mode.remote)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
+
+                Text("Remote uses the Local REST API plugin running inside Obsidian on another Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if model.obsidianSettings.mode == .local {
-                    HStack(spacing: 8) {
-                        Menu {
-                            ForEach(model.obsidianVaults) { vault in
-                                Button {
-                                    applyObsidianVault(vault)
-                                } label: {
-                                    HStack {
-                                        Text(vault.name)
-                                        if vault.path == model.obsidianSettings.vaultPath {
-                                            Image(systemName: "checkmark")
+                    LabeledContent("Vault") {
+                        HStack(spacing: 8) {
+                            Menu {
+                                ForEach(model.obsidianVaults) { vault in
+                                    Button {
+                                        applyObsidianVault(vault)
+                                    } label: {
+                                        HStack {
+                                            Text(vault.name)
+                                            if vault.path == model.obsidianSettings.vaultPath {
+                                                Image(systemName: "checkmark")
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            if !model.obsidianVaults.isEmpty {
-                                Divider()
-                            }
+                                if !model.obsidianVaults.isEmpty {
+                                    Divider()
+                                }
 
-                            Button("Choose Folder…") {
-                                chooseObsidianVault()
+                                Button("Choose Folder…") {
+                                    chooseObsidianVault()
+                                }
+                            } label: {
+                                Label(
+                                    model.obsidianSettings.vaultPath.isEmpty
+                                        ? "Choose Vault"
+                                        : model.obsidianSettings.resolvedVaultName,
+                                    systemImage: "folder"
+                                )
                             }
-                        } label: {
-                            Label(
+                            .fixedSize()
+
+                            Spacer(minLength: 8)
+
+                            Text(
                                 model.obsidianSettings.vaultPath.isEmpty
-                                    ? "Choose Vault"
-                                    : model.obsidianSettings.resolvedVaultName,
-                                systemImage: "folder"
+                                    ? "No vault selected"
+                                    : model.obsidianSettings.vaultPath
                             )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                         }
-                        .fixedSize()
-
-                        Spacer()
-
-                        Text(
-                            model.obsidianSettings.vaultPath.isEmpty
-                                ? "No vault selected"
-                                : model.obsidianSettings.vaultPath
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
                     }
 
-                    Text("Vaults detected from Obsidian appear here — for example NBCBrain or HermesBrain. Choose Folder… for any other vault.")
+                    Text("Vaults detected from Obsidian appear in the menu. Choose Folder… for any other vault.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -146,11 +160,11 @@ public struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Button {
                             Task { @MainActor in await self.model.scanObsidianLAN() }
                         } label: {
-                            Label("Find Obsidian on LAN", systemImage: "wifi")
+                            Label("Find Local REST API on LAN", systemImage: "wifi")
                         }
                         .disabled(model.isScanningObsidian)
 
@@ -158,10 +172,17 @@ public struct SettingsView: View {
                             ProgressView()
                                 .controlSize(.small)
                         }
+
+                        if let status = model.obsidianScanStatus {
+                            Text(status)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
 
                     if !model.obsidianDiscoveredServers.isEmpty {
-                        Picker("Discovered", selection: Binding(
+                        Picker("Server", selection: Binding(
                             get: {
                                 model.obsidianDiscoveredServers.first {
                                     $0.host == model.obsidianSettings.remoteHost
@@ -183,21 +204,43 @@ public struct SettingsView: View {
                     }
 
                     LabeledContent("Host") {
-                        TextField("192.168.1.50", text: $model.obsidianSettings.remoteHost)
+                        TextField("", text: $model.obsidianSettings.remoteHost)
                     }
+                    Text("Enter the remote Mac's IP address, or use Find Local REST API on LAN above.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     LabeledContent("Port") {
                         TextField(
-                            "Port",
+                            "",
                             value: $model.obsidianSettings.remotePort,
                             format: .number
                         )
                         .frame(width: 80)
                     }
+                    LabeledContent("Use HTTPS") {
+                        Toggle("Accept self-signed certificate", isOn: $model.obsidianSettings.remoteUseHTTPS)
+                            .labelsHidden()
+                    }
+                    Text("Accept the plugin's self-signed certificate for HTTPS connections.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                    Toggle("Use HTTPS (self-signed certificate)", isOn: $model.obsidianSettings.remoteUseHTTPS)
+                    LabeledContent("API key") {
+                        SecureField("", text: $model.obsidianAPIKey)
+                    }
 
-                    SecureField("API key", text: $model.obsidianAPIKey)
-                    HStack(spacing: 10) {
+                    Picker("Transport", selection: $model.obsidianSettings.remoteTransport) {
+                        ForEach(ObsidianSettings.Transport.allCases, id: \.self) { transport in
+                            Text(transport.label).tag(transport)
+                        }
+                    }
+                    Text("REST is the plugin's direct vault API. MCP uses its MCP endpoint; both need the same API key.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    VStack(alignment: .leading, spacing: 6) {
                         Button("Test connection") {
                             Task { @MainActor in await self.model.testObsidianConnection() }
                         }
@@ -209,26 +252,30 @@ public struct SettingsView: View {
                         }
                     }
 
-                    Text("On the remote Obsidian: install Local REST API, set its binding host to 0.0.0.0, enable the HTTP server (27123) or HTTPS (27124), and copy the API key. TodayFlow accepts the plugin's self-signed HTTPS certificate for this connection.")
+                    Text("On the remote Obsidian: install Local REST API, set its binding host to 0.0.0.0, enable HTTP (27123) or HTTPS (27124), and copy the API key.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Link("Install Local REST API", destination: TutorialLinks.obsidianPlugin)
                 }
 
-                HStack(spacing: 8) {
-                    TextField("Note path", text: $model.obsidianSettings.notePath)
-                    if model.obsidianSettings.mode == .local {
-                        Button("Folder…") {
-                            chooseObsidianNoteFolder()
+                LabeledContent("Note path") {
+                    HStack(spacing: 8) {
+                        TextField("", text: $model.obsidianSettings.notePath)
+                        if model.obsidianSettings.mode == .local {
+                            Button("Folder…") {
+                                chooseObsidianNoteFolder()
+                            }
+                            .help("Choose a folder inside the vault for the sync note")
                         }
-                        .help("Choose a folder inside the vault for the sync note")
                     }
                 }
-                Text("The note path is relative to the vault. For remote mode it is relative to the vault open in the remote Obsidian.")
+                Text("Note path is relative to the vault. In remote mode it is relative to the vault open in the remote Obsidian.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 10) {
@@ -249,9 +296,10 @@ public struct SettingsView: View {
                     .disabled(model.isSaving)
                 }
 
-                Text("Two-way sync for checkbox status, titles, tags, and due dates. New checklist lines become tasks. Everything outside TodayFlow's markers is left untouched. Disable this at any time; the rest of the app never depends on Obsidian.")
+                Text("Two-way sync for status, titles, tags, and due dates. New checklist lines become tasks. Text outside TodayFlow's markers is preserved. Disable this anytime.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Link("Obsidian guide", destination: TutorialLinks.obsidian)

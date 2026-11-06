@@ -15,7 +15,7 @@ public struct AIOnboardingView: View {
             header
             Divider()
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 12) {
                     worksWithoutAI
                     if let configured = model.configuredModelName {
                         Label("AI is ready · \(configured)", systemImage: "checkmark.circle.fill")
@@ -37,7 +37,7 @@ public struct AIOnboardingView: View {
                         .font(.caption)
                         .foregroundStyle(DesignTokens.Palette.textSecondary)
                 }
-                .padding(24)
+                .padding(18)
             }
             Divider()
             footer
@@ -72,8 +72,8 @@ public struct AIOnboardingView: View {
 
             Spacer()
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
     }
 
     private var worksWithoutAI: some View {
@@ -90,7 +90,7 @@ public struct AIOnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -162,7 +162,7 @@ public struct AIOnboardingView: View {
                         .disabled(model.isBusy)
                         .accessibilityIdentifier("ai-setup-use-\(candidate.name)")
                     }
-                    .padding(10)
+                    .padding(8)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .fill(DesignTokens.Palette.surface)
@@ -359,8 +359,8 @@ public struct AIOnboardingView: View {
                     .accessibilityIdentifier("ai-setup-done")
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
     }
 
     private func optionCard<Content: View>(
@@ -371,10 +371,10 @@ public struct AIOnboardingView: View {
         badge: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 Image(systemName: icon)
-                    .font(.title2)
+                    .font(.title3)
                     .foregroundStyle(iconColor)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 3) {
@@ -399,8 +399,8 @@ public struct AIOnboardingView: View {
             Divider()
             content()
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 330, alignment: .topLeading)
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 220, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(DesignTokens.Palette.surface)

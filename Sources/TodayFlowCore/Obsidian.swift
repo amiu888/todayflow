@@ -8,8 +8,20 @@ public struct ObsidianSettings: Codable, Hashable, Sendable {
     public enum Mode: String, Codable, CaseIterable, Sendable {
         /// A vault folder that is visible on this Mac (iCloud, mounted share…).
         case local
-        /// The Obsidian Local REST API plugin running on another machine.
+        /// The Local REST API community plugin inside Obsidian on another machine.
         case remote
+    }
+
+    public enum Transport: String, Codable, CaseIterable, Sendable {
+        case rest
+        case mcp
+
+        public var label: String {
+            switch self {
+            case .rest: "REST"
+            case .mcp: "MCP"
+            }
+        }
     }
 
     public var enabled: Bool
@@ -23,6 +35,8 @@ public struct ObsidianSettings: Codable, Hashable, Sendable {
     /// Local REST API port: 27123 (HTTP) or 27124 (HTTPS).
     public var remotePort: Int
     public var remoteUseHTTPS: Bool
+    /// REST is the direct plugin API; MCP uses the plugin's MCP endpoint.
+    public var remoteTransport: Transport
     /// A friendly name shown in Settings, e.g. “NBCBrain Mac”.
     public var remoteDisplayName: String
     /// Vault-relative note path used for the two-way task note.
@@ -36,6 +50,7 @@ public struct ObsidianSettings: Codable, Hashable, Sendable {
         remoteHost: String = "",
         remotePort: Int = 27124,
         remoteUseHTTPS: Bool = true,
+        remoteTransport: Transport = .rest,
         remoteDisplayName: String = "",
         notePath: String = ObsidianSettings.defaultNotePath
     ) {
@@ -46,13 +61,14 @@ public struct ObsidianSettings: Codable, Hashable, Sendable {
         self.remoteHost = remoteHost
         self.remotePort = remotePort
         self.remoteUseHTTPS = remoteUseHTTPS
+        self.remoteTransport = remoteTransport
         self.remoteDisplayName = remoteDisplayName
         self.notePath = notePath
     }
 
     private enum CodingKeys: String, CodingKey {
         case enabled, mode, vaultPath, vaultName
-        case remoteHost, remotePort, remoteUseHTTPS, remoteDisplayName
+        case remoteHost, remotePort, remoteUseHTTPS, remoteTransport, remoteDisplayName
         case notePath
     }
 
@@ -65,6 +81,7 @@ public struct ObsidianSettings: Codable, Hashable, Sendable {
         remoteHost = try container.decodeIfPresent(String.self, forKey: .remoteHost) ?? ""
         remotePort = try container.decodeIfPresent(Int.self, forKey: .remotePort) ?? 27124
         remoteUseHTTPS = try container.decodeIfPresent(Bool.self, forKey: .remoteUseHTTPS) ?? true
+        remoteTransport = try container.decodeIfPresent(Transport.self, forKey: .remoteTransport) ?? .rest
         remoteDisplayName = try container.decodeIfPresent(String.self, forKey: .remoteDisplayName) ?? ""
         notePath = try container.decodeIfPresent(String.self, forKey: .notePath)
             ?? ObsidianSettings.defaultNotePath

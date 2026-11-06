@@ -332,7 +332,7 @@ public final class ObsidianSyncController {
 
     private func remoteClient(
         for config: ObsidianSettings
-    ) async -> ObsidianRemoteClient? {
+    ) async -> (any ObsidianRemoteTransport)? {
         guard config.mode == .remote else { return nil }
         guard let key = await keychain.read(KeychainKeys.obsidianAPIKey),
               !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -340,10 +340,19 @@ public final class ObsidianSyncController {
             lastError = "Paste the Obsidian API key in Settings → Obsidian."
             return nil
         }
-        guard let client = ObsidianRemoteClient(settings: config, apiKey: key) else {
-            lastError = "The remote Obsidian address is invalid."
-            return nil
+        switch config.remoteTransport {
+        case .rest:
+            guard let client = ObsidianRemoteClient(settings: config, apiKey: key) else {
+                lastError = "The remote Obsidian address is invalid."
+                return nil
+            }
+            return client
+        case .mcp:
+            guard let client = ObsidianMCPClient(settings: config, apiKey: key) else {
+                lastError = "The remote Obsidian address is invalid."
+                return nil
+            }
+            return client
         }
-        return client
     }
 }
