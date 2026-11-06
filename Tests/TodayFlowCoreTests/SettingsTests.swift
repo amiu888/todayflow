@@ -101,9 +101,10 @@ struct AIEndpointSettingsTests {
     }
 
     @Test func featureKeysAreStable() {
-        #expect(AIFeatures.all == ["suggest", "break_down", "plan_day", "ask", "summarize_email"])
+        #expect(AIFeatures.all == ["suggest", "break_down", "plan_day", "ask", "summarize_email", "correct_text"])
         #expect(AIFeatures.label(for: AIFeatures.suggest) == "Suggest from capture")
         #expect(AIFeatures.label(for: AIFeatures.summarizeEmail) == "Summarize emails")
+        #expect(AIFeatures.label(for: AIFeatures.correctText) == "Correct spelling & grammar")
         #expect(AIFeatures.label(for: "unknown") == "unknown")
     }
 }

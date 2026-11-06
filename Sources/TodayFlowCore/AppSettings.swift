@@ -142,8 +142,10 @@ public enum AIFeatures {
     public static let ask = "ask"
     /// Summarize an email into the task summary.
     public static let summarizeEmail = "summarize_email"
+    /// Correct spelling, grammar, punctuation, and sentence boundaries.
+    public static let correctText = "correct_text"
 
-    public static let all: [String] = [suggest, breakDown, planDay, ask, summarizeEmail]
+    public static let all: [String] = [suggest, breakDown, planDay, ask, summarizeEmail, correctText]
 
     public static func label(for key: String) -> String {
         switch key {
@@ -152,6 +154,7 @@ public enum AIFeatures {
         case planDay: return "Plan my day"
         case ask: return "Ask questions"
         case summarizeEmail: return "Summarize emails"
+        case correctText: return "Correct spelling & grammar"
         default: return key
         }
     }

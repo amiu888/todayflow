@@ -86,6 +86,25 @@ public protocol AIAssistant: Sendable {
         _ question: String,
         context: [WorkItem]
     ) async throws -> AsyncThrowingStream<String, Error>
+
+    /// Corrects spelling, grammar, punctuation, and sentence boundaries while
+    /// preserving meaning, names, URLs, and formatting.
+    func correctText(_ text: String) async throws -> String
+}
+
+public enum AIAssistantError: Error, LocalizedError, Sendable {
+    case textCorrectionUnavailable
+
+    public var errorDescription: String? {
+        "Text correction is not available."
+    }
+}
+
+public extension AIAssistant {
+    /// Optional capability: older assistants and test doubles can opt out.
+    func correctText(_ text: String) async throws -> String {
+        throw AIAssistantError.textCorrectionUnavailable
+    }
 }
 
 /// Optional model discovery for the Settings "Fetch models" control

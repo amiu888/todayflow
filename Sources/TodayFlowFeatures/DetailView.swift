@@ -166,7 +166,26 @@ public struct DetailView: View {
         if let item = model.item {
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap * 2) {
-                    breadcrumb(item)
+                    HStack(spacing: 8) {
+                        breadcrumb(item)
+                        Spacer()
+                        if model.corrector != nil {
+                            Button {
+                                Task { await model.correctDraftText() }
+                            } label: {
+                                if model.isCorrectingText {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Label("Fix spelling & grammar", systemImage: "wand.and.stars")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(model.isCorrectingText)
+                            .help("Correct the title, summary, and description with AI")
+                            .accessibilityIdentifier("task-ai-correct")
+                        }
+                    }
                     titleField
                     summarySection
                     pillsRow(item)

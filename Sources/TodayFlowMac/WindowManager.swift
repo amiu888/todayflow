@@ -518,6 +518,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         guard let ai = environment.ai else { return }
         Task { @MainActor in
             model.assistant = await ai.assistant(for: AIFeatures.breakDown)
+            model.corrector = await ai.assistant(for: AIFeatures.correctText)
         }
     }
 

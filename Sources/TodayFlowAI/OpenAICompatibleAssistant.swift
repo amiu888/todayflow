@@ -175,6 +175,28 @@ public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, EmailSumma
         return String(text.prefix(1_200))
     }
 
+    public func correctText(_ text: String) async throws -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return text }
+        let prompt = prompts.render(
+            PromptLibrary.correctText,
+            ["text": String(trimmed.prefix(12_000))]
+        )
+        let (request, info) = try makeRequest(
+            messages: Self.messages(prompt),
+            stream: false,
+            format: nil,
+            feature: "correct_text"
+        )
+        let data = try await sendWithRetry(request, info: info)
+        let corrected = try Self.content(from: data)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !corrected.isEmpty else {
+            throw AIError.malformedResponse("The corrected text was empty.")
+        }
+        return corrected
+    }
+
     // MARK: - AIModelCatalog
 
     public func listModels() async throws -> [String] {

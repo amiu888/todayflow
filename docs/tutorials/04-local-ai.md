@@ -43,7 +43,11 @@ On supported Macs, **Apple Intelligence** uses the built-in system model with **
 
 Open **Settings → AI** to change the provider, base URL, model, timeout, or feature toggles. **Fetch models** lists what the endpoint offers. The **sparkles** menu in the Today header also opens AI setup and settings.
 
-## 6. Use AI from the main UI
+## 6. Correct spelling and grammar
+
+Open a task. When AI is available, a **Fix spelling & grammar** wand button appears at the top of the detail window. It corrects the title, summary, and description together while preserving names, URLs, and formatting. The feature has its own toggle in **Settings → AI**.
+
+## 7. Use AI from the main UI
 
 Click the **sparkles** icon in the Today header:
 

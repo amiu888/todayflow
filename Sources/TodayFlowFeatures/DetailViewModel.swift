@@ -135,6 +135,10 @@ public final class DetailViewModel {
     /// feature are enabled (driver.md §8). Suggestions are never persisted
     /// until the user chooses them.
     public var assistant: (any AIAssistant)?
+    /// Optional grammar/spelling corrector, enabled by the "Correct spelling
+    /// & grammar" feature toggle.
+    public var corrector: (any AIAssistant)?
+    public private(set) var isCorrectingText = false
     public private(set) var subtaskSuggestions: [SubtaskSuggestion] = []
     public private(set) var isSuggestingSubtasks = false
     /// True once `delete()` succeeded; the host should close the window.
@@ -346,6 +350,51 @@ public final class DetailViewModel {
     /// A no-op when nothing changed, so the view can call it on every
     /// interaction (title submit, date-picker change, focus loss) without
     /// bumping the version.
+    /// Corrects the title, summary, and description in one pass. The AI is
+    /// optional: failures leave every field untouched.
+    public func correctDraftText() async {
+        guard let corrector, !isCorrectingText else { return }
+        let title = edit.title
+        let summary = edit.summary
+        let description = edit.descriptionMd
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return }
+
+        isCorrectingText = true
+        lastError = nil
+        defer { isCorrectingText = false }
+        do {
+            async let correctedTitle: String = title.isEmpty
+                ? title
+                : corrector.correctText(title)
+            async let correctedSummary: String = summary.isEmpty
+                ? summary
+                : corrector.correctText(summary)
+            async let correctedDescription: String = description.isEmpty
+                ? description
+                : corrector.correctText(description)
+            let (newTitle, newSummary, newDescription) = try await (
+                correctedTitle,
+                correctedSummary,
+                correctedDescription
+            )
+            if !newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                edit.title = newTitle
+            }
+            if !newSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                edit.summary = newSummary
+            }
+            if !newDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                edit.descriptionMd = newDescription
+            }
+            await commit()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     public func addContact(_ contactId: UUIDv7) async {
         guard let item, let contactRepository else { return }
         do {

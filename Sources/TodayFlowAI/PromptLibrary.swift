@@ -10,6 +10,7 @@ struct PromptLibrary: Sendable {
     static let planDay = "plan_day_v1"
     static let ask = "ask_v1"
     static let summarizeEmail = "summarize_email_v1"
+    static let correctText = "correct_text_v1"
 
     private final class BundleFinder {}
 
