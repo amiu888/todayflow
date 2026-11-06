@@ -18,6 +18,10 @@ Trays are named staging areas below the filter row.
 
 When a tray has more than three tasks, the tray column grows and scrolls with the panel at narrow widths.
 
+### Change a tray color
+
+Open the tray’s **…** menu → **Color**. Pick one of the named swatches, or choose **Custom color…** to open the color wheel and enter any color. The new color updates the tray card, its workflow node, and its chips.
+
 ## 3. Create a project
 
 1. Click the **folder+** icon at the top right of Today.
