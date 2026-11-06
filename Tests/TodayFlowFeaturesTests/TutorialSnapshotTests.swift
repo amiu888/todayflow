@@ -26,7 +26,7 @@ struct TutorialSnapshotTests {
         let items = InMemoryWorkItemRepository()
         let now = Date()
         let seed = [
-            WorkItem(title: "Review the quarterly roadmap and send feedback", priority: .urgent, startAt: now, endAt: now.addingTimeInterval(3600), displayOrder: "a"),
+            WorkItem(title: "Review the quarterly roadmap and send feedback", priority: .urgent, startAt: now, endAt: now.addingTimeInterval(3600), displayOrder: "a", tags: ["launch", "Q4"]),
             WorkItem(title: "Prepare customer notes", priority: .high, startAt: now, endAt: now.addingTimeInterval(7200), displayOrder: "b"),
             WorkItem(title: "Ship the release", priority: .normal, startAt: now, endAt: now.addingTimeInterval(10800), displayOrder: "c"),
         ]
@@ -93,7 +93,7 @@ struct TutorialSnapshotTests {
             emails: ["jane@acme.com"]
         )
         try await contactsRepo.save(jane)
-        let detailItem = WorkItem(title: "Follow up with Jane about the contract", priority: .high, startAt: now, endAt: now.addingTimeInterval(3600))
+        let detailItem = WorkItem(title: "Follow up with Jane about the contract", priority: .high, startAt: now, endAt: now.addingTimeInterval(3600), tags: ["client", "contract"])
         await items.seed(detailItem)
         try await contactsRepo.addContact(jane.id, toTask: detailItem.id)
         let detail = DetailViewModel(

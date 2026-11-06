@@ -17,7 +17,7 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="TodayFlowUseCases"
         component={TodayFlowUseCases}
-        durationInFrames={1280}
+        durationInFrames={1430}
         fps={30}
         width={1280}
         height={720}

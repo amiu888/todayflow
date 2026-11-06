@@ -757,12 +757,10 @@ public final class DetailViewModel {
 
     public func addTag(_ text: String) async {
         guard var item else { return }
-        let tag = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !tag.isEmpty,
-              !item.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame })
-        else { return }
+        let updated = TagName.normalize(item.tags + [text])
+        guard updated.count != item.tags.count else { return }
 
-        item.tags.append(tag)
+        item.tags = updated
         item = item.touching(clock())
         item.deviceId = deviceId
         do {

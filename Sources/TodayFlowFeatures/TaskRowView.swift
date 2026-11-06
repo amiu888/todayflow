@@ -269,6 +269,19 @@ public struct TaskRowView: View {
                     .foregroundStyle(Color.secondary)
                     .help("Blocked by an unfinished task")
             }
+
+            if !model.tags.isEmpty {
+                HStack(spacing: 2) {
+                    Image(systemName: "tag")
+                        .font(.system(size: 8, weight: .semibold))
+                    Text(TagName.display(model.tags, limit: 2))
+                        .font(.system(size: 9, weight: .medium))
+                }
+                .foregroundStyle(DesignTokens.Palette.accent)
+                .lineLimit(1)
+                .help(model.tags.map { "#\($0)" }.joined(separator: ", "))
+                .accessibilityLabel("Tags \(model.tags.joined(separator: ", "))")
+            }
         }
     }
 
@@ -708,6 +721,10 @@ public struct TaskRowView: View {
         }
 
         parts.append("due at \(dueTime)")
+
+        if !model.tags.isEmpty {
+            parts.append("tags \(model.tags.joined(separator: ", "))")
+        }
 
         return parts.joined(separator: ", ")
     }

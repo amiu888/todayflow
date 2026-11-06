@@ -29,7 +29,7 @@ public enum TutorialVideo: String, CaseIterable, Identifiable, Sendable {
     public var duration: String {
         switch self {
         case .overview: "0:30"
-        case .useCases: "0:43"
+        case .useCases: "0:48"
         }
     }
 

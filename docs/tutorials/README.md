@@ -13,7 +13,7 @@ Short, screenshot-based guides for the workflows people use every day. Every ima
 5. [Tray workflows — simple trigger → move rules](05-workflows.md)
 6. [Video walkthrough](06-video.md)
 
-Watch the bundled walkthroughs from **TodayFlow → Watch Video Walkthrough** or **Help → Watch Tutorial Video**. The tutorial window includes **Overview (0:30)** and **Use cases (0:43)**; the use-cases video is recorded from the real app and shows task creation, file drag-and-drop, workflow setup, and a completed task moving between trays. You can reopen this index from **Help → Tutorial Index on GitHub** in the app menu, or from **Settings → Help**.
+Watch the bundled walkthroughs from **TodayFlow → Watch Video Walkthrough** or **Help → Watch Tutorial Video**. The tutorial window includes **Overview (0:30)** and **Use cases (0:48)**; the use-cases video is recorded from the real app and shows task creation, file drag-and-drop, workflow setup, and a completed task moving between trays. You can reopen this index from **Help → Tutorial Index on GitHub** in the app menu, or from **Settings → Help**.
 
 ## Two-minute quick start
 

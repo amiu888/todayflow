@@ -59,7 +59,9 @@ public struct CaptureSheetView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isDescriptionExpanded: Bool = false
+    @State private var tagText = ""
     @FocusState private var isTitleFocused: Bool
+    @FocusState private var isTagsFocused: Bool
 
     @MainActor
     public var body: some View {
@@ -68,6 +70,7 @@ public struct CaptureSheetView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 titleField
+                tagsField
                 attachmentSection
                 if !contactDrops.isEmpty {
                     contactSection
@@ -122,6 +125,9 @@ public struct CaptureSheetView: View {
             WindowDragGrabber()
         }
         .tint(DesignTokens.Palette.accent)
+        .onAppear {
+            tagText = draft.tags.joined(separator: ", ")
+        }
     }
 
     // MARK: - Header
@@ -266,6 +272,48 @@ public struct CaptureSheetView: View {
     /// Selects the prefilled title so the first keystroke overwrites the
     /// suggestion. Deferred to the next main-actor turn so the field is
     /// first responder before the action is sent.
+    // MARK: - Tags
+
+    @MainActor
+    private var tagsField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "tag")
+                .font(.caption)
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+
+            TextField("Add tags (comma separated)", text: $tagText)
+                .textFieldStyle(.plain)
+                .font(.caption)
+                .focused($isTagsFocused)
+                .onSubmit { applyTags() }
+
+            if !draft.tags.isEmpty {
+                Text("\(draft.tags.count)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.accent)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(DesignTokens.Palette.surface.opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+        )
+        .help("Tags make tasks and projects easy to find and filter")
+        .accessibilityLabel("Tags")
+    }
+
+    @MainActor
+    private func applyTags() {
+        let tags = TagName.parse(tagText)
+        draft.tags = tags
+        tagText = tags.joined(separator: ", ")
+    }
+
     @MainActor
     private func selectAllTitleText() {
         #if canImport(AppKit)
@@ -694,6 +742,7 @@ public struct CaptureSheetView: View {
             .accessibilityLabel("Cancel")
 
             Button {
+                applyTags()
                 onSave()
             } label: {
                 HStack(spacing: 6) {

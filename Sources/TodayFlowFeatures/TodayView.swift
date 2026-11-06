@@ -55,6 +55,7 @@ public struct TodayView: View {
     @State private var manuallyExpandedSections: Set<TodayPanelSection> = []
     @State private var showingNewProject = false
     @State private var newProjectName = ""
+    @State private var newProjectTags = ""
 
     public init(model: TodayViewModel) {
         self.model = model
@@ -270,19 +271,25 @@ public struct TodayView: View {
         .overlay(alignment: .top) { captureToast }
         .alert("New project", isPresented: $showingNewProject) {
             TextField("Project name", text: $newProjectName)
-            Button("Cancel", role: .cancel) { newProjectName = "" }
+            TextField("Tags (comma separated)", text: $newProjectTags)
+            Button("Cancel", role: .cancel) {
+                newProjectName = ""
+                newProjectTags = ""
+            }
             Button("Create") {
                 let name = newProjectName
+                let tags = TagName.parse(newProjectTags)
                 newProjectName = ""
+                newProjectTags = ""
                 Task { @MainActor in
-                    if let project = await model.createProject(named: name) {
+                    if let project = await model.createProject(named: name, tags: tags) {
                         showCaptureConfirmation("Created project “\(project.title)”")
                     }
                 }
             }
             .keyboardShortcut(.defaultAction)
         } message: {
-            Text("Projects group related tasks and appear in the project filter and Hierarchy.")
+            Text("Projects group related tasks and appear in the project filter and Hierarchy. Add tags to find them faster.")
         }
         .tint(DesignTokens.Palette.accent)
         .task { await model.observe() }
@@ -355,6 +362,18 @@ public struct TodayView: View {
             onProjectChange: { projectId in
                 Task { @MainActor in
                     model.projectFilter = projectId
+                }
+            },
+            onEditProjectTags: { project in
+                Task { @MainActor in
+                    model.onOpenTask?(project.id)
+                }
+            },
+            tags: model.allTags,
+            tagFilter: model.tagFilter,
+            onTagChange: { tag in
+                Task { @MainActor in
+                    model.tagFilter = tag
                 }
             },
             onSearch: {

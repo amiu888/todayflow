@@ -42,6 +42,8 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
     public let trays: [TrayHint]
     /// Total attachment count (drives the "+n" overflow).
     public let attachmentCount: Int
+    /// Tags shown in the row's metadata line.
+    public let tags: [String]
     /// Parent project/epic color strip hex; nil for root items.
     public let parentColorHex: String?
     /// A child row follows this row — draw the "┊" chain connector.
@@ -81,6 +83,7 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
         allAttachments: [AttachmentHint] = [],
         trays: [TrayHint] = [],
         attachmentCount: Int = 0,
+        tags: [String] = [],
         parentColorHex: String? = nil,
         hasChainBelow: Bool = false
     ) {
@@ -99,6 +102,7 @@ public struct TaskRowModel: Identifiable, Hashable, Sendable {
         self.allAttachments = allAttachments
         self.trays = trays
         self.attachmentCount = attachmentCount
+        self.tags = tags
         self.parentColorHex = parentColorHex
         self.hasChainBelow = hasChainBelow
     }

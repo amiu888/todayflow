@@ -305,6 +305,121 @@ const Cursor: React.FC<{ x: number; y: number; click?: number }> = ({ x, y, clic
   </>
 );
 
+const TagsScene: React.FC = () => {
+  const frame = useCurrentFrame();
+  const pop = interpolate(frame, [35, 55, 120], [0, 1, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const cursorX = interpolate(frame, [20, 55], [420, 280], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const cursorY = interpolate(frame, [20, 55], [430, 176], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return (
+    <Backdrop>
+      <div style={{ position: "absolute", left: 74, top: 44 }}>
+        <Chapter index="2" label="Tags" />
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          left: 84,
+          top: 100,
+          width: 620,
+          height: 551,
+          borderRadius: 18,
+          overflow: "hidden",
+          border: "1px solid rgba(255,255,255,.14)",
+          boxShadow: "0 34px 90px rgba(0,0,0,.55)",
+        }}
+      >
+        <Img
+          src={staticFile("task-contact.png")}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            left: 200,
+            top: 163,
+            padding: "5px 9px",
+            borderRadius: 999,
+            background: "rgba(96,165,250,.22)",
+            border: "1px solid rgba(96,165,250,.75)",
+            color: "#dbeafe",
+            fontSize: 14,
+            fontWeight: 750,
+            opacity: pop,
+            transform: `scale(${0.8 + pop * 0.2})`,
+          }}
+        >
+          #Q4
+        </div>
+      </div>
+      <div style={{ position: "absolute", left: 760, top: 130, width: 450 }}>
+        <div style={{ fontSize: 44, fontWeight: 850, color: colors.text, letterSpacing: -1.4 }}>
+          Tag it once.
+          <br />
+          Find it everywhere.
+        </div>
+        <div style={{ fontSize: 20, color: colors.secondary, marginTop: 16, lineHeight: 1.45 }}>
+          Tags work on tasks and projects, so the same label can connect a project and its work.
+        </div>
+        <div style={{ marginTop: 30, display: "flex", flexDirection: "column", gap: 16 }}>
+          {[
+            "Add tags while capturing a task.",
+            "Edit them in the detail view — tasks and projects share the same tag row.",
+            "Click the tag icon in the filter row to narrow Today.",
+          ].map((line, index) => (
+            <div key={line} style={{ display: "flex", gap: 12, alignItems: "flex-start", color: colors.text, fontSize: 19, lineHeight: 1.35 }}>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  background: "rgba(96,165,250,.16)",
+                  border: "1px solid rgba(96,165,250,.38)",
+                  color: colors.accent,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  flexShrink: 0,
+                }}
+              >
+                {index + 1}
+              </div>
+              {line}
+            </div>
+          ))}
+        </div>
+      </div>
+      <Cursor x={cursorX} y={cursorY} />
+      <div
+        style={{
+          position: "absolute",
+          left: 84,
+          bottom: 30,
+          padding: "9px 14px",
+          borderRadius: 999,
+          fontSize: 14,
+          fontWeight: 700,
+          color: colors.text,
+          background: "rgba(148,163,184,.10)",
+          border: "1px solid rgba(148,163,184,.24)",
+        }}
+      >
+        #launch #Q4 on a task · #launch on the project · filter once
+      </div>
+    </Backdrop>
+  );
+};
+
 const EmailScene: React.FC = () => {
   const frame = useCurrentFrame();
   const t = interpolate(frame, [35, 95], [0, 1], {
@@ -330,7 +445,7 @@ const EmailScene: React.FC = () => {
   return (
     <Backdrop>
       <div style={{ position: "absolute", left: 74, top: 44 }}>
-        <Chapter index="2" label="Drag & drop" />
+        <Chapter index="3" label="Drag & drop" />
       </div>
       <div style={{ position: "absolute", left: 90, top: 120, width: 470 }}>
         <div style={{ fontSize: 42, fontWeight: 850, color: colors.text, letterSpacing: -1.2 }}>
@@ -447,7 +562,7 @@ const FileScene: React.FC = () => {
   return (
     <Backdrop>
       <div style={{ position: "absolute", left: 74, top: 26 }}>
-        <Chapter index="2" label="Drag & drop · file" />
+        <Chapter index="3" label="Drag & drop · file" />
       </div>
       <div
         style={{
@@ -509,7 +624,7 @@ const WorkflowScene: React.FC = () => {
   return (
     <Backdrop>
       <div style={{ position: "absolute", left: 74, top: 20 }}>
-        <Chapter index="3" label="Build a workflow" />
+        <Chapter index="4" label="Build a workflow" />
       </div>
       <div
         style={{
@@ -585,7 +700,7 @@ const WorkingScene: React.FC = () => {
   return (
     <Backdrop>
       <div style={{ position: "absolute", left: 74, top: 32 }}>
-        <Chapter index="4" label="Watch it work" />
+        <Chapter index="5" label="Watch it work" />
       </div>
       <div
         style={{
@@ -742,25 +857,30 @@ export const TodayFlowUseCases: React.FC = () => {
       </Sequence>
       <Sequence from={350} durationInFrames={150}>
         <Scene duration={150}>
+          <TagsScene />
+        </Scene>
+      </Sequence>
+      <Sequence from={500} durationInFrames={150}>
+        <Scene duration={150}>
           <EmailScene />
         </Scene>
       </Sequence>
-      <Sequence from={500} durationInFrames={210}>
+      <Sequence from={650} durationInFrames={210}>
         <Scene duration={210}>
           <FileScene />
         </Scene>
       </Sequence>
-      <Sequence from={710} durationInFrames={240}>
+      <Sequence from={860} durationInFrames={240}>
         <Scene duration={240}>
           <WorkflowScene />
         </Scene>
       </Sequence>
-      <Sequence from={950} durationInFrames={240}>
+      <Sequence from={1100} durationInFrames={240}>
         <Scene duration={240}>
           <WorkingScene />
         </Scene>
       </Sequence>
-      <Sequence from={1190} durationInFrames={90}>
+      <Sequence from={1340} durationInFrames={90}>
         <Scene duration={90}>
           <Outro />
         </Scene>

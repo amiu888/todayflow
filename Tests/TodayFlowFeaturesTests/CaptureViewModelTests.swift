@@ -255,6 +255,19 @@ func save_withNoObjects_createsItemOnly() async {
 }
 
 @Test @MainActor
+func save_persistsTags() async {
+    let f = Fixture()
+    f.vm.prepare(dropped: [], recognized: [])
+    f.vm.draft.title = "Tagged task"
+    f.vm.draft.tags = ["launch", "Q4"]
+
+    await f.vm.save()
+
+    #expect(f.vm.lastError == nil)
+    #expect(f.vm.savedItem?.tags == ["launch", "Q4"])
+}
+
+@Test @MainActor
 func save_withoutAnyAIConfiguration_stillCreatesTheTask() async {
     let f = Fixture()
     // CaptureViewModel starts with no assistant and no email summarizer when

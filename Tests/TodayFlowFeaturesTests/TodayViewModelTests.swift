@@ -957,6 +957,65 @@ func moveToTrayRemovesTheTaskFromEveryOtherTray() async {
     #expect(f.vm.trayItems(trayId: second).map(\.id) == [task.id])
 }
 
+// MARK: - Tags
+
+@Test @MainActor
+func tagFilterNarrowsTheTodayRows() async throws {
+    let f = Fixture()
+    await f.vm.load()
+    let launch = f.item("Launch review", displayOrder: "a0")
+    let ops = f.item("Ops review", displayOrder: "a1")
+    await f.seed(launch)
+    await f.seed(ops)
+    await f.vm.load()
+
+    await f.vm.setTags(["launch"], for: launch.id)
+    await f.vm.setTags(["ops"], for: ops.id)
+
+    f.vm.tagFilter = "launch"
+
+    #expect(f.vm.visibleRows.map(\.id) == [launch.id])
+    #expect(f.vm.allTags == ["launch", "ops"])
+
+    f.vm.tagFilter = nil
+    #expect(Set(f.vm.visibleRows.map(\.id)) == Set([launch.id, ops.id]))
+}
+
+@Test @MainActor
+func projectTagsAlsoMatchTheirTasks() async throws {
+    let f = Fixture()
+    await f.vm.load()
+    let project = try #require(
+        await f.vm.createProject(named: "Launch", tags: ["launch"])
+    )
+    let task = WorkItem(
+        title: "Write the brief",
+        parentId: project.id,
+        startAt: f.now.addingTimeInterval(-3600),
+        endAt: f.calendar.endOfBusiness(for: f.now),
+        displayOrder: "a0"
+    )
+    await f.seed(task)
+    await f.vm.load()
+
+    f.vm.tagFilter = "launch"
+
+    #expect(f.vm.visibleRows.map(\.id) == [task.id])
+}
+
+@Test @MainActor
+func createProjectPersistsTags() async throws {
+    let f = Fixture()
+    await f.vm.load()
+
+    let project = try #require(
+        await f.vm.createProject(named: "Launch", tags: ["Q4", "work"])
+    )
+
+    #expect(project.tags == ["Q4", "work"])
+    #expect(f.vm.projects.contains { $0.id == project.id && $0.tags == ["Q4", "work"] })
+}
+
 // MARK: - Tray workflows
 
 @Test @MainActor

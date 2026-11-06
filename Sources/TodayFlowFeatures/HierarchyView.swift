@@ -134,6 +134,14 @@ private struct HierarchyRowView: View {
                 .lineLimit(1)
                 .foregroundStyle(row.node.item.status == .cancelled ? Color.secondary : Color.primary)
 
+            if !row.node.item.tags.isEmpty {
+                Text(TagName.display(row.node.item.tags, limit: 2))
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(DesignTokens.Palette.accent)
+                    .lineLimit(1)
+                    .help(row.node.item.tags.map { "#\($0)" }.joined(separator: ", "))
+            }
+
             PriorityDotView(priority: row.node.item.priority)
 
             switch row.node.item.kind {
@@ -196,6 +204,11 @@ private struct HierarchyRowView: View {
             }
         }
         .contextMenu {
+            Button("Open details") {
+                model.onOpenDetail?(row.node.id)
+            }
+            Divider()
+
             // driver.md §2: epic → project, project → task, task → subtask.
             if row.node.item.kind == .epic {
                 Button("Add project") {

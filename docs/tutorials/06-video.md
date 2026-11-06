@@ -3,7 +3,7 @@
 Two short videos are bundled in the app, so they play without a network connection:
 
 - **Overview (0:30)** — the Today panel, tasks, trays, contacts, Jira drops, and local AI.
-- **Use cases (0:43)** — real screen recordings of creating a task, dragging a file from Finder, building a tray workflow, and watching a completed task move automatically. It also shows dragging an email onto Today.
+- **Use cases (0:48)** — real screen recordings of creating a task, tagging it, dragging a file from Finder, building a tray workflow, and watching a completed task move automatically. It also shows dragging an email onto Today.
 
 Open them from:
 

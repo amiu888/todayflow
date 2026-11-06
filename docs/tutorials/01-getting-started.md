@@ -6,8 +6,20 @@
 
 - Press **⌘N** or **⌃⌥Space**, type a title, and press **Add task**.
 - Or drag almost anything onto the panel: a file, folder, URL, email, Teams message, image, or Jira ticket. TodayFlow opens the capture sheet with a suggested title.
+- The **Tags** row in the capture sheet accepts comma-separated tags before you save.
 
-## 2. Work in trays
+## 2. Add tags
+
+Tags work the same way on tasks and projects.
+
+- **On a task:** open the task and use the tag row under the title. Type a tag and press Return; click the small **×** to remove one.
+- **On a project:** add tags in the **Tags** field when you create the project. To change them later, choose the project in the folder filter and pick **Edit tags for …**; the project detail opens with the same tag row.
+- **In the list:** tags appear as `#launch` chips under the task title.
+- **Filter:** click the tag icon in the filter row and choose a tag, or **All tags** to clear it.
+
+![Task tags in the detail view](images/task-contact.png)
+
+## 3. Work in trays
 
 Trays are named staging areas below the filter row.
 
@@ -22,18 +34,19 @@ When a tray has more than three tasks, the tray column grows and scrolls with th
 
 Open the tray’s **…** menu → **Color**. Pick one of the named swatches, or choose **Custom color…** to open the color wheel and enter any color. The new color updates the tray card, its workflow node, and its chips.
 
-## 3. Create a project
+## 4. Create a project
 
 1. Click the **folder+** icon at the top right of Today.
-2. Name the project and press **Create**.
+2. Name the project, optionally add comma-separated tags, and press **Create**.
 3. The project appears in the project filter and in **Hierarchy**.
 4. To put a project under an epic, open **Hierarchy**, right-click the epic, and choose **Add project**.
+5. To change its tags later, choose it in the folder filter and pick **Edit tags for …**, or double-click it in **Hierarchy**.
 
-## 4. Keep Today on this desktop
+## 5. Keep Today on this desktop
 
 The **anchor** button is on by default. Today stays on the current virtual desktop when you switch Spaces. Click the anchor to show Today on every desktop instead; the **View → Show Windows on All Desktops** menu stays in sync.
 
-## 5. Squeeze the panel
+## 6. Squeeze the panel
 
 - The panel can be resized down to **260 points** wide.
 - Below 360 points it switches to a single-column layout: the week strip becomes a vertical day list, trays become full-width columns, and task metadata moves under the title.
@@ -54,6 +67,6 @@ As you make the panel shorter, sections fold automatically from the bottom up:
 
 The open **Today** list and the urgent **Overdue** list stay visible. Opening a folded section with its chevron keeps it open, even at a small height; the panel scrolls if needed.
 
-## 6. Find the tutorials again
+## 7. Find the tutorials again
 
 Open **TodayFlow → Watch Video Walkthrough** for the bundled videos, or **Help → Watch Tutorial Video**. The window has an **Overview** and a **Use cases** video; the second one is recorded from the real app and covers task creation, dragging a file, workflow setup, and a completed task moving automatically. **Help → Tutorial Index on GitHub** opens the written guides; the **Help** menu also links directly to this guide, Contacts, Jira, and Local AI.

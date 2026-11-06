@@ -44,6 +44,7 @@ extension TaskRowModel {
             allAttachments: allAttachments,
             trays: trays,
             attachmentCount: attachmentCount,
+            tags: tags,
             parentColorHex: parentColorHex,
             hasChainBelow: hasChainBelow
         )
@@ -101,8 +102,24 @@ public final class TodayViewModel {
     public var searchText: String = ""
     /// FR-15 "by project": `nil` means all projects.
     public var projectFilter: UUIDv7?
+    /// `nil` means all tags. Matching is case-insensitive.
+    public var tagFilter: String?
     /// Projects offered by the filter menu.
     public private(set) var projects: [WorkItem] = []
+
+    /// Every tag currently in use, deduplicated case-insensitively and sorted.
+    public var allTags: [String] {
+        var seen = Set<String>()
+        var tags: [String] = []
+        for tag in allItemsById.values.flatMap(\.tags) {
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed.lowercased()).inserted else { continue }
+            tags.append(trimmed)
+        }
+        return tags.sorted {
+            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        }
+    }
 
     /// Open tasks due after today (next 7 days), shown as a compact section so
     /// after-hours captures and tomorrow's work are never invisible.
@@ -113,7 +130,42 @@ public final class TodayViewModel {
         public let dueAt: Date
         public let parentColorHex: String?
     }
-    public private(set) var upcomingRows: [UpcomingRow] = []
+    public private(set) var allUpcomingRows: [UpcomingRow] = []
+
+    /// Future tasks filtered by the same project/tag filters as the Today list.
+    public var upcomingRows: [UpcomingRow] {
+        allUpcomingRows.filter { row in
+            guard let item = allItemsById[row.id] else { return true }
+            if let projectFilter,
+               !belongsToProject(item.id, projectId: projectFilter)
+            {
+                return false
+            }
+            if let tagFilter,
+               !belongsToTag(item.id, tag: tagFilter)
+            {
+                return false
+            }
+            return true
+        }
+    }
+
+    /// Replaces a task's or project's tags. Used by the project tag sheet and
+    /// the detail editor.
+    public func setTags(_ tags: [String], for itemId: UUIDv7) async {
+        guard var item = await repository.item(itemId) else { return }
+        let normalized = TagName.normalize(tags)
+        guard normalized != item.tags else { return }
+        item.tags = normalized
+        item = item.touching(clock())
+        item.deviceId = deviceId
+        do {
+            try await repository.save(item)
+            await load()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
 
     // MARK: Working trays
 
@@ -269,7 +321,7 @@ public final class TodayViewModel {
 
         let eob = calendar.endOfBusiness(for: day)
         let windowEnd = calendar.calendar.date(byAdding: .day, value: 7, to: eob) ?? eob
-        self.upcomingRows = allItems
+        self.allUpcomingRows = allItems
             .filter {
                 !$0.isDeleted
                     && $0.kind == .task
@@ -451,7 +503,10 @@ public final class TodayViewModel {
     /// Projects are containers, so they never appear as Today tasks; the
     /// project filter and Hierarchy are where they surface.
     @discardableResult
-    public func createProject(named name: String) async -> WorkItem? {
+    public func createProject(
+        named name: String,
+        tags: [String] = []
+    ) async -> WorkItem? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             lastError = "Project name can’t be empty."
@@ -470,6 +525,7 @@ public final class TodayViewModel {
                     color: DesignTokens.TrayPalette.colorHex(
                         at: projects.count
                     ),
+                    tags: TagName.normalize(tags),
                     placement: .top
                 )
             )
@@ -781,6 +837,7 @@ public final class TodayViewModel {
                     )
                 },
             attachmentCount: itemAttachments.count,
+            tags: item.tags,
             parentColorHex: item.parentId.flatMap { known[$0]?.color },
             hasChainBelow: false
         )
@@ -799,11 +856,34 @@ public final class TodayViewModel {
         {
             return false
         }
+        if let tagFilter,
+           !belongsToTag(row.id, tag: tagFilter)
+        {
+            return false
+        }
         switch filter {
         case .all: return true
         case .blocked: return row.isBlocked
         case .p1p2: return row.priority <= .high
         }
+    }
+
+    /// Walks the parent chain so a project tag also matches its tasks and
+    /// subtasks.
+    private func belongsToTag(_ itemId: UUIDv7, tag: String) -> Bool {
+        var current: UUIDv7? = itemId
+        var visited = Set<UUIDv7>()
+        while let id = current, visited.insert(id).inserted {
+            if let item = allItemsById[id],
+               item.tags.contains(where: {
+                   $0.caseInsensitiveCompare(tag) == .orderedSame
+               })
+            {
+                return true
+            }
+            current = allItemsById[id]?.parentId
+        }
+        return false
     }
 
     /// Walks the parent chain so a task inside a project's subtasks still

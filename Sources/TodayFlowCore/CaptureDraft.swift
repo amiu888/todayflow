@@ -15,6 +15,7 @@ public struct CaptureDraft: Hashable, Sendable, Codable {
     public var endAt: Date
     public var priority: Priority
     public var parentId: UUIDv7?
+    public var tags: [String]
     public var objects: [RecognizedObject]
 
     public init(
@@ -24,6 +25,7 @@ public struct CaptureDraft: Hashable, Sendable, Codable {
         endAt: Date = .now,
         priority: Priority = .default,
         parentId: UUIDv7? = nil,
+        tags: [String] = [],
         objects: [RecognizedObject] = []
     ) {
         self.title = title
@@ -32,6 +34,7 @@ public struct CaptureDraft: Hashable, Sendable, Codable {
         self.endAt = endAt
         self.priority = priority
         self.parentId = parentId
+        self.tags = TagName.normalize(tags)
         self.objects = objects
     }
 

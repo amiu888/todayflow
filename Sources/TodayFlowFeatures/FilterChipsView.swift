@@ -11,6 +11,10 @@ public struct FilterChipsView: View {
     public let projects: [WorkItem]
     public let projectFilter: UUIDv7?
     public let onProjectChange: (@Sendable (UUIDv7?) -> Void)?
+    public let onEditProjectTags: (@Sendable (WorkItem) -> Void)?
+    public let tags: [String]
+    public let tagFilter: String?
+    public let onTagChange: (@Sendable (String?) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -22,6 +26,10 @@ public struct FilterChipsView: View {
         onFilterChange: @escaping @Sendable (TodayFilter) -> Void,
         onSortChange: @escaping @Sendable (TodaySort) -> Void,
         onProjectChange: (@Sendable (UUIDv7?) -> Void)? = nil,
+        onEditProjectTags: (@Sendable (WorkItem) -> Void)? = nil,
+        tags: [String] = [],
+        tagFilter: String? = nil,
+        onTagChange: (@Sendable (String?) -> Void)? = nil,
         onSearch: @escaping @Sendable () -> Void
     ) {
         self.filter = filter
@@ -31,6 +39,10 @@ public struct FilterChipsView: View {
         self.onFilterChange = onFilterChange
         self.onSortChange = onSortChange
         self.onProjectChange = onProjectChange
+        self.onEditProjectTags = onEditProjectTags
+        self.tags = tags
+        self.tagFilter = tagFilter
+        self.onTagChange = onTagChange
         self.onSearch = onSearch
     }
 
@@ -40,12 +52,14 @@ public struct FilterChipsView: View {
                 filterChips
                 Spacer(minLength: 4)
                 projectMenuIfAny
+                tagMenuIfAny
                 sortMenu
                 searchButton
             }
             ChipFlowLayout(spacing: 6, lineSpacing: 4) {
                 filterChips
                 projectMenuIfAny
+                tagMenuIfAny
                 sortMenu
                 searchButton
             }
@@ -128,11 +142,23 @@ public struct FilterChipsView: View {
                     onProjectChange?(project.id)
                 } label: {
                     HStack {
-                        Text(project.title)
+                        Text(
+                            project.tags.isEmpty
+                                ? project.title
+                                : "\(project.title) · \(TagName.display(project.tags, limit: 2))"
+                        )
                         if project.id == projectFilter {
                             Image(systemName: "checkmark")
                         }
                     }
+                }
+            }
+            if let selectedProject = projects.first(where: { $0.id == projectFilter }),
+               let onEditProjectTags
+            {
+                Divider()
+                Button("Edit tags for “\(selectedProject.title)”…") {
+                    onEditProjectTags(selectedProject)
                 }
             }
         } label: {
@@ -150,6 +176,42 @@ public struct FilterChipsView: View {
         .fixedSize()
         .help(selected.map { "Project: \($0)" } ?? "Filter by project")
         .accessibilityLabel(selected.map { "Project: \($0)" } ?? "Filter by project")
+    }
+
+    @ViewBuilder
+    private var tagMenuIfAny: some View {
+        if !tags.isEmpty {
+            Menu {
+                Button("All tags") { onTagChange?(nil) }
+                Divider()
+                ForEach(tags, id: \.self) { tag in
+                    Button {
+                        onTagChange?(tag)
+                    } label: {
+                        HStack {
+                            Text("#\(tag)")
+                            if tag == tagFilter {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: tagFilter == nil ? "tag" : "tag.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(
+                        tagFilter == nil
+                            ? DesignTokens.Palette.textSecondary
+                            : DesignTokens.Palette.accent
+                    )
+                    .frame(width: 26, height: 26)
+            }
+            .menuIndicator(.hidden)
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help(tagFilter.map { "Tag: #\($0)" } ?? "Filter by tag")
+            .accessibilityLabel(tagFilter.map { "Tag: #\($0)" } ?? "Filter by tag")
+        }
     }
 
     private var borderColor: Color {
