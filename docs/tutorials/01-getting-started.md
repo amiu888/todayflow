@@ -57,4 +57,4 @@ The open **Today** list stays visible. Opening a folded section with its chevron
 
 ## 6. Find the tutorials again
 
-Open **TodayFlow → Watch Video Walkthrough** for the bundled video, or **Help → Watch Tutorial Video**. **Help → Tutorial Index on GitHub** opens the written guides; the **Help** menu also links directly to this guide, Contacts, Jira, and Local AI.
+Open **TodayFlow → Watch Video Walkthrough** for the bundled videos, or **Help → Watch Tutorial Video**. The window has an **Overview** and a **Use cases** video; the second one is recorded from the real app and covers task creation, dragging a file, workflow setup, and a completed task moving automatically. **Help → Tutorial Index on GitHub** opens the written guides; the **Help** menu also links directly to this guide, Contacts, Jira, and Local AI.

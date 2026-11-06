@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "render": "remotion render src/index.ts TodayFlowOverview ../video/todayflow-overview.mp4 --codec=h264"
+    "render:overview": "remotion render src/index.ts TodayFlowOverview ../video/todayflow-overview.mp4 --codec=h264",
+    "render:use-cases": "remotion render src/index.ts TodayFlowUseCases ../video/todayflow-use-cases.mp4 --codec=h264",
+    "render": "npm run render:overview && npm run render:use-cases"
   },
   "dependencies": {
     "@remotion/cli": "4.0.541",

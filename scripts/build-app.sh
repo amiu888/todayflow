@@ -35,10 +35,12 @@ if [[ ! -d "$APP_DIR/Contents/Resources/TodayFlow_TodayFlowAI.bundle" ]]; then
     exit 1
 fi
 
-if [[ ! -f "$APP_DIR/Contents/Resources/TodayFlow_TodayFlowFeatures.bundle/Contents/Resources/todayflow-overview.mp4" ]]; then
-    echo "error: tutorial video was not copied into the app" >&2
-    exit 1
-fi
+for video in todayflow-overview todayflow-use-cases; do
+    if [[ ! -f "$APP_DIR/Contents/Resources/TodayFlow_TodayFlowFeatures.bundle/Contents/Resources/$video.mp4" ]]; then
+        echo "error: tutorial video $video.mp4 was not copied into the app" >&2
+        exit 1
+    fi
+done
 
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
