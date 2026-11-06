@@ -36,7 +36,7 @@ public final class ObsidianRemoteClient: @unchecked Sendable {
               let baseURL = settings.remoteBaseURL
         else { return nil }
         self.baseURL = baseURL
-        self.apiKey = apiKey
+        self.apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let trust = ObsidianTrustDelegate()
         let configuration = URLSessionConfiguration.ephemeral
