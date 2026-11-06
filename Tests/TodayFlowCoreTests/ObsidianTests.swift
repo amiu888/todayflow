@@ -159,6 +159,74 @@ struct ObsidianTests {
         ])
     }
 
+    @Test func buildsRemoteURLsWithEncodedPaths() throws {
+        let settings = ObsidianSettings(
+            enabled: true,
+            mode: .remote,
+            remoteHost: "10.0.2.50",
+            remotePort: 27123,
+            remoteUseHTTPS: false
+        )
+        let client = try #require(
+            ObsidianRemoteClient(settings: settings, apiKey: "test-key")
+        )
+        #expect(
+            client.url(for: "/vault/Conversations/Daily/TodayFlow.md")?.absoluteString
+                == "http://10.0.2.50:27123/vault/Conversations/Daily/TodayFlow.md"
+        )
+        #expect(
+            client.url(for: "/vault/My Note.md")?.absoluteString
+                == "http://10.0.2.50:27123/vault/My%20Note.md"
+        )
+    }
+
+    @Test func olderLocalSettingsDecodeWithLocalMode() throws {
+        let json = """
+        {"enabled":true,"vaultPath":"/Users/me/Vault","vaultName":"Vault","notePath":"TodayFlow/Tasks.md"}
+        """
+        let decoded = try JSONDecoder().decode(
+            ObsidianSettings.self,
+            from: Data(json.utf8)
+        )
+        #expect(decoded.mode == .local)
+        #expect(decoded.vaultPath == "/Users/me/Vault")
+        #expect(decoded.isConfigured)
+    }
+
+    @Test func remoteSettingsRoundTripAndBaseURL() throws {
+        let settings = ObsidianSettings(
+            enabled: true,
+            mode: .remote,
+            remoteHost: "10.0.2.50",
+            remotePort: 27123,
+            remoteUseHTTPS: false,
+            remoteDisplayName: "NBCBrain Mac",
+            notePath: "Conversations/Daily/TodayFlow.md"
+        )
+        let data = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(ObsidianSettings.self, from: data)
+        #expect(decoded == settings)
+        #expect(decoded.remoteBaseURL?.absoluteString == "http://10.0.2.50:27123")
+        #expect(decoded.isConfigured)
+    }
+
+    @Test func enumeratesTheUsableHostsInASlash24() {
+        let hosts = ObsidianLANDiscovery.hosts(
+            inIPv4: "192.168.1.10",
+            netmask: "255.255.255.0"
+        )
+        #expect(hosts.count == 254)
+        #expect(hosts.first == "192.168.1.1")
+        #expect(hosts.last == "192.168.1.254")
+    }
+
+    @Test func recognizesTheLocalRestAPIStatusShape() {
+        let status = Data(#"{"status":"OK","authenticated":false}"#.utf8)
+        let unrelated = Data(#"{"hello":"world"}"#.utf8)
+        #expect(ObsidianLANDiscovery.isObsidianStatus(status))
+        #expect(!ObsidianLANDiscovery.isObsidianStatus(unrelated))
+    }
+
     @Test func normalizesVaultRelativeNotePaths() {
         let settings = ObsidianSettings(
             enabled: true,

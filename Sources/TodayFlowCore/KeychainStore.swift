@@ -22,6 +22,8 @@ public protocol KeychainStore: Sendable {
 public enum KeychainKeys {
     /// The AI endpoint's API key (driver.md §8).
     public static let aiAPIKey = "ai_api_key"
+    /// The Obsidian Local REST API key for remote mode.
+    public static let obsidianAPIKey = "obsidian_api_key"
 }
 
 /// In-memory `KeychainStore` for previews and tests.

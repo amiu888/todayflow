@@ -116,6 +116,27 @@ struct SettingsViewModelTests {
     }
 
     @Test @MainActor
+    func load_readsObsidianAPIKeyFromKeychain() async throws {
+        let f = Fixture()
+        try await f.keychain.write("remote-key", for: KeychainKeys.obsidianAPIKey)
+        await f.vm.load()
+        #expect(f.vm.obsidianAPIKey == "remote-key")
+    }
+
+    @Test @MainActor
+    func save_persistsObsidianAPIKeyToKeychain() async throws {
+        let f = Fixture()
+        await f.vm.load()
+        f.vm.obsidianAPIKey = "remote-key"
+
+        await f.vm.save()
+
+        #expect(await f.keychain.read(KeychainKeys.obsidianAPIKey) == "remote-key")
+        let raw = try #require(await f.repository.value(for: SettingKeys.obsidian))
+        #expect(!raw.contains("remote-key"))
+    }
+
+    @Test @MainActor
     func save_persistsObsidianSettings() async throws {
         let f = Fixture()
         await f.vm.load()
@@ -297,13 +318,18 @@ struct SettingsViewModelTests {
         ai.enabled = true
         ai.apiKey = "sk-live"
         f.vm.aiSettings = ai
+        f.vm.obsidianAPIKey = "remote-key"
         await f.vm.save()
         #expect(await f.keychain.read(KeychainKeys.aiAPIKey) == "sk-live")
+        #expect(await f.keychain.read(KeychainKeys.obsidianAPIKey) == "remote-key")
 
         await f.vm.resetToDefaults()
 
         #expect(f.vm.aiSettings == AIEndpointSettings())
+        #expect(f.vm.obsidianAPIKey.isEmpty)
+        #expect(f.vm.obsidianSettings == ObsidianSettings())
         #expect(await f.keychain.read(KeychainKeys.aiAPIKey) == nil)
+        #expect(await f.keychain.read(KeychainKeys.obsidianAPIKey) == nil)
     }
 
     @Test @MainActor

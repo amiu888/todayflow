@@ -75,6 +75,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         self.obsidian = ObsidianSyncController(
             workItems: environment.workItems,
             settings: environment.settings,
+            keychain: environment.keychain,
             calendar: environment.workCalendar
         )
         self.showOnAllDesktops = UserDefaults.standard.object(forKey: Self.desktopsKey) as? Bool ?? false

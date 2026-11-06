@@ -84,70 +84,149 @@ public struct SettingsView: View {
             Section("Obsidian") {
                 Toggle("Sync with Obsidian", isOn: $model.obsidianSettings.enabled)
 
-                HStack(spacing: 8) {
-                    Menu {
-                        ForEach(model.obsidianVaults) { vault in
-                            Button {
-                                applyObsidianVault(vault)
-                            } label: {
-                                HStack {
-                                    Text(vault.name)
-                                    if vault.path == model.obsidianSettings.vaultPath {
-                                        Image(systemName: "checkmark")
+                Picker("Connection", selection: $model.obsidianSettings.mode) {
+                    Text("This Mac").tag(ObsidianSettings.Mode.local)
+                    Text("Remote (LAN)").tag(ObsidianSettings.Mode.remote)
+                }
+                .pickerStyle(.segmented)
+
+                if model.obsidianSettings.mode == .local {
+                    HStack(spacing: 8) {
+                        Menu {
+                            ForEach(model.obsidianVaults) { vault in
+                                Button {
+                                    applyObsidianVault(vault)
+                                } label: {
+                                    HStack {
+                                        Text(vault.name)
+                                        if vault.path == model.obsidianSettings.vaultPath {
+                                            Image(systemName: "checkmark")
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if !model.obsidianVaults.isEmpty {
-                            Divider()
-                        }
+                            if !model.obsidianVaults.isEmpty {
+                                Divider()
+                            }
 
-                        Button("Choose Folder…") {
-                            chooseObsidianVault()
+                            Button("Choose Folder…") {
+                                chooseObsidianVault()
+                            }
+                        } label: {
+                            Label(
+                                model.obsidianSettings.vaultPath.isEmpty
+                                    ? "Choose Vault"
+                                    : model.obsidianSettings.resolvedVaultName,
+                                systemImage: "folder"
+                            )
                         }
-                    } label: {
-                        Label(
+                        .fixedSize()
+
+                        Spacer()
+
+                        Text(
                             model.obsidianSettings.vaultPath.isEmpty
-                                ? "Choose Vault"
-                                : model.obsidianSettings.resolvedVaultName,
-                            systemImage: "folder"
+                                ? "No vault selected"
+                                : model.obsidianSettings.vaultPath
                         )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                     }
-                    .fixedSize()
 
-                    Spacer()
+                    Text("Vaults detected from Obsidian appear here — for example NBCBrain or HermesBrain. Choose Folder… for any other vault.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    Text(
-                        model.obsidianSettings.vaultPath.isEmpty
-                            ? "No vault selected"
-                            : model.obsidianSettings.vaultPath
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    TextField("Vault name", text: $model.obsidianSettings.vaultName)
+                    Text("Vault name is used for obsidian:// links; it is usually the folder name.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: 10) {
+                        Button {
+                            Task { @MainActor in await self.model.scanObsidianLAN() }
+                        } label: {
+                            Label("Find Obsidian on LAN", systemImage: "wifi")
+                        }
+                        .disabled(model.isScanningObsidian)
+
+                        if model.isScanningObsidian {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+
+                    if !model.obsidianDiscoveredServers.isEmpty {
+                        Picker("Discovered", selection: Binding(
+                            get: {
+                                model.obsidianDiscoveredServers.first {
+                                    $0.host == model.obsidianSettings.remoteHost
+                                        && $0.port == model.obsidianSettings.remotePort
+                                        && $0.useHTTPS == model.obsidianSettings.remoteUseHTTPS
+                                }?.id ?? ""
+                            },
+                            set: { id in
+                                if let server = model.obsidianDiscoveredServers.first(where: { $0.id == id }) {
+                                    model.applyObsidianServer(server)
+                                }
+                            }
+                        )) {
+                            Text("Choose a server…").tag("")
+                            ForEach(model.obsidianDiscoveredServers) { server in
+                                Text(server.displayName).tag(server.id)
+                            }
+                        }
+                    }
+
+                    LabeledContent("Host") {
+                        TextField("Host", text: $model.obsidianSettings.remoteHost)
+                    }
+                    LabeledContent("Port") {
+                        TextField(
+                            "Port",
+                            value: $model.obsidianSettings.remotePort,
+                            format: .number
+                        )
+                        .frame(width: 80)
+                    }
+
+                    Toggle("Use HTTPS (self-signed certificate)", isOn: $model.obsidianSettings.remoteUseHTTPS)
+
+                    SecureField("API key", text: $model.obsidianAPIKey)
+                    HStack(spacing: 10) {
+                        Button("Test connection") {
+                            Task { @MainActor in await self.model.testObsidianConnection() }
+                        }
+                        if let status = model.obsidianConnectionStatus {
+                            Text(status)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    Text("On the remote Obsidian: install Local REST API, set its binding host to 0.0.0.0, enable the HTTP server (27123) or HTTPS (27124), and copy the API key. TodayFlow accepts the plugin's self-signed HTTPS certificate for this connection.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Link("Install Local REST API", destination: TutorialLinks.obsidianPlugin)
                 }
-
-                Text("Vaults detected from Obsidian appear here — for example NBCBrain or HermesBrain. Choose Folder… for any other vault.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                TextField("Vault name", text: $model.obsidianSettings.vaultName)
-                Text("Vault name is used for obsidian:// links; it is usually the folder name.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
                 HStack(spacing: 8) {
                     TextField("Note path", text: $model.obsidianSettings.notePath)
-                    Button("Folder…") {
-                        chooseObsidianNoteFolder()
+                    if model.obsidianSettings.mode == .local {
+                        Button("Folder…") {
+                            chooseObsidianNoteFolder()
+                        }
+                        .help("Choose a folder inside the vault for the sync note")
                     }
-                    .disabled(model.obsidianSettings.vaultPath.isEmpty)
-                    .help("Choose a folder inside the vault for the sync note")
                 }
-                Text("The note path is relative to the vault, for example TodayFlow/Tasks.md or Conversations/Daily/TodayFlow.md.")
+                Text("The note path is relative to the vault. For remote mode it is relative to the vault open in the remote Obsidian.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

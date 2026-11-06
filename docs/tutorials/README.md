@@ -24,7 +24,7 @@ Watch the bundled walkthroughs from **TodayFlow → Watch Video Walkthrough** or
 4. Click the **folder+** icon to create a project.
 5. Click the **sparkles** icon for AI actions and local model setup.
 6. Add tags to tasks and projects; use the tag icon in the filter row to narrow Today.
-7. Connect an Obsidian vault in **Settings → Obsidian** for optional two-way task sync and note deep links.
+7. Connect an Obsidian vault in **Settings → Obsidian** for optional two-way task sync and note deep links — locally, through iCloud, or to a remote Obsidian via the Local REST API plugin.
 
 ## Keeping the panel on one desktop
 

@@ -2,15 +2,17 @@ import AppKit
 import Foundation
 import TodayFlowCore
 
-/// Optional two-way bridge between TodayFlow and an Obsidian vault.
+/// Optional two-way bridge between TodayFlow and Obsidian.
 ///
 /// The central note owns a managed block. TodayFlow writes the block and reads
 /// checkbox/title/tag/due-date changes from it. Everything outside the markers
-/// is preserved. The service is inert until Settings configures a vault.
+/// is preserved. The service is inert until Settings configures a vault or a
+/// remote Local REST API server.
 @MainActor
 public final class ObsidianSyncController {
     private let workItems: any WorkItemRepository
     private let settings: any SettingRepository
+    private let keychain: any KeychainStore
     private let calendar: WorkCalendar
     private let clock: @Sendable () -> Date
     private let deviceId = "local"
@@ -26,11 +28,13 @@ public final class ObsidianSyncController {
     public init(
         workItems: any WorkItemRepository,
         settings: any SettingRepository,
+        keychain: any KeychainStore,
         calendar: WorkCalendar = .standard,
         clock: @escaping @Sendable () -> Date = { .now }
     ) {
         self.workItems = workItems
         self.settings = settings
+        self.keychain = keychain
         self.calendar = calendar
         self.clock = clock
     }
@@ -51,18 +55,34 @@ public final class ObsidianSyncController {
     }
 
     /// Forces an immediate sync. Returns an error message when the bridge is
-    /// not configured or the file could not be read/written.
+    /// not configured or the note could not be read/written.
     @discardableResult
     public func syncNow() async -> String? {
         await syncTick()
         return lastError
     }
 
-    /// Opens the central sync note in Obsidian, creating it first if needed.
+    /// Opens the central sync note, creating it first if needed.
     public func openSyncNote() async -> String? {
         guard let config = await loadConfiguration(), config.isConfigured else {
             return "Set up Obsidian in Settings → Obsidian first."
         }
+
+        if config.mode == .remote {
+            guard let client = await remoteClient(for: config) else {
+                return lastError ?? "The remote Obsidian connection is not ready."
+            }
+            if let error = await syncNow() {
+                return error
+            }
+            do {
+                try await client.open(config.normalizedNotePath)
+                return nil
+            } catch {
+                return error.localizedDescription
+            }
+        }
+
         if let error = await syncNow() {
             return error
         }
@@ -81,32 +101,47 @@ public final class ObsidianSyncController {
     /// Creates/updates a note for one task or project and opens it in Obsidian.
     /// This is a one-way snapshot; the central sync note is the two-way one.
     public func openNote(for item: WorkItem) async -> String? {
-        guard let config = await loadConfiguration(), config.isConfigured,
-              let vault = config.vaultURL
-        else {
+        guard let config = await loadConfiguration(), config.isConfigured else {
             return "Set up Obsidian in Settings → Obsidian first."
         }
         let folder = item.kind == .project || item.kind == .epic
             ? "TodayFlow/Projects"
             : "TodayFlow/Tasks"
         let relativePath = "\(folder)/\(item.id).md"
-        let fileURL = vault.appendingPathComponent(relativePath)
 
+        let projectTitle: String?
+        if let parentId = item.parentId {
+            projectTitle = await workItems.item(parentId)?.title
+        } else {
+            projectTitle = nil
+        }
+        let content = ObsidianItemNote.render(
+            item: item,
+            projectTitle: projectTitle,
+            now: clock()
+        )
+
+        if config.mode == .remote {
+            guard let client = await remoteClient(for: config) else {
+                return lastError ?? "The remote Obsidian connection is not ready."
+            }
+            do {
+                try await client.write(relativePath, content: content)
+                try await client.open(relativePath)
+                return nil
+            } catch {
+                return error.localizedDescription
+            }
+        }
+
+        guard let vault = config.vaultURL else {
+            return "Choose a valid Obsidian vault folder."
+        }
+        let fileURL = vault.appendingPathComponent(relativePath)
         do {
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
-            )
-            let projectTitle: String?
-            if let parentId = item.parentId {
-                projectTitle = await workItems.item(parentId)?.title
-            } else {
-                projectTitle = nil
-            }
-            let content = ObsidianItemNote.render(
-                item: item,
-                projectTitle: projectTitle,
-                now: clock()
             )
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
         } catch {
@@ -141,14 +176,6 @@ public final class ObsidianSyncController {
             lastError = nil
             return
         }
-        guard let noteURL = config.noteURL, let vault = config.vaultURL else {
-            lastError = "Choose a valid Obsidian vault folder."
-            return
-        }
-        guard FileManager.default.fileExists(atPath: vault.path) else {
-            lastError = "The Obsidian vault folder no longer exists."
-            return
-        }
 
         if lastConfiguration != config {
             lastWrittenContent = nil
@@ -160,11 +187,34 @@ public final class ObsidianSyncController {
         lastError = nil
 
         do {
-            try FileManager.default.createDirectory(
-                at: noteURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            let existing = try? String(contentsOf: noteURL, encoding: .utf8)
+            let existing: String?
+            let write: (String) async throws -> Void
+
+            if config.mode == .remote {
+                guard let client = await remoteClient(for: config) else { return }
+                existing = try await client.read(config.normalizedNotePath)
+                write = { content in
+                    try await client.write(config.normalizedNotePath, content: content)
+                }
+            } else {
+                guard let noteURL = config.noteURL, let vault = config.vaultURL else {
+                    lastError = "Choose a valid Obsidian vault folder."
+                    return
+                }
+                guard FileManager.default.fileExists(atPath: vault.path) else {
+                    lastError = "The Obsidian vault folder no longer exists."
+                    return
+                }
+                try FileManager.default.createDirectory(
+                    at: noteURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                existing = try? String(contentsOf: noteURL, encoding: .utf8)
+                write = { content in
+                    try content.write(to: noteURL, atomically: true, encoding: .utf8)
+                }
+            }
+
             if let existing,
                existing != lastWrittenContent,
                existing.contains(ObsidianNote.startMarker)
@@ -181,7 +231,7 @@ public final class ObsidianSyncController {
                 calendar: calendar
             )
             if rendered != existing {
-                try rendered.write(to: noteURL, atomically: true, encoding: .utf8)
+                try await write(rendered)
             }
             lastWrittenContent = rendered
             lastSyncAt = clock()
@@ -278,5 +328,22 @@ public final class ObsidianSyncController {
               let decoded = try? JSONDecoder().decode(ObsidianSettings.self, from: data)
         else { return nil }
         return decoded
+    }
+
+    private func remoteClient(
+        for config: ObsidianSettings
+    ) async -> ObsidianRemoteClient? {
+        guard config.mode == .remote else { return nil }
+        guard let key = await keychain.read(KeychainKeys.obsidianAPIKey),
+              !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            lastError = "Paste the Obsidian API key in Settings → Obsidian."
+            return nil
+        }
+        guard let client = ObsidianRemoteClient(settings: config, apiKey: key) else {
+            lastError = "The remote Obsidian address is invalid."
+            return nil
+        }
+        return client
     }
 }

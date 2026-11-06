@@ -25,6 +25,11 @@ public final class SettingsViewModel {
     public var obsidianSettings = ObsidianSettings()
     /// Vaults registered with the Obsidian desktop app, if any.
     public private(set) var obsidianVaults: [ObsidianVault] = []
+    /// Remote-mode API key (stored in the Keychain, never the settings JSON).
+    public var obsidianAPIKey = ""
+    public private(set) var obsidianDiscoveredServers: [DiscoveredObsidianServer] = []
+    public private(set) var isScanningObsidian = false
+    public private(set) var obsidianConnectionStatus: String?
 
     /// AI endpoint (off by default).
     public var aiSettings = AIEndpointSettings() {
@@ -118,6 +123,7 @@ public final class SettingsViewModel {
         } else if !storedKey.isEmpty {
             _ = try? await keychain.write(storedKey, for: KeychainKeys.aiAPIKey)
         }
+        obsidianAPIKey = await keychain.read(KeychainKeys.obsidianAPIKey) ?? ""
     }
 
     /// Persists both groups. The API key goes to the Keychain first (an
@@ -134,6 +140,14 @@ public final class SettingsViewModel {
                 try await keychain.delete(KeychainKeys.aiAPIKey)
             } else {
                 try await keychain.write(aiSettings.apiKey, for: KeychainKeys.aiAPIKey)
+            }
+            if obsidianAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                try await keychain.delete(KeychainKeys.obsidianAPIKey)
+            } else {
+                try await keychain.write(
+                    obsidianAPIKey.trimmingCharacters(in: .whitespacesAndNewlines),
+                    for: KeychainKeys.obsidianAPIKey
+                )
             }
             var stored = aiSettings
             stored.apiKey = ""
@@ -172,12 +186,60 @@ public final class SettingsViewModel {
         }
     }
 
-    /// Restores both groups to their defaults and persists them.
+    /// Scans the LAN for Obsidian Local REST API servers on the plugin's two
+    /// standard ports. The API key still needs to be copied once.
+    public func scanObsidianLAN() async {
+        guard !isScanningObsidian else { return }
+        isScanningObsidian = true
+        obsidianConnectionStatus = nil
+        defer { isScanningObsidian = false }
+
+        let found = await ObsidianLANDiscovery.scan()
+        obsidianDiscoveredServers = found
+        if found.isEmpty {
+            obsidianConnectionStatus = "No Obsidian server found. Install Local REST API on the remote Obsidian, bind it to 0.0.0.0, and enable HTTP or HTTPS."
+        } else {
+            obsidianConnectionStatus = "Found \(found.count) server\(found.count == 1 ? "" : "s"). Select one, then paste its API key."
+            if obsidianSettings.remoteHost.isEmpty, let first = found.first {
+                applyObsidianServer(first)
+            }
+        }
+    }
+
+    public func applyObsidianServer(_ server: DiscoveredObsidianServer) {
+        obsidianSettings.mode = .remote
+        obsidianSettings.remoteHost = server.host
+        obsidianSettings.remotePort = server.port
+        obsidianSettings.remoteUseHTTPS = server.useHTTPS
+        obsidianSettings.remoteDisplayName = server.displayName
+        obsidianSettings.enabled = true
+    }
+
+    /// Verifies the current remote host/port and API key without saving.
+    public func testObsidianConnection() async {
+        obsidianConnectionStatus = nil
+        guard let client = ObsidianRemoteClient(
+            settings: obsidianSettings,
+            apiKey: obsidianAPIKey
+        ) else {
+            obsidianConnectionStatus = "Enter a remote host and port first."
+            return
+        }
+        do {
+            try await client.verify()
+            obsidianConnectionStatus = "Connected to \(obsidianSettings.sanitizedRemoteHost):\(obsidianSettings.remotePort)."
+        } catch {
+            obsidianConnectionStatus = error.localizedDescription
+        }
+    }
+
+    /// Restores all groups to their defaults and persists them.
     public func resetToDefaults() async {
         isApplying = true
         calendarSettings = WorkCalendarSettings()
         aiSettings = AIEndpointSettings()
         obsidianSettings = ObsidianSettings()
+        obsidianAPIKey = ""
         isApplying = false
         await save()
     }

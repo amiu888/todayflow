@@ -47,6 +47,7 @@ struct ObsidianSyncTests {
         let service = ObsidianSyncController(
             workItems: items,
             settings: settings,
+            keychain: InMemoryKeychainStore(),
             calendar: WorkCalendar(calendar: utc),
             clock: { fixedNow }
         )
@@ -74,6 +75,7 @@ struct ObsidianSyncTests {
         let service = ObsidianSyncController(
             workItems: items,
             settings: settings,
+            keychain: InMemoryKeychainStore(),
             calendar: WorkCalendar(calendar: utc),
             clock: { fixedNow }
         )
@@ -104,6 +106,7 @@ struct ObsidianSyncTests {
         let service = ObsidianSyncController(
             workItems: items,
             settings: settings,
+            keychain: InMemoryKeychainStore(),
             calendar: WorkCalendar(calendar: utc),
             clock: { fixedNow }
         )

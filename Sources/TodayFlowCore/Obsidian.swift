@@ -5,30 +5,81 @@ import Foundation
 public struct ObsidianSettings: Codable, Hashable, Sendable {
     public static let defaultNotePath = "TodayFlow/Tasks.md"
 
+    public enum Mode: String, Codable, CaseIterable, Sendable {
+        /// A vault folder that is visible on this Mac (iCloud, mounted share…).
+        case local
+        /// The Obsidian Local REST API plugin running on another machine.
+        case remote
+    }
+
     public var enabled: Bool
-    /// Absolute path to the vault folder on disk.
+    public var mode: Mode
+    /// Absolute path to the vault folder on disk (local mode).
     public var vaultPath: String
-    /// The vault name Obsidian uses in `obsidian://` links (usually the folder name).
+    /// The vault name Obsidian uses in `obsidian://` links (local mode).
     public var vaultName: String
+    /// Host name or IP of the remote Obsidian machine.
+    public var remoteHost: String
+    /// Local REST API port: 27123 (HTTP) or 27124 (HTTPS).
+    public var remotePort: Int
+    public var remoteUseHTTPS: Bool
+    /// A friendly name shown in Settings, e.g. “NBCBrain Mac”.
+    public var remoteDisplayName: String
     /// Vault-relative note path used for the two-way task note.
     public var notePath: String
 
     public init(
         enabled: Bool = false,
+        mode: Mode = .local,
         vaultPath: String = "",
         vaultName: String = "",
+        remoteHost: String = "",
+        remotePort: Int = 27124,
+        remoteUseHTTPS: Bool = true,
+        remoteDisplayName: String = "",
         notePath: String = ObsidianSettings.defaultNotePath
     ) {
         self.enabled = enabled
+        self.mode = mode
         self.vaultPath = vaultPath
         self.vaultName = vaultName
+        self.remoteHost = remoteHost
+        self.remotePort = remotePort
+        self.remoteUseHTTPS = remoteUseHTTPS
+        self.remoteDisplayName = remoteDisplayName
         self.notePath = notePath
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case enabled, mode, vaultPath, vaultName
+        case remoteHost, remotePort, remoteUseHTTPS, remoteDisplayName
+        case notePath
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        mode = try container.decodeIfPresent(Mode.self, forKey: .mode) ?? .local
+        vaultPath = try container.decodeIfPresent(String.self, forKey: .vaultPath) ?? ""
+        vaultName = try container.decodeIfPresent(String.self, forKey: .vaultName) ?? ""
+        remoteHost = try container.decodeIfPresent(String.self, forKey: .remoteHost) ?? ""
+        remotePort = try container.decodeIfPresent(Int.self, forKey: .remotePort) ?? 27124
+        remoteUseHTTPS = try container.decodeIfPresent(Bool.self, forKey: .remoteUseHTTPS) ?? true
+        remoteDisplayName = try container.decodeIfPresent(String.self, forKey: .remoteDisplayName) ?? ""
+        notePath = try container.decodeIfPresent(String.self, forKey: .notePath)
+            ?? ObsidianSettings.defaultNotePath
+    }
+
     public var isConfigured: Bool {
-        enabled
-            && !vaultPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !normalizedNotePath.isEmpty
+        guard enabled else { return false }
+        switch mode {
+        case .local:
+            return !vaultPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .remote:
+            return !sanitizedRemoteHost.isEmpty
+                && remotePort > 0
+                && remotePort <= 65_535
+        }
     }
 
     public var vaultURL: URL? {
@@ -47,14 +98,45 @@ public struct ObsidianSettings: Codable, Hashable, Sendable {
     }
 
     public var noteURL: URL? {
-        guard let vaultURL else { return nil }
+        guard mode == .local, let vaultURL else { return nil }
         return vaultURL.appendingPathComponent(normalizedNotePath)
     }
 
     public var resolvedVaultName: String {
         let stored = vaultName.trimmingCharacters(in: .whitespacesAndNewlines)
         if !stored.isEmpty { return stored }
+        if mode == .remote {
+            let display = remoteDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return display.isEmpty ? sanitizedRemoteHost : display
+        }
         return vaultURL?.lastPathComponent ?? ""
+    }
+
+    public var sanitizedRemoteHost: String {
+        var host = remoteHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["https://", "http://"] {
+            if host.lowercased().hasPrefix(prefix) {
+                host.removeFirst(prefix.count)
+            }
+        }
+        while host.hasSuffix("/") { host.removeLast() }
+        // A pasted `host:port` is common; the separate port field wins.
+        if let colon = host.lastIndex(of: ":"),
+           host[host.index(after: colon)...].allSatisfy(\.isNumber),
+           host[host.startIndex..<colon].contains(".")
+        {
+            host = String(host[host.startIndex..<colon])
+        }
+        return host
+    }
+
+    public var remoteBaseURL: URL? {
+        guard mode == .remote, !sanitizedRemoteHost.isEmpty else { return nil }
+        var components = URLComponents()
+        components.scheme = remoteUseHTTPS ? "https" : "http"
+        components.host = sanitizedRemoteHost
+        components.port = remotePort
+        return components.url
     }
 }
 
