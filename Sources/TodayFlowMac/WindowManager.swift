@@ -72,6 +72,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         )
         self.showOnAllDesktops = UserDefaults.standard.object(forKey: Self.desktopsKey) as? Bool ?? false
         super.init()
+        self.todayModel.startWorkflowPolling()
         self.todayModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
         self.todayModel.onFocusTask = { [weak self] id in self?.presentFocus(id) }
         self.contactsModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
@@ -414,6 +415,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         if case .contacts = kind {
             window.contentMinSize = DesignTokens.Window.contactsMinimum
         }
+        if case .workflows = kind {
+            window.contentMinSize = NSSize(width: 780, height: 540)
+        }
         window.contentView = NSHostingView(rootView: content(for: kind))
         window.isReleasedWhenClosed = false
         applyDesktopBehavior(to: window)
@@ -435,6 +439,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             model: todayModel,
             onOpenTask: { [weak self] id in self?.show(.detail(id)) },
             onFocusTask: { [weak self] id in self?.presentFocus(id) },
+            onNewTask: { [weak self] in self?.showCapture() },
             onDrop: { [weak self] providers, itemId in
                 self?.handleDrop(providers, onto: itemId) ?? false
             },
@@ -442,6 +447,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() },
             onOpenTray: { [weak self] id in self?.openTray(id) },
             onOpenContacts: { [weak self] in self?.show(.contacts) },
+            onOpenWorkflows: { [weak self] in self?.show(.workflows) },
             dockedApp: docking.dockedTarget.map {
                 AppDockState(
                     appName: $0.name,
@@ -556,6 +562,11 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 calendar: environment.workCalendar.calendar,
                 modelCatalog: environment.ai,
                 onOpenAISetup: onOpenAISetup
+            )
+        case .workflows:
+            WorkflowEditorView(
+                today: todayModel,
+                repository: environment.settings
             )
         case .contacts:
             ContactsView(

@@ -10,7 +10,8 @@ Short, screenshot-based guides for the workflows people use every day. Every ima
 2. [Contacts — add people directly to a task and organize groups](02-contacts.md)
 3. [Jira — drag tickets from the web into TodayFlow](03-jira.md)
 4. [Local AI — detect Ollama, LM Studio, llama.cpp, and more](04-local-ai.md)
-5. [Video walkthrough](05-video.md)
+5. [Tray workflows — simple trigger → move rules](05-workflows.md)
+6. [Video walkthrough](06-video.md)
 
 You can reopen this index from **Help → Tutorial Index on GitHub** in the app menu, or from **Settings → Help**.
 

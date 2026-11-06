@@ -125,6 +125,8 @@ public final class TodayViewModel {
 
     public private(set) var trays: [WorkTray] = []
     @ObservationIgnored private var traysLoaded = false
+    @ObservationIgnored private var workflowTask: Task<Void, Never>?
+    @ObservationIgnored private var isRunningWorkflows = false
 
     /// The day currently shown in the panel. Selecting a future day turns the
     /// same list into a planning surface without changing the task model.
@@ -333,6 +335,91 @@ public final class TodayViewModel {
             }
         }
         self.attachments = loadedAttachments
+
+        // Automation runs after every load, so a completion, a due date, or a
+        // timer tick can move tray items without a separate observer.
+        await runWorkflows(now: now)
+    }
+
+    // MARK: Tray workflows
+
+    /// Starts a lightweight 30-second tick for time-based rules. Item changes
+    /// already reload the model and run workflows; this only catches the clock.
+    public func startWorkflowPolling() {
+        guard workflowTask == nil else { return }
+        workflowTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard let self, !Task.isCancelled else { return }
+                if await self.hasWorkflowRules() {
+                    await self.load()
+                }
+            }
+        }
+    }
+
+    private func hasWorkflowRules() async -> Bool {
+        guard let settingRepository,
+              let raw = await settingRepository.value(for: SettingKeys.workflowRules),
+              let data = raw.data(using: .utf8),
+              let rules = try? JSONDecoder().decode([TrayWorkflowRule].self, from: data)
+        else { return false }
+        return rules.contains { $0.isEnabled && $0.isValid }
+    }
+
+    /// Evaluates the simple trigger → move rules. Returns the number of moves.
+    /// Repeats a few passes so chains (A→B, B→C) settle immediately.
+    @discardableResult
+    public func runWorkflows(now: Date? = nil) async -> Int {
+        guard !isRunningWorkflows,
+              let settingRepository,
+              let raw = await settingRepository.value(for: SettingKeys.workflowRules),
+              let data = raw.data(using: .utf8),
+              let rules = try? JSONDecoder().decode([TrayWorkflowRule].self, from: data)
+        else { return 0 }
+        let active = rules.filter { $0.isEnabled && $0.isValid }
+        guard !active.isEmpty else { return 0 }
+
+        isRunningWorkflows = true
+        defer { isRunningWorkflows = false }
+        let now = now ?? clock()
+        var moved = 0
+        var movedItems: Set<UUIDv7> = []
+
+        // One move per item per evaluation. A later pass (item change or the
+        // 30-second timer) can continue a chain, but two rules can never
+        // ping-pong an item back and forth in the same run.
+        for rule in active {
+            guard let sourceIndex = trays.firstIndex(where: { $0.id == rule.sourceTrayId }),
+                  let targetIndex = trays.firstIndex(where: { $0.id == rule.targetTrayId })
+            else { continue }
+            let sourceItems = trays[sourceIndex].itemIds
+            for itemId in sourceItems {
+                guard !movedItems.contains(itemId),
+                      let item = allItemsById[itemId]
+                else { continue }
+                let matches: Bool
+                switch rule.trigger {
+                case .completed:
+                    matches = item.status == .done
+                case .dueReached:
+                    matches = !item.status.isTerminal && item.endAt <= now
+                }
+                guard matches else { continue }
+                for index in trays.indices {
+                    trays[index].itemIds.removeAll { $0 == itemId }
+                }
+                trays[targetIndex].itemIds.append(itemId)
+                movedItems.insert(itemId)
+                moved += 1
+            }
+        }
+
+        if moved > 0 {
+            await persistTrays()
+            Diagnostics.log("workflow", "moved=\(moved) rules=\(active.count)")
+        }
+        return moved
     }
 
     /// Live updates: consumes `observeToday` and reloads on every emission.
@@ -414,7 +501,9 @@ public final class TodayViewModel {
                 TrayColumn(
                     tray: tray,
                     items: tray.itemIds.compactMap { allItemsById[$0] }
-                        .filter { !$0.isDeleted && !$0.status.isTerminal }
+                        // Completed items stay visible when a workflow moves
+                        // them into an archive/done tray.
+                        .filter { !$0.isDeleted }
                 )
             }
     }

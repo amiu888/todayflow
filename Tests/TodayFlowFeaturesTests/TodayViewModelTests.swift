@@ -956,3 +956,97 @@ func moveToTrayRemovesTheTaskFromEveryOtherTray() async {
     #expect(f.vm.trayItems(trayId: third).isEmpty)
     #expect(f.vm.trayItems(trayId: second).map(\.id) == [task.id])
 }
+
+// MARK: - Tray workflows
+
+@Test @MainActor
+func workflowMovesCompletedTaskToTargetTray() async throws {
+    let f = Fixture()
+    await f.vm.load()
+    await f.vm.addTray(name: "Done")
+    let source = f.vm.trays[0]
+    let target = try #require(f.vm.trays.last)
+    let task = f.item("Finish report", displayOrder: "a1")
+    await f.seed(task)
+    await f.vm.load()
+    await f.vm.addToTray(task.id, trayId: source.id)
+
+    let rule = TrayWorkflowRule(
+        sourceTrayId: source.id,
+        targetTrayId: target.id,
+        trigger: .completed
+    )
+    let data = try JSONEncoder().encode([rule])
+    try await f.settingRepository.set(
+        String(decoding: data, as: UTF8.self),
+        for: SettingKeys.workflowRules
+    )
+
+    await f.vm.toggle(task.id)
+
+    #expect(f.vm.tray(id: source.id)?.itemIds.isEmpty == true)
+    #expect(f.vm.tray(id: target.id)?.itemIds == [task.id])
+    #expect(f.vm.trayColumns.first { $0.tray.id == target.id }?.items.map(\.id) == [task.id])
+}
+
+@Test @MainActor
+func workflowMovesOverdueTaskToTargetTray() async throws {
+    let f = Fixture()
+    await f.vm.load()
+    await f.vm.addTray(name: "Overdue")
+    let source = f.vm.trays[0]
+    let target = try #require(f.vm.trays.last)
+    let task = f.item(
+        "Late invoice",
+        endAt: f.now.addingTimeInterval(-3600),
+        displayOrder: "a1"
+    )
+    await f.seed(task)
+    await f.vm.load()
+    await f.vm.addToTray(task.id, trayId: source.id)
+
+    let rule = TrayWorkflowRule(
+        sourceTrayId: source.id,
+        targetTrayId: target.id,
+        trigger: .dueReached
+    )
+    let data = try JSONEncoder().encode([rule])
+    try await f.settingRepository.set(
+        String(decoding: data, as: UTF8.self),
+        for: SettingKeys.workflowRules
+    )
+
+    await f.vm.runWorkflows(now: f.now)
+
+    #expect(f.vm.tray(id: source.id)?.itemIds.isEmpty == true)
+    #expect(f.vm.tray(id: target.id)?.itemIds == [task.id])
+}
+
+@Test @MainActor
+func disabledWorkflowDoesNotMoveTasks() async throws {
+    let f = Fixture()
+    await f.vm.load()
+    await f.vm.addTray(name: "Done")
+    let source = f.vm.trays[0]
+    let target = try #require(f.vm.trays.last)
+    let task = f.item("Stay put", status: .done, displayOrder: "a1")
+    await f.seed(task)
+    await f.vm.load()
+    await f.vm.addToTray(task.id, trayId: source.id)
+
+    let rule = TrayWorkflowRule(
+        sourceTrayId: source.id,
+        targetTrayId: target.id,
+        trigger: .completed,
+        isEnabled: false
+    )
+    let data = try JSONEncoder().encode([rule])
+    try await f.settingRepository.set(
+        String(decoding: data, as: UTF8.self),
+        for: SettingKeys.workflowRules
+    )
+    await f.vm.runWorkflows(now: f.now)
+
+    #expect(f.vm.tray(id: source.id)?.itemIds == [task.id])
+    #expect(f.vm.tray(id: target.id)?.itemIds.isEmpty == true)
+}

@@ -269,6 +269,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewMenu.addItem(item("Completed", #selector(showCompletedMenu), key: "3"))
         viewMenu.addItem(item("Hierarchy", #selector(showHierarchyMenu), key: "4"))
         viewMenu.addItem(item("Contacts", #selector(showContactsMenu), key: "8"))
+        viewMenu.addItem(item("Workflows", #selector(showWorkflowsMenu), key: ""))
         viewMenu.addItem(.separator())
         viewMenu.addItem(item("Slim Bar", #selector(showSlimBarMenu), key: ""))
         viewMenu.addItem(.separator())
@@ -302,6 +303,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         let aiGuide = item("Local AI Setup", #selector(openTutorialMenu(_:)), key: "")
         aiGuide.representedObject = TutorialLinks.localAI
         helpMenu.addItem(aiGuide)
+        let workflowGuide = item("Tray Workflows", #selector(openTutorialMenu(_:)), key: "")
+        workflowGuide.representedObject = TutorialLinks.workflows
+        helpMenu.addItem(workflowGuide)
         helpMenu.addItem(.separator())
         let videoGuide = item("Video Walkthrough", #selector(openTutorialMenu(_:)), key: "")
         videoGuide.representedObject = TutorialLinks.video
@@ -470,6 +474,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func showContactsMenu() {
         windows?.show(.contacts)
+    }
+
+    @objc private func showWorkflowsMenu() {
+        windows?.show(.workflows)
     }
 
     @objc private func showSlimBarMenu() {

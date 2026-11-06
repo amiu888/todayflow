@@ -11,6 +11,7 @@ public struct TrayStripView: View {
     private let model: TodayViewModel
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
     private let isCompact: Bool
+    private let onOpenWorkflows: (@MainActor () -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isAddingTray = false
@@ -23,11 +24,13 @@ public struct TrayStripView: View {
     public init(
         model: TodayViewModel,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
-        isCompact: Bool = false
+        isCompact: Bool = false,
+        onOpenWorkflows: (@MainActor () -> Void)? = nil
     ) {
         self.model = model
         self.onOpenTray = onOpenTray
         self.isCompact = isCompact
+        self.onOpenWorkflows = onOpenWorkflows
     }
 
     @MainActor
@@ -39,6 +42,19 @@ public struct TrayStripView: View {
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
 
                 Spacer()
+
+                if let onOpenWorkflows {
+                    Button {
+                        onOpenWorkflows()
+                    } label: {
+                        Label("Workflows", systemImage: "arrow.triangle.branch")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(DesignTokens.Palette.accent)
+                    .help("Build a simple tray automation")
+                    .accessibilityIdentifier("open-workflows")
+                }
 
                 Button {
                     insertAfter = nil

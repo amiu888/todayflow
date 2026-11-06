@@ -13,6 +13,8 @@ public enum SettingKeys {
     public static let todaySort = "today_sort"
     /// The working-tray strip, encoded as `[WorkTray]` JSON.
     public static let workTrays = "work_trays"
+    /// The tray automation rules, encoded as `[TrayWorkflowRule]` JSON.
+    public static let workflowRules = "workflow_rules"
 }
 
 /// The user's business hours (driver.md line 49: the WorkCalendar settings

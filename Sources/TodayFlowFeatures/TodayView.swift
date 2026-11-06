@@ -21,10 +21,12 @@ public struct TodayView: View {
     /// drop landed on a row (FR-04), or `nil` for the panel background (FR-01).
     private let onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)?
     #endif
+    private let onNewTask: (@MainActor () -> Void)?
     private let onOpenUpcoming: (@MainActor () -> Void)?
     private let onShowMiniCalendar: (@MainActor () -> Void)?
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
     private let onOpenContacts: (@MainActor () -> Void)?
+    private let onOpenWorkflows: (@MainActor () -> Void)?
     private let dockedApp: AppDockState?
     private let onDockToApp: (@MainActor (String, String) -> Void)?
     private let onUndockApp: (@MainActor () -> Void)?
@@ -56,10 +58,12 @@ public struct TodayView: View {
         #if canImport(AppKit)
         self.onDrop = nil
         #endif
+        self.onNewTask = nil
         self.onOpenUpcoming = nil
         self.onShowMiniCalendar = nil
         self.onOpenTray = nil
         self.onOpenContacts = nil
+        self.onOpenWorkflows = nil
         self.dockedApp = nil
         self.onDockToApp = nil
         self.onUndockApp = nil
@@ -75,11 +79,13 @@ public struct TodayView: View {
         model: TodayViewModel,
         onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil,
         onFocusTask: (@MainActor (UUIDv7) -> Void)? = nil,
+        onNewTask: (@MainActor () -> Void)? = nil,
         onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil,
         onOpenUpcoming: (@MainActor () -> Void)? = nil,
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         onOpenContacts: (@MainActor () -> Void)? = nil,
+        onOpenWorkflows: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
         onDockToApp: (@MainActor (String, String) -> Void)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
@@ -91,10 +97,12 @@ public struct TodayView: View {
         #if canImport(AppKit)
         self.onDrop = onDrop
         #endif
+        self.onNewTask = onNewTask
         self.onOpenUpcoming = onOpenUpcoming
         self.onShowMiniCalendar = onShowMiniCalendar
         self.onOpenTray = onOpenTray
         self.onOpenContacts = onOpenContacts
+        self.onOpenWorkflows = onOpenWorkflows
         self.dockedApp = dockedApp
         self.onDockToApp = onDockToApp
         self.onUndockApp = onUndockApp
@@ -120,11 +128,13 @@ public struct TodayView: View {
         deviceId: String = "local",
         onOpenTask: (@MainActor (UUIDv7) -> Void)? = nil,
         onFocusTask: (@MainActor (UUIDv7) -> Void)? = nil,
+        onNewTask: (@MainActor () -> Void)? = nil,
         onDrop: (@MainActor ([NSItemProvider], UUIDv7?) -> Bool)? = nil,
         onOpenUpcoming: (@MainActor () -> Void)? = nil,
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         onOpenContacts: (@MainActor () -> Void)? = nil,
+        onOpenWorkflows: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
         onDockToApp: (@MainActor (String, String) -> Void)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
@@ -145,10 +155,12 @@ public struct TodayView: View {
         #if canImport(AppKit)
         self.onDrop = onDrop
         #endif
+        self.onNewTask = onNewTask
         self.onOpenUpcoming = onOpenUpcoming
         self.onShowMiniCalendar = onShowMiniCalendar
         self.onOpenTray = onOpenTray
         self.onOpenContacts = onOpenContacts
+        self.onOpenWorkflows = onOpenWorkflows
         self.dockedApp = dockedApp
         self.onDockToApp = onDockToApp
         self.onUndockApp = onUndockApp
@@ -167,32 +179,16 @@ public struct TodayView: View {
     @MainActor
     public var body: some View {
         GeometryReader { proxy in
-            // Below 320 points, lay the single-column UI out at 320 and
-            // scale it into the available width. This keeps every control
-            // visible instead of clipping the left/right edge when the
-            // window is squeezed.
-            let baseWidth: CGFloat = 320
-            let scale = min(1, proxy.size.width / baseWidth)
-            let contentWidth = max(proxy.size.width, baseWidth)
-            let contentHeight = proxy.size.height / max(scale, 0.01)
-
+            // Keep text at its normal size. Layout (not scaling) makes the
+            // panel fit: compact header, vertical week, wrapped filters,
+            // full-width trays, and metadata under the title.
             panelBody
-                .frame(
-                    width: contentWidth,
-                    height: contentHeight,
-                    alignment: .topLeading
-                )
-                .scaleEffect(scale, anchor: .topLeading)
-                .frame(
-                    width: proxy.size.width,
-                    height: proxy.size.height,
-                    alignment: .topLeading
-                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
                 .onAppear {
-                    isCompact = proxy.size.width < 340
+                    isCompact = proxy.size.width < 360
                 }
                 .onChange(of: proxy.size.width) { _, width in
-                    isCompact = width < 340
+                    isCompact = width < 360
                 }
         }
     }
@@ -290,7 +286,8 @@ public struct TodayView: View {
         TrayStripView(
             model: model,
             onOpenTray: onOpenTray,
-            isCompact: isCompact
+            isCompact: isCompact,
+            onOpenWorkflows: onOpenWorkflows
         )
         .padding(.top, 2)
     }
@@ -770,6 +767,22 @@ public struct TodayView: View {
     @ViewBuilder
     private var headerActionIcons: some View {
         HStack(spacing: 9) {
+            if let onNewTask {
+                Button {
+                    onNewTask()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(DesignTokens.Palette.accent))
+                }
+                .buttonStyle(.plain)
+                .help("New task (⌘N)")
+                .accessibilityLabel("New task")
+                .accessibilityIdentifier("new-task")
+            }
+
             if let aiActions {
                 Menu {
                     Button("Ask about tasks…") { aiActions.ask() }

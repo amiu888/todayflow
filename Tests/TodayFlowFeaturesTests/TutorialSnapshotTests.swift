@@ -77,8 +77,8 @@ struct TutorialSnapshotTests {
             to: root.appendingPathComponent("today-panel.png")
         )
         try await render(
-            todayView.frame(width: 300, height: 640),
-            size: CGSize(width: 300, height: 640),
+            todayView.frame(width: 320, height: 640),
+            size: CGSize(width: 320, height: 640),
             to: root.appendingPathComponent("today-panel-narrow.png")
         )
 
@@ -106,6 +106,31 @@ struct TutorialSnapshotTests {
             DetailView(model: detail).frame(width: 720, height: 640),
             size: CGSize(width: 720, height: 640),
             to: root.appendingPathComponent("task-contact.png")
+        )
+
+        // Workflow editor
+        let workflowSettings = InMemorySettingRepository()
+        let sourceTray = try #require(today.trays.first)
+        let targetTray = try #require(today.trays.dropFirst().first)
+        let rule = TrayWorkflowRule(
+            sourceTrayId: sourceTray.id,
+            targetTrayId: targetTray.id,
+            trigger: .completed
+        )
+        let ruleData = try JSONEncoder().encode([rule])
+        try await workflowSettings.set(
+            String(decoding: ruleData, as: UTF8.self),
+            for: SettingKeys.workflowRules
+        )
+        let workflowModel = WorkflowEditorModel(
+            today: today,
+            repository: workflowSettings
+        )
+        await workflowModel.load()
+        try await render(
+            WorkflowEditorView(model: workflowModel).frame(width: 920, height: 620),
+            size: CGSize(width: 920, height: 620),
+            to: root.appendingPathComponent("workflow-editor.png")
         )
 
         // AI setup with a detected local server

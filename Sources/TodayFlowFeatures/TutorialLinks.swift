@@ -18,6 +18,9 @@ public enum TutorialLinks {
     public static let localAI = URL(
         string: "https://github.com/amiu888/todayflow/blob/main/docs/tutorials/04-local-ai.md"
     )!
+    public static let workflows = URL(
+        string: "https://github.com/amiu888/todayflow/blob/main/docs/tutorials/05-workflows.md"
+    )!
     public static let video = URL(
         string: "https://github.com/amiu888/todayflow/blob/main/docs/tutorials/video/todayflow-overview.mp4"
     )!

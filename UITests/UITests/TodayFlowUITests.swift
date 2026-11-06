@@ -56,6 +56,23 @@ final class TodayFlowUITests: XCTestCase {
         return row
     }
 
+    /// The header's plus button opens the same capture sheet as ⌘N.
+    func testNewTaskButtonOpensCapture() throws {
+        let app = launchApp()
+        let title = "Button task \(UUID().uuidString.prefix(6))"
+        app.buttons["new-task"].firstMatch.click()
+        let field = app.textFields["Title"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "Capture sheet missing")
+        field.typeText(title)
+        app.buttons["Add task"].click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "task-row-\(title)").firstMatch
+                .waitForExistence(timeout: 8),
+            "Task created from the header button did not appear"
+        )
+    }
+
     /// Adding to a tray from the row context menu works without a drag.
     func testAddingTaskToTrayFromRowMenu() throws {
         let app = launchApp()
