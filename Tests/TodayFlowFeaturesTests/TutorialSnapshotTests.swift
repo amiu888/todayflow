@@ -66,7 +66,7 @@ struct TutorialSnapshotTests {
             onShowMiniCalendar: {},
             onOpenTray: { _ in },
             onOpenContacts: {},
-            onDockToApp: { _, _ in },
+            onDockToApp: { _, _ in false },
             onUndockApp: {},
             windowActions: windowActions,
             aiActions: aiActions

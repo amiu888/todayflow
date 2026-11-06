@@ -230,7 +230,9 @@ public final class WindowDockController {
         dockedTarget = DockTarget(bundleId: bundleId, name: appName, edge: edge)
         persistTarget()
         startFollowing()
-        repositionDockedPanel()
+        // Dock is an explicit action; place the panel now even though
+        // TodayFlow is frontmost while the popover is open.
+        repositionDockedPanel(force: true)
     }
 
     /// Changes the attachment edge without undocking.
@@ -239,7 +241,7 @@ public final class WindowDockController {
         target.edge = edge
         dockedTarget = target
         persistTarget()
-        repositionDockedPanel()
+        repositionDockedPanel(force: true)
     }
 
     /// Detaches from the other app and re-enables edge snapping.
@@ -264,7 +266,7 @@ public final class WindowDockController {
         dockedPanel = panel
         dockedTarget = saved
         startFollowing()
-        repositionDockedPanel()
+        repositionDockedPanel(force: true)
     }
 
     private func persistTarget() {
@@ -286,17 +288,23 @@ public final class WindowDockController {
         }
     }
 
-    private func repositionDockedPanel() {
+    private func repositionDockedPanel(force: Bool = false) {
         guard let target = dockedTarget,
               let panel = dockedPanel,
               panel.isVisible,
               let running = NSRunningApplication.runningApplications(
                 withBundleIdentifier: target.bundleId
-              ).first,
-              // Do not chase another app's window while the user is working
-              // in TodayFlow's own panel.
-              NSWorkspace.shared.frontmostApplication?.bundleIdentifier == target.bundleId,
-              let appFrame = Self.frontWindowFrame(for: running.processIdentifier)
+              ).first
+        else { return }
+        // During normal following, do not chase another app's window while
+        // the user is working in TodayFlow's own panel. An explicit Dock
+        // action forces the first placement.
+        if !force,
+           NSWorkspace.shared.frontmostApplication?.bundleIdentifier != target.bundleId
+        {
+            return
+        }
+        guard let appFrame = Self.frontWindowFrame(for: running.processIdentifier)
         else { return }
         let screen = panel.screen?.visibleFrame
             ?? NSScreen.main?.visibleFrame

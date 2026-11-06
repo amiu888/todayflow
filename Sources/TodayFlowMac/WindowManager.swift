@@ -184,19 +184,44 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     }
 
     /// Attaches the panel to another app's window edge.
-    public func dockPanel(to bundleId: String, edge: DockEdge) {
+    @discardableResult
+    public func dockPanel(to bundleId: String, edge: DockEdge) -> Bool {
         show(.panel)
-        guard let panel = window(for: .panel) else { return }
-        let name = NSRunningApplication
+        guard let panel = window(for: .panel) else { return false }
+        guard let running = NSRunningApplication
             .runningApplications(withBundleIdentifier: bundleId)
-            .first?
-            .localizedName ?? bundleId
+            .first
+        else {
+            presentDockError(
+                appName: bundleId,
+                reason: "The application is no longer running."
+            )
+            return false
+        }
+        let name = running.localizedName ?? bundleId
+        guard WindowDockController.frontWindowFrame(for: running.processIdentifier) != nil else {
+            presentDockError(
+                appName: name,
+                reason: "Open a normal window in \(name) first, then try Dock again."
+            )
+            return false
+        }
         docking.dock(
             panel: panel,
             bundleId: bundleId,
             appName: name,
             edge: edge
         )
+        return true
+    }
+
+    private func presentDockError(appName: String, reason: String) {
+        let alert = NSAlert()
+        alert.messageText = "Couldn’t dock to \(appName)"
+        alert.informativeText = reason
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     /// Detaches the panel from the other app.
@@ -459,7 +484,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 self?.dockPanel(
                     to: bundleId,
                     edge: DockEdge(rawValue: edgeRaw) ?? .left
-                )
+                ) ?? false
             },
             onUndockApp: { [weak self] in self?.undockPanel() },
             dockedAppProvider: { [weak self] in

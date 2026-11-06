@@ -28,7 +28,7 @@ public struct TodayView: View {
     private let onOpenContacts: (@MainActor () -> Void)?
     private let onOpenWorkflows: (@MainActor () -> Void)?
     private let dockedApp: AppDockState?
-    private let onDockToApp: (@MainActor (String, String) -> Void)?
+    private let onDockToApp: (@MainActor (String, String) -> Bool)?
     private let onUndockApp: (@MainActor () -> Void)?
     private let dockedAppProvider: (@MainActor () -> AppDockState?)?
     private let windowActions: WindowMenuActions?
@@ -87,7 +87,7 @@ public struct TodayView: View {
         onOpenContacts: (@MainActor () -> Void)? = nil,
         onOpenWorkflows: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
-        onDockToApp: (@MainActor (String, String) -> Void)? = nil,
+        onDockToApp: (@MainActor (String, String) -> Bool)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
         dockedAppProvider: (@MainActor () -> AppDockState?)? = nil,
         windowActions: WindowMenuActions? = nil,
@@ -136,7 +136,7 @@ public struct TodayView: View {
         onOpenContacts: (@MainActor () -> Void)? = nil,
         onOpenWorkflows: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
-        onDockToApp: (@MainActor (String, String) -> Void)? = nil,
+        onDockToApp: (@MainActor (String, String) -> Bool)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
         dockedAppProvider: (@MainActor () -> AppDockState?)? = nil,
         windowActions: WindowMenuActions? = nil,
@@ -1014,8 +1014,10 @@ public struct TodayView: View {
                 Button("Dock") {
                     guard !dockAppBundle.isEmpty else { return }
                     let name = runningApps.first { $0.bundleId == dockAppBundle }?.name
-                    onDockToApp?(dockAppBundle, dockEdge)
-                    localDockedName = name ?? dockAppBundle
+                    let docked = onDockToApp?(dockAppBundle, dockEdge) ?? false
+                    if docked {
+                        localDockedName = name ?? dockAppBundle
+                    }
                     showingDockPopover = false
                 }
                 .keyboardShortcut(.defaultAction)
