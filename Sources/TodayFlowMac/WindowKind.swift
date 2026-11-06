@@ -15,6 +15,7 @@ public enum WindowKind: Hashable, Sendable {
     case settings
     case contacts
     case workflows
+    case tutorial
     case detail(UUIDv7)
 
     public var title: String {
@@ -29,6 +30,7 @@ public enum WindowKind: Hashable, Sendable {
         case .settings: "Settings"
         case .contacts: "Contacts"
         case .workflows: "Workflows"
+        case .tutorial: "TodayFlow Tutorial"
         case .detail: "Task"
         }
     }
@@ -45,6 +47,7 @@ public enum WindowKind: Hashable, Sendable {
         case .settings: DesignTokens.Window.settings
         case .contacts: DesignTokens.Window.contacts
         case .workflows: CGSize(width: 920, height: 620)
+        case .tutorial: CGSize(width: 960, height: 620)
         case .detail: DesignTokens.Window.detail
         }
     }

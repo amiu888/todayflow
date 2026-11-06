@@ -18,7 +18,7 @@ There are no branches, loops, or scripts. This keeps every workflow readable at 
 6. Choose the trigger:
    - **Task is completed** — moves finished tasks.
    - **Due date is reached** — moves open tasks when their due date/time passes.
-7. Leave **Enabled** on and press **Run now** to test, or just use TodayFlow normally.
+7. Leave **Workflow is on**. There is no Run button: while it is on, the workflow runs automatically whenever its trigger happens. Turn it off to pause the workflow.
 
 ## Example rules
 
@@ -30,7 +30,10 @@ There are no branches, loops, or scripts. This keeps every workflow readable at 
 
 ## How it runs
 
-- Rules are evaluated when tasks change and every 30 seconds for due-date rules.
+- Every workflow is a simple on/off switch. It runs automatically; nothing needs to be started.
+- Completion rules run as soon as a task is completed.
+- Due-date rules are checked every few seconds while TodayFlow is open.
+- A workflow that is off is shown with a dashed line and an **off** label, and does not move anything.
 - A task moves at most once per evaluation, so two rules cannot bounce it back and forth forever.
 - Deleting a tray removes rules that referenced it; the editor keeps the remaining rules.
 - Completed tasks stay visible in the destination tray, so an archive/done workflow is visible.

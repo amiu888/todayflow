@@ -202,6 +202,17 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         )
         appMenu.addItem(.separator())
         appMenu.addItem(
+            item("Watch Video Walkthrough", #selector(openTutorialVideo), key: "")
+        )
+        let appTutorials = item(
+            "Tutorials & Guides",
+            #selector(openTutorialMenu(_:)),
+            key: ""
+        )
+        appTutorials.representedObject = TutorialLinks.index
+        appMenu.addItem(appTutorials)
+        appMenu.addItem(.separator())
+        appMenu.addItem(
             item("Quit TodayFlow", #selector(quitApp), key: "q")
         )
         appItem.submenu = appMenu
@@ -287,6 +298,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
         let helpItem = NSMenuItem()
         let helpMenu = NSMenu(title: "Help")
+        helpMenu.addItem(
+            item("Watch Tutorial Video", #selector(openTutorialVideo), key: "")
+        )
         let tutorialIndex = item("Tutorial Index on GitHub", #selector(openTutorialMenu(_:)), key: "")
         tutorialIndex.representedObject = TutorialLinks.index
         helpMenu.addItem(tutorialIndex)
@@ -307,7 +321,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         workflowGuide.representedObject = TutorialLinks.workflows
         helpMenu.addItem(workflowGuide)
         helpMenu.addItem(.separator())
-        let videoGuide = item("Video Walkthrough", #selector(openTutorialMenu(_:)), key: "")
+        let videoGuide = item("Video Walkthrough on GitHub", #selector(openTutorialMenu(_:)), key: "")
         videoGuide.representedObject = TutorialLinks.video
         helpMenu.addItem(videoGuide)
         helpItem.submenu = helpMenu
@@ -356,6 +370,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     @objc private func openTutorialMenu(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    @objc private func openTutorialVideo() {
+        windows?.show(.tutorial)
     }
 
     @objc private func quitApp() {

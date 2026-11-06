@@ -35,6 +35,11 @@ if [[ ! -d "$APP_DIR/Contents/Resources/TodayFlow_TodayFlowAI.bundle" ]]; then
     exit 1
 fi
 
+if [[ ! -f "$APP_DIR/Contents/Resources/TodayFlow_TodayFlowFeatures.bundle/Contents/Resources/todayflow-overview.mp4" ]]; then
+    echo "error: tutorial video was not copied into the app" >&2
+    exit 1
+fi
+
 printf 'APPL????' > "$APP_DIR/Contents/PkgInfo"
 
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \

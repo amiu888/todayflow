@@ -329,6 +329,13 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// Shows the window for `kind`, creating it on first use. Re-showing an
     /// open window just brings it to the front.
     public func show(_ kind: WindowKind) {
+        // Keep the AVKit-backed tutorial on its own construction path. Adding
+        // it to the shared content switch can make Swift instantiate player
+        // metadata while building an unrelated window (for example Settings).
+        if case .tutorial = kind {
+            showTutorialWindow()
+            return
+        }
         if let window = windows[kind] {
             if window.isMiniaturized {
                 window.deminiaturize(nil)
@@ -444,6 +451,39 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             window.contentMinSize = NSSize(width: 780, height: 540)
         }
         window.contentView = NSHostingView(rootView: content(for: kind))
+        window.isReleasedWhenClosed = false
+        applyDesktopBehavior(to: window)
+        return window
+    }
+
+    private func showTutorialWindow() {
+        if let window = windows[.tutorial] {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+            return
+        }
+        let window = makeTutorialWindow()
+        windows[.tutorial] = window
+        window.delegate = self
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+    }
+
+    private func makeTutorialWindow() -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: WindowKind.tutorial.size),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = WindowKind.tutorial.title
+        window.isMovableByWindowBackground = false
+        window.contentMinSize = NSSize(width: 720, height: 480)
+        window.contentView = NSHostingView(rootView: TutorialVideoView())
         window.isReleasedWhenClosed = false
         applyDesktopBehavior(to: window)
         return window
@@ -587,13 +627,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 keychain: environment.keychain,
                 calendar: environment.workCalendar.calendar,
                 modelCatalog: environment.ai,
-                onOpenAISetup: onOpenAISetup
+                onOpenAISetup: onOpenAISetup,
+                onWatchTutorial: { [weak self] in self?.show(.tutorial) }
             )
         case .workflows:
             WorkflowEditorView(
                 today: todayModel,
                 repository: environment.settings
             )
+        case .tutorial:
+            EmptyView()
         case .contacts:
             ContactsView(
                 model: contactsModel,

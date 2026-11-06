@@ -185,11 +185,6 @@ public final class WorkflowEditorModel {
         await save()
     }
 
-    public func runNow() async {
-        await today.runWorkflows()
-        rebuildNodes()
-    }
-
     private func save() async {
         guard let data = try? JSONEncoder().encode(rules),
               let raw = String(data: data, encoding: .utf8)
@@ -244,18 +239,15 @@ public struct WorkflowEditorView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Tray workflows")
                     .font(.title3.weight(.semibold))
-                Text("Drag from a tray’s right handle to another tray. Every rule is one trigger and one move.")
+                Text("Drag from a tray’s right handle to another tray. Every workflow is one trigger and one move; while it is on, it runs automatically.")
                     .font(.caption)
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
             }
             Spacer()
-            Button {
-                Task { await model.runNow() }
-            } label: {
-                Label("Run now", systemImage: "play.fill")
-            }
-            .buttonStyle(.bordered)
-            .help("Evaluate the rules immediately")
+            Label("Runs automatically while on", systemImage: "bolt.fill")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                .help("There is nothing to start. Turn a workflow on and it reacts to completions and due dates.")
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
@@ -311,8 +303,11 @@ public struct WorkflowEditorView: View {
                 drawWire(
                     from: start,
                     to: end,
-                    color: selected ? DesignTokens.Palette.accent : DesignTokens.Palette.textSecondary.opacity(0.55),
+                    color: selected
+                        ? DesignTokens.Palette.accent
+                        : DesignTokens.Palette.textSecondary.opacity(rule.isEnabled ? 0.55 : 0.28),
                     lineWidth: selected ? 2.5 : 1.5,
+                    dashed: !rule.isEnabled,
                     in: &context
                 )
             }
@@ -388,12 +383,14 @@ public struct WorkflowEditorView: View {
             Button {
                 model.selectedRuleID = rule.id
             } label: {
-                Text(rule.trigger.shortLabel)
+                Text(rule.isEnabled ? rule.trigger.shortLabel : "\(rule.trigger.shortLabel) · off")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(
-                        rule.id == model.selectedRuleID
-                            ? DesignTokens.Palette.accent
-                            : DesignTokens.Palette.textSecondary
+                        rule.isEnabled
+                            ? (rule.id == model.selectedRuleID
+                                ? DesignTokens.Palette.accent
+                                : DesignTokens.Palette.textSecondary)
+                            : DesignTokens.Palette.textSecondary.opacity(0.7)
                     )
             }
             .buttonStyle(.plain)
@@ -528,12 +525,17 @@ public struct WorkflowEditorView: View {
                     }
                     .pickerStyle(.radioGroup)
 
-                    Toggle("Enabled", isOn: Binding(
+                    Toggle("Workflow is on", isOn: Binding(
                         get: { rule.isEnabled },
                         set: { enabled in
                             Task { await model.setEnabled(rule.id, enabled) }
                         }
                     ))
+                    Text(rule.isEnabled
+                        ? "Runs automatically when its trigger happens."
+                        : "Paused. It won’t move tasks until you turn it back on.")
+                        .font(.caption2)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
 
                     Button("Delete rule", role: .destructive) {
                         Task { await model.deleteRule(rule.id) }
@@ -560,10 +562,20 @@ public struct WorkflowEditorView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("\(model.trayName(rule.sourceTrayId)) → \(model.trayName(rule.targetTrayId))")
                                     .font(.caption.weight(.semibold))
-                                Text(rule.trigger.label)
-                                    .font(.caption2)
-                                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                                HStack(spacing: 5) {
+                                    Text(rule.trigger.label)
+                                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                                    Text(rule.isEnabled ? "On" : "Off")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(
+                                            rule.isEnabled
+                                                ? DesignTokens.Palette.accent
+                                                : DesignTokens.Palette.textSecondary.opacity(0.7)
+                                        )
+                                }
+                                .font(.caption2)
                             }
+                            .opacity(rule.isEnabled ? 1 : 0.65)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(7)
                             .background(

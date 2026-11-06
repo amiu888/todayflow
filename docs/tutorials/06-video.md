@@ -1,6 +1,12 @@
 # Video walkthrough
 
-The short walkthrough is in this folder:
+The short walkthrough is bundled in the app, so it works without a network connection:
+
+- **TodayFlow → Watch Video Walkthrough**
+- **Help → Watch Tutorial Video**
+- **Settings → Help → Watch the video walkthrough**
+
+The same file is published here:
 
 [Watch `todayflow-overview.mp4`](video/todayflow-overview.mp4)
 

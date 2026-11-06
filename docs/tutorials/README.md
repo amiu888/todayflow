@@ -13,7 +13,7 @@ Short, screenshot-based guides for the workflows people use every day. Every ima
 5. [Tray workflows — simple trigger → move rules](05-workflows.md)
 6. [Video walkthrough](06-video.md)
 
-You can reopen this index from **Help → Tutorial Index on GitHub** in the app menu, or from **Settings → Help**.
+Watch the bundled walkthrough from **TodayFlow → Watch Video Walkthrough** or **Help → Watch Tutorial Video**. You can reopen this index from **Help → Tutorial Index on GitHub** in the app menu, or from **Settings → Help**.
 
 ## Two-minute quick start
 

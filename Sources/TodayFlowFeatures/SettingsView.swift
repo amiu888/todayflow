@@ -10,13 +10,16 @@ import FoundationModels
 public struct SettingsView: View {
     public let model: SettingsViewModel
     private let onOpenAISetup: (@MainActor @Sendable () -> Void)?
+    private let onWatchTutorial: (@MainActor @Sendable () -> Void)?
 
     public init(
         model: SettingsViewModel,
-        onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil
+        onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil,
+        onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil
     ) {
         self.model = model
         self.onOpenAISetup = onOpenAISetup
+        self.onWatchTutorial = onWatchTutorial
     }
 
     /// For hosts that only know the repositories (used by the 6-Mac app layer).
@@ -26,7 +29,8 @@ public struct SettingsView: View {
         keychain: any KeychainStore,
         calendar: Calendar = .current,
         modelCatalog: (any AIModelCatalog)? = nil,
-        onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil
+        onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil,
+        onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil
     ) {
         model = SettingsViewModel(
             repository: repository,
@@ -35,6 +39,7 @@ public struct SettingsView: View {
             modelCatalog: modelCatalog
         )
         self.onOpenAISetup = onOpenAISetup
+        self.onWatchTutorial = onWatchTutorial
     }
 
     @MainActor
@@ -151,11 +156,19 @@ public struct SettingsView: View {
             }
 
             Section("Help") {
+                if let onWatchTutorial {
+                    Button {
+                        onWatchTutorial()
+                    } label: {
+                        Label("Watch the video walkthrough", systemImage: "play.rectangle")
+                    }
+                } else {
+                    Link(destination: TutorialLinks.video) {
+                        Label("Watch the video walkthrough", systemImage: "play.rectangle")
+                    }
+                }
                 Link(destination: TutorialLinks.index) {
                     Label("Tutorials & guides on GitHub", systemImage: "book")
-                }
-                Link(destination: TutorialLinks.video) {
-                    Label("Watch the video walkthrough", systemImage: "play.rectangle")
                 }
             }
 

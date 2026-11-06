@@ -343,28 +343,18 @@ public final class TodayViewModel {
 
     // MARK: Tray workflows
 
-    /// Starts a lightweight 30-second tick for time-based rules. Item changes
-    /// already reload the model and run workflows; this only catches the clock.
+    /// Starts a lightweight tick that only evaluates due-date rules. Item
+    /// changes already reload the model and run workflows, so this timer is
+    /// the clock event, not a manual refresh.
     public func startWorkflowPolling() {
         guard workflowTask == nil else { return }
         workflowTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(5))
                 guard let self, !Task.isCancelled else { return }
-                if await self.hasWorkflowRules() {
-                    await self.load()
-                }
+                await self.runWorkflows()
             }
         }
-    }
-
-    private func hasWorkflowRules() async -> Bool {
-        guard let settingRepository,
-              let raw = await settingRepository.value(for: SettingKeys.workflowRules),
-              let data = raw.data(using: .utf8),
-              let rules = try? JSONDecoder().decode([TrayWorkflowRule].self, from: data)
-        else { return false }
-        return rules.contains { $0.isEnabled && $0.isValid }
     }
 
     /// Evaluates the simple trigger → move rules. Returns the number of moves.
