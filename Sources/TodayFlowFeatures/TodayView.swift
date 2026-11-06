@@ -33,6 +33,7 @@ public struct TodayView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("todayflow.allDesktops") private var showOnAllDesktops = false
     @State private var isSearching: Bool = false
     @State private var searchText: String = ""
     @State private var isPanelDropTargeted: Bool = false
@@ -763,6 +764,28 @@ public struct TodayView: View {
     @ViewBuilder
     private var headerActionIcons: some View {
         HStack(spacing: 9) {
+            if let windowActions {
+                Button {
+                    windowActions.toggleAllDesktops()
+                } label: {
+                    Image(systemName: "anchor")
+                        .font(.caption)
+                        .foregroundStyle(
+                            showOnAllDesktops
+                                ? DesignTokens.Palette.textSecondary
+                                : DesignTokens.Palette.accent
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(showOnAllDesktops
+                    ? "Shown on all desktops — click to anchor to this one"
+                    : "Anchored to this desktop — click to show on all desktops")
+                .accessibilityLabel(showOnAllDesktops
+                    ? "Anchor Today to this desktop"
+                    : "Show Today on all desktops")
+                .accessibilityIdentifier("anchor-to-desktop")
+            }
+
             if let onShowMiniCalendar {
                 Button {
                     onShowMiniCalendar()

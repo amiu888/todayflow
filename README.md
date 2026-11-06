@@ -42,7 +42,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free, `swift test` passes **691 tests**, and
+Verification: `swift build` is warning-free, `swift test` passes **694 tests**, and
 the XCUITest suite has twenty-one cases against the real `.app` bundle. Local performance
 spot-checks: the Today panel appears in about 273 ms, 5,000 contacts load and search in
 about 0.21 s, and the 10,000-item Today query stays under the 500 ms NFR-04 bound. The app also makes a daily
@@ -75,7 +75,7 @@ Design rationale and the competitive references are in
 
 - **Priority** — click the compact, color-coded **P1–P4** pill on any row; the menu shows every level with a checkmark. Right-click a row for the same menu.
 - **Dock to an app** — the **pin** at the top right of the panel. Pick a running application and an edge (Left is the default; Right/Top/Bottom are available), then **Dock**. The panel follows that app’s front window. Click the pin again to change the edge or **Undock**.
-- **Contacts** — the **person.2** icon at the top right of the Today panel (or **View → Contacts**, ⌘8). Drag a contact card from macOS Contacts or Outlook into the capture panel (or paste a vCard): it creates a follow-up task and offers to add the person to Contacts. The card has an **Add to Contacts** switch, an optional group, and duplicate resolution — **Merge**, **Use existing**, or **Keep new**. Create contacts and groups, search, import from macOS Contacts (**Sync Contacts**), or import Outlook/other address books exported as vCard/CSV. The import sheet filters by text and by “must have email/phone”; matching emails and phones are merged automatically. The Contacts window opens beside the Today panel and shrinks to 580×420, with a compact header and a stacked detail header at narrow widths. **Duplicates** reviews shared emails/phones and offers auto-merge or merge-into a chosen contact. Open a task to link any number of contacts under its **Contacts** section.
+- **Contacts** — the **person.2** icon at the top right of the Today panel (or **View → Contacts**, ⌘8). Drag a contact card from macOS Contacts or Outlook into the capture panel (or paste a vCard): it creates a follow-up task and offers to add the person to Contacts. The card has an **Add to Contacts** switch, an optional group, and duplicate resolution — **Merge**, **Use existing**, or **Keep new**. Create contacts and groups, search, import from macOS Contacts (**Sync Contacts**), or import Outlook/other address books exported as vCard/CSV. The import sheet filters by text and by “must have email/phone”; matching emails and phones are merged automatically. The Contacts window opens beside the Today panel and shrinks to 580×420, with a compact header and a stacked detail header at narrow widths. **Duplicates** reviews shared emails/phones and offers auto-merge or merge-into a chosen contact. Open a task to link any number of contacts under its **Contacts** section: click **Add Contact** to pick an existing person, or type a name/email/phone there to create and link one immediately. Matching email/phone reuses the existing contact instead of duplicating it.
 - **Microsoft Teams** — drag a chat message, a rich-text chat card, or a Teams link into the Today panel or a tray window. Teams chat text is read from plain text, HTML, or RTF; the first message line becomes the title, the sender is kept, and the full chat is attached as preview text. Works with Teams desktop and Teams web.
 - **Jira** — drag a ticket from the Jira web board or issue page into the Today panel, a tray, or the capture sheet. The issue key (`ABC-123`) and summary become the task title, the Jira URL is attached, and the key/project/summary are stored as metadata. Works with Jira Cloud and self-hosted Jira URLs that use `/browse/KEY-123` or `?selectedIssue=KEY-123`; multi-line and HTML drag payloads are handled.
 - **Projects** — click the **folder+** icon in the Today header to create a top-level project. Projects group tasks, appear in the project filter and Hierarchy, and never count as Today tasks or progress. In Hierarchy, right-click an epic to add a project beneath it.
@@ -105,7 +105,7 @@ visible at the bottom of the task detail window.
 Distribution status:
 
 - Developer ID signing, hardened runtime, and **notarization + stapling** are done for
-  the 1.7.10 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
+  the 1.8.0 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
 - Broader XCUITest coverage (drag/drop, trays, calendar, focus) and the NFR-01…05
   performance gates remain follow-ups.
 - Live Markdown rendering and pasted-image attachments inside the detail description.

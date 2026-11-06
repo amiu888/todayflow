@@ -36,8 +36,11 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             for window in windows.values {
                 applyDesktopBehavior(to: window)
             }
+            onShowOnAllDesktopsChanged?(showOnAllDesktops)
         }
     }
+    /// Lets the app menu keep its checkmark in sync with the header anchor.
+    public var onShowOnAllDesktopsChanged: ((Bool) -> Void)?
 
     private static let desktopsKey = "todayflow.allDesktops"
 
@@ -417,7 +420,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private func applyDesktopBehavior(to window: NSWindow) {
         if showOnAllDesktops {
             window.collectionBehavior.insert(.canJoinAllSpaces)
-        } else if !(window is PanelWindow) {
+        } else {
             window.collectionBehavior.remove(.canJoinAllSpaces)
         }
     }

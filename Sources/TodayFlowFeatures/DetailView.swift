@@ -34,6 +34,9 @@ public struct DetailView: View {
     @State private var newTag = ""
     @State private var showingContactPicker = false
     @State private var contactSearch = ""
+    @State private var newContactName = ""
+    @State private var newContactEmail = ""
+    @State private var newContactPhone = ""
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -284,13 +287,17 @@ public struct DetailView: View {
                 Spacer()
                 Button {
                     contactSearch = ""
+                    newContactName = ""
+                    newContactEmail = ""
+                    newContactPhone = ""
                     showingContactPicker = true
                 } label: {
-                    Label("Add", systemImage: "plus")
-                        .font(.caption)
+                    Label("Add Contact", systemImage: "person.badge.plus")
+                        .font(.caption.weight(.semibold))
                 }
-                .buttonStyle(.plain)
-                .help("Link a contact to this task")
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Add or create a contact for this task")
                 .accessibilityIdentifier("task-contacts-add")
                 .popover(isPresented: $showingContactPicker, arrowEdge: .bottom) {
                     contactPicker
@@ -298,9 +305,18 @@ public struct DetailView: View {
             }
 
             if model.contacts.isEmpty {
-                Text("No contacts linked.")
-                    .font(.caption)
-                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                HStack(spacing: 6) {
+                    Text("No contacts linked.")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                    Button("Add Contact") {
+                        contactSearch = ""
+                        showingContactPicker = true
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.accent)
+                }
             } else {
                 ForEach(model.contacts) { contact in
                     HStack(spacing: 8) {
@@ -371,11 +387,54 @@ public struct DetailView: View {
                         }
                     }
                 }
-                .frame(maxHeight: 220)
+                .frame(maxHeight: 200)
             }
+
+            Divider()
+
+            Text("Create and link a new contact")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+
+            TextField("Name", text: $newContactName)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("task-new-contact-name")
+            TextField("Email", text: $newContactEmail)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("task-new-contact-email")
+            TextField("Phone", text: $newContactPhone)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("task-new-contact-phone")
+
+            Button {
+                let name = newContactName
+                let email = newContactEmail
+                let phone = newContactPhone
+                Task {
+                    await model.createAndLinkContact(
+                        firstName: name,
+                        email: email,
+                        phone: phone
+                    )
+                    newContactName = ""
+                    newContactEmail = ""
+                    newContactPhone = ""
+                    showingContactPicker = false
+                }
+            } label: {
+                Label("Create and Add", systemImage: "person.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(
+                newContactName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && newContactEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && newContactPhone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
+            .accessibilityIdentifier("task-new-contact-create")
         }
         .padding(12)
-        .frame(width: 280)
+        .frame(width: 300)
     }
 
     private var contactCandidates: [Contact] {

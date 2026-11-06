@@ -57,6 +57,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             windowManager.onOpenAISetup = { [weak self] in
                 self?.aiSetup?.present(force: true)
             }
+            windowManager.onShowOnAllDesktopsChanged = { [weak self] value in
+                self?.allDesktopsMenuItem?.state = value ? .on : .off
+            }
             let controller = StatusItemController(
                 environment: environment,
                 windowManager: windowManager,

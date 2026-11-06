@@ -356,6 +356,60 @@ public final class DetailViewModel {
         }
     }
 
+    /// Creates a contact from the task detail (or links an existing one with
+    /// the same email/phone) and immediately associates it with this task.
+    @discardableResult
+    public func createAndLinkContact(
+        firstName: String,
+        lastName: String = "",
+        email: String = "",
+        phone: String = ""
+    ) async -> Contact? {
+        guard let item, let contactRepository else { return nil }
+        let first = firstName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = lastName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let number = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !first.isEmpty || !last.isEmpty || !mail.isEmpty || !number.isEmpty
+        else { return nil }
+
+        do {
+            let existing = await contactRepository.contacts()
+            let emailKey = mail.lowercased()
+            let phoneKey = number.filter(\.isNumber)
+            if let match = existing.first(where: { candidate in
+                (!emailKey.isEmpty && candidate.canonicalEmails.contains(emailKey))
+                    || (!phoneKey.isEmpty
+                        && candidate.canonicalPhones.contains(phoneKey))
+            }) {
+                try await contactRepository.addContact(match.id, toTask: item.id)
+                contacts = await contactRepository.contacts(forTask: item.id)
+                allContacts = await contactRepository.contacts()
+                return match
+            }
+
+            let now = clock()
+            let contact = Contact(
+                firstName: first,
+                lastName: last,
+                emails: mail.isEmpty ? [] : [mail],
+                phones: number.isEmpty ? [] : [number],
+                source: "manual",
+                createdAt: now,
+                updatedAt: now,
+                deviceId: deviceId
+            )
+            try await contactRepository.save(contact)
+            try await contactRepository.addContact(contact.id, toTask: item.id)
+            contacts = await contactRepository.contacts(forTask: item.id)
+            allContacts = await contactRepository.contacts()
+            return contact
+        } catch {
+            lastError = error.localizedDescription
+            return nil
+        }
+    }
+
     public func removeContact(_ contactId: UUIDv7) async {
         guard let item, let contactRepository else { return }
         do {

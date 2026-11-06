@@ -33,6 +33,20 @@ struct WindowManagerTests {
     }
 
     @Test @MainActor
+    func panelRespectsTheDesktopAnchor() throws {
+        let manager = WindowManager(environment: makeEnvironment())
+        manager.show(.panel)
+        let panel = try #require(manager.window(for: .panel))
+        #expect(!panel.collectionBehavior.contains(.canJoinAllSpaces))
+
+        manager.showOnAllDesktops = true
+        #expect(panel.collectionBehavior.contains(.canJoinAllSpaces))
+
+        manager.showOnAllDesktops = false
+        #expect(!panel.collectionBehavior.contains(.canJoinAllSpaces))
+    }
+
+    @Test @MainActor
     func contacts_opensBesideThePanel() {
         let manager = WindowManager(environment: makeEnvironment())
         manager.show(.panel)
