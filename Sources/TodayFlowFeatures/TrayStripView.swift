@@ -15,6 +15,8 @@ public struct TrayStripView: View {
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
     private let isCompact: Bool
     private let onOpenWorkflows: (@MainActor () -> Void)?
+    private let isCollapsed: Bool
+    private let onToggleCollapsed: (@MainActor () -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var isAddingTray = false
@@ -29,18 +31,39 @@ public struct TrayStripView: View {
         model: TodayViewModel,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         isCompact: Bool = false,
-        onOpenWorkflows: (@MainActor () -> Void)? = nil
+        onOpenWorkflows: (@MainActor () -> Void)? = nil,
+        isCollapsed: Bool = false,
+        onToggleCollapsed: (@MainActor () -> Void)? = nil
     ) {
         self.model = model
         self.onOpenTray = onOpenTray
         self.isCompact = isCompact
         self.onOpenWorkflows = onOpenWorkflows
+        self.isCollapsed = isCollapsed
+        self.onToggleCollapsed = onToggleCollapsed
     }
 
     @MainActor
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 6) {
+                if let onToggleCollapsed {
+                    Button {
+                        onToggleCollapsed()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(DesignTokens.Palette.textSecondary)
+                            .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                            .frame(width: 14, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(isCollapsed ? "Show working trays" : "Hide working trays")
+                    .accessibilityLabel(isCollapsed ? "Show working trays" : "Hide working trays")
+                    .accessibilityIdentifier("toggle-trays")
+                }
+
                 Text("Working trays")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
@@ -80,21 +103,24 @@ public struct TrayStripView: View {
             }
             .padding(.horizontal, 12)
 
-            LazyVGrid(
-                columns: isCompact
-                    ? [GridItem(.flexible(), spacing: 8)]
-                    : [GridItem(.adaptive(minimum: 120), spacing: 8)],
-                alignment: .leading,
-                spacing: 8
-            ) {
-                ForEach(model.trayColumns) { column in
-                    trayCard(column)
-                }
+            if !isCollapsed {
+                LazyVGrid(
+                    columns: isCompact
+                        ? [GridItem(.flexible(), spacing: 8)]
+                        : [GridItem(.adaptive(minimum: 120), spacing: 8)],
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    ForEach(model.trayColumns) { column in
+                        trayCard(column)
+                    }
 
-                addTrayCard
+                    addTrayCard
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 2)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 2)
         }
         .alert("New working tray", isPresented: $isAddingTray) {
             TextField("Tray name", text: $newTrayName)

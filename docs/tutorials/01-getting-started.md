@@ -41,6 +41,20 @@ The **anchor** button is on by default. Today stays on the current virtual deskt
 
 ![Narrow Today panel](images/today-panel-narrow.png)
 
+### Collapsing sections
+
+Every section has a chevron in its header. Click it to fold that section; click again to reopen it. The week strip has a small chevron at the right of the progress row.
+
+As you make the panel shorter, sections fold automatically from the bottom up:
+
+1. **Done today**
+2. **Tomorrow & upcoming**
+3. **Working trays**
+4. **The week strip**
+5. **Overdue**
+
+The open **Today** list stays visible. Opening a folded section with its chevron keeps it open, even at a small height; the panel scrolls if needed.
+
 ## 6. Find the tutorials again
 
-Open **Help → Tutorial Index on GitHub** in the app menu. The **Help** menu also links directly to this guide, Contacts, Jira, Local AI, and the video walkthrough.
+Open **TodayFlow → Watch Video Walkthrough** for the bundled video, or **Help → Watch Tutorial Video**. **Help → Tutorial Index on GitHub** opens the written guides; the **Help** menu also links directly to this guide, Contacts, Jira, and Local AI.

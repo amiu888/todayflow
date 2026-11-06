@@ -50,6 +50,9 @@ public struct TodayView: View {
     @State private var dockEdge = "left"
     @State private var localDockedName: String?
     @State private var isCompact = false
+    @State private var panelHeight: CGFloat = DesignTokens.Window.panel.height
+    @State private var collapsedSections: Set<TodayPanelSection> = [.done]
+    @State private var manuallyExpandedSections: Set<TodayPanelSection> = []
     @State private var showingNewProject = false
     @State private var newProjectName = ""
 
@@ -186,9 +189,13 @@ public struct TodayView: View {
                 .frame(width: proxy.size.width, height: proxy.size.height)
                 .onAppear {
                     isCompact = proxy.size.width < 360
+                    panelHeight = proxy.size.height
                 }
                 .onChange(of: proxy.size.width) { _, width in
                     isCompact = width < 360
+                }
+                .onChange(of: proxy.size.height) { _, height in
+                    panelHeight = height
                 }
         }
     }
@@ -287,9 +294,45 @@ public struct TodayView: View {
             model: model,
             onOpenTray: onOpenTray,
             isCompact: isCompact,
-            onOpenWorkflows: onOpenWorkflows
+            onOpenWorkflows: onOpenWorkflows,
+            isCollapsed: isCollapsed(.trays),
+            onToggleCollapsed: { toggleSection(.trays) }
         )
         .padding(.top, 2)
+    }
+
+    // MARK: - Collapsible sections
+
+    /// The sections folded by the current height, minus anything the user
+    /// explicitly reopened. The open-task list is never folded automatically.
+    @MainActor
+    private var autoCollapsedSections: Set<TodayPanelSection> {
+        var sections = TodaySectionCollapsePolicy.autoCollapsed(
+            forHeight: panelHeight,
+            hasDone: !model.visibleDoneRows.isEmpty,
+            hasUpcoming: !model.upcomingRows.isEmpty,
+            hasOverdue: !model.visibleOverdueRows.isEmpty
+        )
+        sections.subtract(manuallyExpandedSections)
+        return sections
+    }
+
+    @MainActor
+    private func isCollapsed(_ section: TodayPanelSection) -> Bool {
+        collapsedSections.contains(section) || autoCollapsedSections.contains(section)
+    }
+
+    @MainActor
+    private func toggleSection(_ section: TodayPanelSection) {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if isCollapsed(section) {
+                collapsedSections.remove(section)
+                manuallyExpandedSections.insert(section)
+            } else {
+                manuallyExpandedSections.remove(section)
+                collapsedSections.insert(section)
+            }
+        }
     }
 
     @MainActor
@@ -343,19 +386,24 @@ public struct TodayView: View {
     @MainActor
     private var dayStatusCard: some View {
         VStack(spacing: 0) {
-            if isCompact {
-                verticalWeekStrip
-            } else {
-                weekStrip
-                    .padding(.horizontal, 3)
-                    .padding(.vertical, 3)
+            if !isCollapsed(.week) {
+                if isCompact {
+                    verticalWeekStrip
+                } else {
+                    weekStrip
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 3)
+                }
+
+                Divider()
+                    .overlay(DesignTokens.Palette.hairline.opacity(0.7))
             }
 
-            Divider()
-                .overlay(DesignTokens.Palette.hairline.opacity(0.7))
-
             if model.isViewingToday {
-                ProgressHeaderView(progress: model.progress, motion: motion)
+                HStack(spacing: 0) {
+                    ProgressHeaderView(progress: model.progress, motion: motion)
+                    weekToggleButton
+                }
             } else {
                 futureDaySummary
             }
@@ -593,30 +641,50 @@ public struct TodayView: View {
 
                 LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap) {
                 if !model.visibleOverdueRows.isEmpty {
-                    sectionHeader("Overdue", count: model.visibleOverdueRows.count, tint: Color(hex: "#d03b3b"))
+                    sectionHeader(
+                        "Overdue",
+                        count: model.visibleOverdueRows.count,
+                        tint: Color(hex: "#d03b3b"),
+                        section: .overdue
+                    )
 
-                    ForEach(model.visibleOverdueRows) { row in
-                        rowView(row)
+                    if !isCollapsed(.overdue) {
+                        ForEach(model.visibleOverdueRows) { row in
+                            rowView(row)
+                        }
                     }
                 }
 
                 if !model.visibleOpenRows.isEmpty {
-                    sectionHeader("Today", count: model.visibleOpenRows.count, tint: .primary)
+                    sectionHeader(
+                        "Today",
+                        count: model.visibleOpenRows.count,
+                        tint: DesignTokens.Palette.textPrimary,
+                        section: .today
+                    )
 
-                    ForEach(model.visibleOpenRows) { row in
-                        rowView(row)
+                    if !isCollapsed(.today) {
+                        ForEach(model.visibleOpenRows) { row in
+                            rowView(row)
+                        }
                     }
                 }
 
                 if !model.visibleDoneRows.isEmpty {
-                    DisclosureGroup {
+                    sectionHeader(
+                        "Done today",
+                        count: model.visibleDoneRows.count,
+                        tint: DesignTokens.Palette.textSecondary,
+                        section: .done
+                    )
+
+                    if !isCollapsed(.done) {
                         VStack(spacing: 0) {
                             ForEach(model.visibleDoneRows) { row in
                                 rowView(row)
                             }
                         }
-                    } label: {
-                        sectionHeader("Done today", count: model.visibleDoneRows.count, tint: .secondary)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
 
@@ -750,6 +818,24 @@ public struct TodayView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(DesignTokens.Palette.textSecondary)
         }
+    }
+
+    @MainActor
+    private var weekToggleButton: some View {
+        Button {
+            toggleSection(.week)
+        } label: {
+            Image(systemName: isCollapsed(.week) ? "chevron.down" : "chevron.up")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 4)
+        .help(isCollapsed(.week) ? "Show the week" : "Hide the week")
+        .accessibilityLabel(isCollapsed(.week) ? "Show week" : "Hide week")
+        .accessibilityIdentifier("toggle-week")
     }
 
     @MainActor
@@ -1243,35 +1329,75 @@ public struct TodayView: View {
     }
 
     @MainActor
-    private func sectionHeader(_ title: String, count: Int, tint: Color) -> some View {
+    private func sectionHeader(
+        _ title: String,
+        count: Int,
+        tint: Color,
+        section: TodayPanelSection
+    ) -> some View {
         HStack(spacing: 6) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-
-            Text("\(count)")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+            sectionTitleButton(
+                title,
+                count: count,
+                tint: tint,
+                section: section
+            )
 
             Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
         .padding(.bottom, 3)
-        .accessibilityElement(children: .combine)
+    }
+
+    @MainActor
+    private func sectionTitleButton(
+        _ title: String,
+        count: Int,
+        tint: Color,
+        section: TodayPanelSection
+    ) -> some View {
+        let collapsed = isCollapsed(section)
+
+        return Button {
+            toggleSection(section)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                    .rotationEffect(.degrees(collapsed ? 0 : 90))
+                    .frame(width: 10)
+
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(tint)
+
+                Text("\(count)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(collapsed ? "Show \(title)" : "Hide \(title)")
+        .accessibilityLabel("\(title), \(count) tasks")
+        .accessibilityValue(collapsed ? "Collapsed" : "Expanded")
+        .accessibilityHint(collapsed ? "Expand section" : "Collapse section")
+        .accessibilityIdentifier("toggle-\(section.rawValue)")
+        .animation(.easeInOut(duration: 0.15), value: collapsed)
     }
 
     @MainActor
     private var upcomingSection: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Text("Tomorrow & upcoming")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Text("\(model.upcomingRows.count)")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                sectionTitleButton(
+                    "Tomorrow & upcoming",
+                    count: model.upcomingRows.count,
+                    tint: DesignTokens.Palette.textSecondary,
+                    section: .upcoming
+                )
 
                 Spacer()
 
@@ -1288,8 +1414,11 @@ public struct TodayView: View {
             .padding(.top, 10)
             .padding(.bottom, 3)
 
-            ForEach(model.upcomingRows) { row in
-                upcomingRow(row)
+            if !isCollapsed(.upcoming) {
+                ForEach(model.upcomingRows) { row in
+                    upcomingRow(row)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
