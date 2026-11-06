@@ -21,6 +21,9 @@ public final class SettingsViewModel {
     /// is what computes default end dates.
     public var calendarSettings = WorkCalendarSettings()
 
+    /// Optional Obsidian bridge (off by default).
+    public var obsidianSettings = ObsidianSettings()
+
     /// AI endpoint (off by default).
     public var aiSettings = AIEndpointSettings() {
         didSet {
@@ -95,6 +98,7 @@ public final class SettingsViewModel {
 
         calendarSettings = Self.calendarSettings(from: await repository.value(for: SettingKeys.workCalendar))
         aiSettings = Self.aiSettings(from: await repository.value(for: SettingKeys.aiEndpoint))
+        obsidianSettings = Self.obsidianSettings(from: await repository.value(for: SettingKeys.obsidian))
         await applyKeychainKey()
     }
 
@@ -138,6 +142,10 @@ public final class SettingsViewModel {
                 try Self.encode(stored),
                 for: SettingKeys.aiEndpoint
             )
+            try await repository.set(
+                try Self.encode(obsidianSettings),
+                for: SettingKeys.obsidian
+            )
         } catch {
             lastError = error.localizedDescription
         }
@@ -166,6 +174,7 @@ public final class SettingsViewModel {
         isApplying = true
         calendarSettings = WorkCalendarSettings()
         aiSettings = AIEndpointSettings()
+        obsidianSettings = ObsidianSettings()
         isApplying = false
         await save()
     }
@@ -177,6 +186,15 @@ public final class SettingsViewModel {
               let decoded = try? JSONDecoder().decode(WorkCalendarSettings.self, from: Data(value.utf8))
         else {
             return WorkCalendarSettings()
+        }
+        return decoded
+    }
+
+    private static func obsidianSettings(from value: String?) -> ObsidianSettings {
+        guard let value,
+              let decoded = try? JSONDecoder().decode(ObsidianSettings.self, from: Data(value.utf8))
+        else {
+            return ObsidianSettings()
         }
         return decoded
     }

@@ -17,6 +17,10 @@ struct TagNameTests {
         #expect(tags[0].count == TagName.maximumLength)
     }
 
+    @Test func turnsWhitespaceIntoPortableHyphens() {
+        #expect(TagName.normalize(["Client A"]) == ["Client-A"])
+    }
+
     @Test func capsTheNumberOfTags() {
         let many = (1...20).map { "tag\($0)" }
         #expect(TagName.normalize(many).count == TagName.maximumCount)

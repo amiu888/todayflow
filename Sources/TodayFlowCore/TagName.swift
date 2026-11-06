@@ -21,7 +21,14 @@ public enum TagName {
         for tag in tags {
             let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            let clipped = String(trimmed.prefix(maximumLength))
+            // Obsidian tags cannot contain spaces; keep the model portable by
+            // storing the same hyphenated form the editor shows.
+            let portable = trimmed.replacingOccurrences(
+                of: "\\s+",
+                with: "-",
+                options: .regularExpression
+            )
+            let clipped = String(portable.prefix(maximumLength))
             let key = clipped.lowercased()
             guard seen.insert(key).inserted else { continue }
             result.append(clipped)

@@ -320,6 +320,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         let workflowGuide = item("Tray Workflows", #selector(openTutorialMenu(_:)), key: "")
         workflowGuide.representedObject = TutorialLinks.workflows
         helpMenu.addItem(workflowGuide)
+        let obsidianGuide = item("Obsidian Sync", #selector(openTutorialMenu(_:)), key: "")
+        obsidianGuide.representedObject = TutorialLinks.obsidian
+        helpMenu.addItem(obsidianGuide)
         helpMenu.addItem(.separator())
         let videoGuide = item("Video Walkthrough on GitHub", #selector(openTutorialMenu(_:)), key: "")
         videoGuide.representedObject = TutorialLinks.video

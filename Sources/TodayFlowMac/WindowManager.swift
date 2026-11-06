@@ -24,6 +24,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private let trayWindows: TrayWindowController
     /// Shared contacts window model.
     public let contactsModel: ContactsViewModel
+    /// Optional two-way Obsidian bridge. Inert until Settings configures it.
+    public let obsidian: ObsidianSyncController
     private let contactsImporter = ContactsImporter()
     /// Opens the optional first-run AI setup from Settings or the app menu.
     public var onOpenAISetup: (@MainActor @Sendable () -> Void)?
@@ -70,9 +72,15 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             repository: environment.contacts,
             workItems: environment.workItems
         )
+        self.obsidian = ObsidianSyncController(
+            workItems: environment.workItems,
+            settings: environment.settings,
+            calendar: environment.workCalendar
+        )
         self.showOnAllDesktops = UserDefaults.standard.object(forKey: Self.desktopsKey) as? Bool ?? false
         super.init()
         self.todayModel.startWorkflowPolling()
+        self.obsidian.start()
         self.todayModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
         self.todayModel.onFocusTask = { [weak self] id in self?.presentFocus(id) }
         self.contactsModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
@@ -587,6 +595,49 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         }
     }
 
+    private func syncObsidianNow() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let error = await self.obsidian.syncNow() {
+                self.presentObsidianError(error)
+            }
+        }
+    }
+
+    private func openObsidianSyncNote() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let error = await self.obsidian.openSyncNote() {
+                self.presentObsidianError(error)
+            }
+        }
+    }
+
+    private func openObsidianNote(for item: WorkItem) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let error = await self.obsidian.openNote(for: item) {
+                self.presentObsidianError(error)
+            }
+        }
+    }
+
+    private func presentObsidianError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Obsidian"
+        alert.informativeText = message
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        if message.contains("Set up Obsidian") {
+            alert.addButton(withTitle: "Open Settings…")
+            if alert.runModal() == .alertSecondButtonReturn {
+                show(.settings)
+            }
+        } else {
+            alert.runModal()
+        }
+    }
+
     @ViewBuilder
     private func content(for kind: WindowKind) -> some View {
         switch kind {
@@ -628,7 +679,13 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 calendar: environment.workCalendar.calendar,
                 modelCatalog: environment.ai,
                 onOpenAISetup: onOpenAISetup,
-                onWatchTutorial: { [weak self] in self?.show(.tutorial) }
+                onWatchTutorial: { [weak self] in self?.show(.tutorial) },
+                onObsidianSyncNow: { [weak self] in
+                    self?.syncObsidianNow()
+                },
+                onObsidianOpenNote: { [weak self] in
+                    self?.openObsidianSyncNote()
+                }
             )
         case .workflows:
             WorkflowEditorView(
@@ -689,6 +746,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 onRevealAttachment: { actions.reveal($0) },
                 onDropAttachment: { [weak self] providers in
                     self?.handleDrop(providers, onto: id) ?? false
+                },
+                onOpenInObsidian: { [weak self] item in
+                    self?.openObsidianNote(for: item)
                 }
             )
         }

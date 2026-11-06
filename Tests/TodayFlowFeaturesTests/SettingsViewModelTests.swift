@@ -70,6 +70,21 @@ struct SettingsViewModelTests {
     }
 
     @Test @MainActor
+    func load_readsStoredObsidianSettings() async throws {
+        let f = Fixture()
+        let stored = ObsidianSettings(
+            enabled: true,
+            vaultPath: "/Users/me/Vault",
+            vaultName: "Vault",
+            notePath: "TodayFlow/Tasks.md"
+        )
+        try await f.repository.set(try encodeJSON(stored), for: SettingKeys.obsidian)
+        await f.vm.load()
+
+        #expect(f.vm.obsidianSettings == stored)
+    }
+
+    @Test @MainActor
     func load_readsStoredValues() async throws {
         let f = Fixture()
         let storedCalendar = WorkCalendarSettings(startHour: 8, endHour: 16, workWeekdays: [2, 3, 4])
@@ -98,6 +113,24 @@ struct SettingsViewModelTests {
 
         #expect(f.vm.calendarSettings == WorkCalendarSettings())
         #expect(f.vm.aiSettings == AIEndpointSettings())
+    }
+
+    @Test @MainActor
+    func save_persistsObsidianSettings() async throws {
+        let f = Fixture()
+        await f.vm.load()
+        f.vm.obsidianSettings = ObsidianSettings(
+            enabled: true,
+            vaultPath: "/Users/me/Vault",
+            vaultName: "Vault",
+            notePath: "Notes/TodayFlow.md"
+        )
+
+        await f.vm.save()
+
+        let raw = try #require(await f.repository.value(for: SettingKeys.obsidian))
+        let stored = try decodeJSON(ObsidianSettings.self, from: raw)
+        #expect(stored == f.vm.obsidianSettings)
     }
 
     // MARK: save

@@ -20,6 +20,7 @@ public struct DetailView: View {
     private let defaultApplicationName: (@MainActor (Attachment) -> String?)?
     private let onQuickLookAttachment: (@MainActor (Attachment) -> Void)?
     private let onRevealAttachment: (@MainActor (Attachment) -> Void)?
+    private let onOpenInObsidian: (@MainActor (WorkItem) -> Void)?
     #if canImport(AppKit)
     private let onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)?
     #endif
@@ -56,7 +57,8 @@ public struct DetailView: View {
         defaultApplicationName: (@MainActor (Attachment) -> String?)? = nil,
         onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil,
-        onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil
+        onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
+        onOpenInObsidian: (@MainActor (WorkItem) -> Void)? = nil
     ) {
         self.model = model
         self.onOpenAttachment = onOpenAttachment
@@ -64,6 +66,7 @@ public struct DetailView: View {
         self.defaultApplicationName = defaultApplicationName
         self.onQuickLookAttachment = onQuickLookAttachment
         self.onRevealAttachment = onRevealAttachment
+        self.onOpenInObsidian = onOpenInObsidian
         #if canImport(AppKit)
         self.onDropAttachment = onDropAttachment
         #endif
@@ -83,7 +86,8 @@ public struct DetailView: View {
         defaultApplicationName: (@MainActor (Attachment) -> String?)? = nil,
         onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil,
-        onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil
+        onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
+        onOpenInObsidian: (@MainActor (WorkItem) -> Void)? = nil
     ) {
         self.model = DetailViewModel(
             itemId: itemId,
@@ -97,6 +101,7 @@ public struct DetailView: View {
         self.defaultApplicationName = defaultApplicationName
         self.onQuickLookAttachment = onQuickLookAttachment
         self.onRevealAttachment = onRevealAttachment
+        self.onOpenInObsidian = onOpenInObsidian
         #if canImport(AppKit)
         self.onDropAttachment = onDropAttachment
         #endif
@@ -610,7 +615,19 @@ public struct DetailView: View {
                 }
                 .help("Type a tag and press Return")
 
-            Spacer()
+            if let onOpenInObsidian {
+                Spacer(minLength: 8)
+                Button {
+                    onOpenInObsidian(item)
+                } label: {
+                    Label("Obsidian", systemImage: "arrow.up.forward.app")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(DesignTokens.Palette.accent)
+                .help("Open or create a note for this \(item.kind.label.lowercased()) in Obsidian")
+                .accessibilityLabel("Open in Obsidian")
+            }
         }
     }
 

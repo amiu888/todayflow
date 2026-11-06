@@ -1,6 +1,9 @@
 import SwiftUI
 import TodayFlowCore
 import TodayFlowDesign
+#if canImport(AppKit)
+import AppKit
+#endif
 #if canImport(FoundationModels)
 import FoundationModels
 #endif
@@ -11,15 +14,21 @@ public struct SettingsView: View {
     public let model: SettingsViewModel
     private let onOpenAISetup: (@MainActor @Sendable () -> Void)?
     private let onWatchTutorial: (@MainActor @Sendable () -> Void)?
+    private let onObsidianSyncNow: (@MainActor @Sendable () -> Void)?
+    private let onObsidianOpenNote: (@MainActor @Sendable () -> Void)?
 
     public init(
         model: SettingsViewModel,
         onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil,
-        onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil
+        onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil,
+        onObsidianSyncNow: (@MainActor @Sendable () -> Void)? = nil,
+        onObsidianOpenNote: (@MainActor @Sendable () -> Void)? = nil
     ) {
         self.model = model
         self.onOpenAISetup = onOpenAISetup
         self.onWatchTutorial = onWatchTutorial
+        self.onObsidianSyncNow = onObsidianSyncNow
+        self.onObsidianOpenNote = onObsidianOpenNote
     }
 
     /// For hosts that only know the repositories (used by the 6-Mac app layer).
@@ -30,7 +39,9 @@ public struct SettingsView: View {
         calendar: Calendar = .current,
         modelCatalog: (any AIModelCatalog)? = nil,
         onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil,
-        onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil
+        onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil,
+        onObsidianSyncNow: (@MainActor @Sendable () -> Void)? = nil,
+        onObsidianOpenNote: (@MainActor @Sendable () -> Void)? = nil
     ) {
         model = SettingsViewModel(
             repository: repository,
@@ -40,6 +51,8 @@ public struct SettingsView: View {
         )
         self.onOpenAISetup = onOpenAISetup
         self.onWatchTutorial = onWatchTutorial
+        self.onObsidianSyncNow = onObsidianSyncNow
+        self.onObsidianOpenNote = onObsidianOpenNote
     }
 
     @MainActor
@@ -66,6 +79,63 @@ public struct SettingsView: View {
                 ForEach(1...7, id: \.self) { weekday in
                     Toggle(Self.weekdayName(weekday), isOn: weekdayBinding(weekday))
                 }
+            }
+
+            Section("Obsidian") {
+                Toggle("Sync with Obsidian", isOn: $model.obsidianSettings.enabled)
+
+                HStack(spacing: 8) {
+                    Text(
+                        model.obsidianSettings.vaultPath.isEmpty
+                            ? "No vault selected"
+                            : model.obsidianSettings.vaultPath
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                    Spacer()
+
+                    Button("Choose Vault…") {
+                        chooseObsidianVault()
+                    }
+                }
+
+                TextField("Vault name", text: $model.obsidianSettings.vaultName)
+                Text("Vault name is used for obsidian:// links; it is usually the folder name.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                TextField("Note path", text: $model.obsidianSettings.notePath)
+                Text("The note path is relative to the vault, for example TodayFlow/Tasks.md.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 10) {
+                    Button("Sync now") {
+                        Task { @MainActor in
+                            await model.save()
+                            onObsidianSyncNow?()
+                        }
+                    }
+                    .disabled(model.isSaving)
+
+                    Button("Open sync note") {
+                        Task { @MainActor in
+                            await model.save()
+                            onObsidianOpenNote?()
+                        }
+                    }
+                    .disabled(model.isSaving)
+                }
+
+                Text("Two-way sync for checkbox status, titles, tags, and due dates. New checklist lines become tasks. Everything outside TodayFlow's markers is left untouched. Disable this at any time; the rest of the app never depends on Obsidian.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Link("Obsidian guide", destination: TutorialLinks.obsidian)
             }
 
             Section("AI") {
@@ -234,6 +304,25 @@ public struct SettingsView: View {
         }
         #endif
         return false
+    }
+
+    private func chooseObsidianVault() {
+        #if canImport(AppKit)
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose Vault"
+        panel.message = "Choose your Obsidian vault folder."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        model.obsidianSettings.vaultPath = url.path
+        model.obsidianSettings.vaultName = url.lastPathComponent
+        if model.obsidianSettings.notePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            model.obsidianSettings.notePath = ObsidianSettings.defaultNotePath
+        }
+        model.obsidianSettings.enabled = true
+        #endif
     }
 
     private static func weekdayName(_ weekday: Int) -> String {

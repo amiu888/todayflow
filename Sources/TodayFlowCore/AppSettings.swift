@@ -15,6 +15,8 @@ public enum SettingKeys {
     public static let workTrays = "work_trays"
     /// The tray automation rules, encoded as `[TrayWorkflowRule]` JSON.
     public static let workflowRules = "workflow_rules"
+    /// Optional Obsidian vault and sync note, encoded as `ObsidianSettings`.
+    public static let obsidian = "obsidian"
 }
 
 /// The user's business hours (driver.md line 49: the WorkCalendar settings

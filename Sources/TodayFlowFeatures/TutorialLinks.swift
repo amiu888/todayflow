@@ -21,6 +21,9 @@ public enum TutorialLinks {
     public static let workflows = URL(
         string: "https://github.com/amiu888/todayflow/blob/main/docs/tutorials/05-workflows.md"
     )!
+    public static let obsidian = URL(
+        string: "https://github.com/amiu888/todayflow/blob/main/docs/tutorials/07-obsidian.md"
+    )!
     public static let video = URL(
         string: "https://github.com/amiu888/todayflow/blob/main/docs/tutorials/video/todayflow-overview.mp4"
     )!
