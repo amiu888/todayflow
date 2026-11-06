@@ -144,7 +144,7 @@ public struct SettingsView: View {
                     } label: {
                         Label("AI setup & local models…", systemImage: "sparkles")
                     }
-                    Text("Scans Ollama, LM Studio, llama.cpp/GPU Buddy, vLLM, text-generation-webui, and Jan on localhost. Also offers a 533 MB Qwen3.5 0.8B download; nothing is downloaded until you choose.")
+                    Text("Scans GPU Buddy/llama.cpp, Ollama, LM Studio, vLLM, text-generation-webui, and Jan on localhost. Also offers a 533 MB Qwen3.5 0.8B download; nothing is downloaded until you choose.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

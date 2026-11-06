@@ -73,6 +73,7 @@ public struct AIEndpointSettings: Codable, Hashable, Sendable {
     /// A provider preset; picking one fills in its base URL.
     public enum Provider: String, Codable, CaseIterable, Hashable, Sendable {
         case apple
+        case gpuBuddy = "gpu-buddy"
         case ollama
         case lmStudio = "lm-studio"
         case openai
@@ -81,6 +82,7 @@ public struct AIEndpointSettings: Codable, Hashable, Sendable {
         public var label: String {
             switch self {
             case .apple: return "Apple Intelligence"
+            case .gpuBuddy: return "GPU Buddy"
             case .ollama: return "Ollama"
             case .lmStudio: return "LM Studio"
             case .openai: return "OpenAI"
@@ -92,6 +94,7 @@ public struct AIEndpointSettings: Codable, Hashable, Sendable {
         public var defaultBaseURL: String {
             switch self {
             case .apple: return ""
+            case .gpuBuddy: return "http://127.0.0.1:8080/v1"
             case .ollama: return "http://localhost:11434/v1"
             case .lmStudio: return "http://localhost:1234/v1"
             case .openai: return "https://api.openai.com/v1"

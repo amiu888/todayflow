@@ -12,9 +12,9 @@ public final class LocalAIDiscovery: LocalAIDiscovering, @unchecked Sendable {
     }
 
     private static let endpoints: [Endpoint] = [
+        Endpoint(name: "GPU Buddy / llama.cpp", baseURL: URL(string: "http://127.0.0.1:8080/v1")!, provider: .gpuBuddy),
         Endpoint(name: "Ollama", baseURL: URL(string: "http://127.0.0.1:11434/v1")!, provider: .ollama),
         Endpoint(name: "LM Studio", baseURL: URL(string: "http://127.0.0.1:1234/v1")!, provider: .lmStudio),
-        Endpoint(name: "llama.cpp / GPU Buddy", baseURL: URL(string: "http://127.0.0.1:8080/v1")!, provider: .custom),
         Endpoint(name: "vLLM", baseURL: URL(string: "http://127.0.0.1:8000/v1")!, provider: .custom),
         Endpoint(name: "text-generation-webui", baseURL: URL(string: "http://127.0.0.1:5000/v1")!, provider: .custom),
         Endpoint(name: "Jan", baseURL: URL(string: "http://127.0.0.1:1337/v1")!, provider: .custom),

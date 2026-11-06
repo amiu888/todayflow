@@ -79,6 +79,7 @@ struct AIEndpointSettingsTests {
     }
 
     @Test func providerPresetBaseURLs() {
+        #expect(AIEndpointSettings.Provider.gpuBuddy.defaultBaseURL == "http://127.0.0.1:8080/v1")
         #expect(AIEndpointSettings.Provider.ollama.defaultBaseURL == "http://localhost:11434/v1")
         #expect(AIEndpointSettings.Provider.lmStudio.defaultBaseURL == "http://localhost:1234/v1")
         #expect(AIEndpointSettings.Provider.openai.defaultBaseURL == "https://api.openai.com/v1")

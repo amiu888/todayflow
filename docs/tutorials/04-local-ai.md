@@ -16,7 +16,7 @@ The setup window checks localhost ports for common OpenAI-compatible servers:
 | --- | ---: |
 | Ollama | 11434 |
 | LM Studio | 1234 |
-| llama.cpp / GPU Buddy | 8080 |
+| GPU Buddy / llama.cpp | 8080 |
 | vLLM | 8000 |
 | text-generation-webui | 5000 |
 | Jan | 1337 |
