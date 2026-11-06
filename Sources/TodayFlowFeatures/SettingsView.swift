@@ -142,11 +142,20 @@ public struct SettingsView: View {
                     Button {
                         onOpenAISetup()
                     } label: {
-                        Label("Set up a local model…", systemImage: "arrow.down.circle")
+                        Label("AI setup & local models…", systemImage: "sparkles")
                     }
-                    Text("Qwen3.5 0.8B · 533 MB download · ~1.5–2 GB memory while AI is running. Runs through Ollama; nothing is downloaded until you choose.")
+                    Text("Scans Ollama, LM Studio, llama.cpp/GPU Buddy, vLLM, text-generation-webui, and Jan on localhost. Also offers a 533 MB Qwen3.5 0.8B download; nothing is downloaded until you choose.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Help") {
+                Link(destination: TutorialLinks.index) {
+                    Label("Tutorials & guides on GitHub", systemImage: "book")
+                }
+                Link(destination: TutorialLinks.video) {
+                    Label("Watch the video walkthrough", systemImage: "play.rectangle")
                 }
             }
 

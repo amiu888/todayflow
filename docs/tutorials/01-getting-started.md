@@ -1,0 +1,42 @@
+# Getting started
+
+![Today panel](images/today-panel.png)
+
+## 1. Create a task
+
+- Press **⌘N** or **⌃⌥Space**, type a title, and press **Add task**.
+- Or drag almost anything onto the panel: a file, folder, URL, email, Teams message, image, or Jira ticket. TodayFlow opens the capture sheet with a suggested title.
+
+## 2. Work in trays
+
+Trays are named staging areas below the filter row.
+
+1. Click **New tray**, name it (“Now”, “Waiting”, “Client A”), and press **Create**.
+2. Drag a task row onto a tray, or right-click the row and choose **Add to tray**.
+3. Double-click a tray to open its full window.
+4. Drag a chip from one tray to another to move it.
+
+When a tray has more than three tasks, the tray column grows and scrolls with the panel at narrow widths.
+
+## 3. Create a project
+
+1. Click the **folder+** icon at the top right of Today.
+2. Name the project and press **Create**.
+3. The project appears in the project filter and in **Hierarchy**.
+4. To put a project under an epic, open **Hierarchy**, right-click the epic, and choose **Add project**.
+
+## 4. Keep Today on this desktop
+
+The **anchor** button is on by default. Today stays on the current virtual desktop when you switch Spaces. Click the anchor to show Today on every desktop instead; the **View → Show Windows on All Desktops** menu stays in sync.
+
+## 5. Squeeze the panel
+
+- The panel can be resized down to **280 points** wide.
+- Below 320 points it switches to a single-column layout: the week strip becomes a vertical day list, trays become full-width columns, and task metadata moves under the title.
+- Below 320 the interface is laid out at 320 and scaled into the window, so nothing is clipped on the left or right.
+
+![Narrow Today panel](images/today-panel-narrow.png)
+
+## 6. Find the tutorials again
+
+Open **Help → Tutorial Index on GitHub** in the app menu. The **Help** menu also links directly to this guide, Contacts, Jira, Local AI, and the video walkthrough.

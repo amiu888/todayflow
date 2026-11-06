@@ -26,13 +26,16 @@ public final class PanelWindow: NSPanel {
     static let isUITesting =
         ProcessInfo.processInfo.environment["TODAYFLOW_UI_TESTING"] == "1"
 
+    private let style: Style
+
     public init(contentRect: NSRect, style: Style) {
+        self.style = style
         let mask: NSWindow.StyleMask
         switch style {
         case .panel:
-            mask = Self.isUITesting
-                ? [.titled, .closable, .miniaturizable, .resizable]
-                : [.titled, .closable, .miniaturizable, .resizable, .nonactivatingPanel]
+            // The main panel activates TodayFlow when clicked, so the regular
+            // macOS menu bar (TodayFlow, File, Edit, View, Help) appears.
+            mask = [.titled, .closable, .miniaturizable, .resizable]
         case .slimBar, .capture:
             mask = Self.isUITesting ? [.borderless] : [.borderless, .nonactivatingPanel]
         }
@@ -66,6 +69,8 @@ public final class PanelWindow: NSPanel {
     /// A non-activating panel still needs to accept keyboard input for the
     /// capture field, the task rows, and the slim bar's tap target.
     public override var canBecomeKey: Bool { true }
-    public override var canBecomeMain: Bool { Self.isUITesting }
+    public override var canBecomeMain: Bool {
+        Self.isUITesting || style == .panel
+    }
 }
 #endif

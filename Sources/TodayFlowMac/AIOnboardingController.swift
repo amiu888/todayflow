@@ -62,7 +62,8 @@ public final class AIOnboardingController: NSObject, NSWindowDelegate {
             installer: OllamaModelManager(),
             settings: environment.settings,
             keychain: environment.keychain,
-            appleAvailable: Self.appleIntelligenceAvailable
+            appleAvailable: Self.appleIntelligenceAvailable,
+            discovering: LocalAIDiscovery()
         )
         model.onFinish = { [weak self] in self?.dismiss() }
         model.onOpenOllama = { [weak self] in self?.openOllama() }

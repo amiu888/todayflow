@@ -101,9 +101,44 @@ public protocol LocalModelInstaller: Sendable {
     func download(_ model: LocalAIModel) -> AsyncThrowingStream<LocalModelDownloadProgress, Error>
 }
 
-/// First-run AI setup: Apple Intelligence (0 MB), a tiny local model
-/// (533 MB through Ollama), or skip. Nothing is downloaded until the user
-/// explicitly chooses, and every option can be changed later in Settings.
+/// One local OpenAI-compatible server found during setup.
+public struct LocalAICandidate: Identifiable, Sendable, Hashable {
+    public let id: String
+    public let name: String
+    public let baseURL: URL
+    public let provider: AIEndpointSettings.Provider
+    public let models: [String]
+
+    public init(
+        id: String,
+        name: String,
+        baseURL: URL,
+        provider: AIEndpointSettings.Provider,
+        models: [String]
+    ) {
+        self.id = id
+        self.name = name
+        self.baseURL = baseURL
+        self.provider = provider
+        self.models = models
+    }
+}
+
+/// Scans well-known localhost ports for Ollama, LM Studio, llama.cpp, LocalAI,
+/// vLLM, and similar OpenAI-compatible servers.
+public protocol LocalAIDiscovering: Sendable {
+    func scan() async -> [LocalAICandidate]
+}
+
+public struct NoLocalAIDiscovery: LocalAIDiscovering {
+    public init() {}
+    public func scan() async -> [LocalAICandidate] { [] }
+}
+
+/// First-run AI setup: Apple Intelligence (0 MB), a detected local server, a
+/// tiny local model (533 MB through Ollama), or skip. Nothing is downloaded
+/// until the user explicitly chooses, and every option can be changed later
+/// in Settings.
 @MainActor
 @Observable
 public final class AIOnboardingViewModel {
@@ -128,6 +163,10 @@ public final class AIOnboardingViewModel {
     public private(set) var lastError: String?
     public private(set) var isApplying = false
     public private(set) var configuredOption: Option?
+    public private(set) var configuredModelName: String?
+    public private(set) var discovered: [LocalAICandidate] = []
+    public private(set) var selectedModels: [String: String] = [:]
+    public private(set) var isScanning = false
 
     /// Set by the host window: called after a successful setup or a skip.
     @ObservationIgnored public var onFinish: (@MainActor () -> Void)?
@@ -136,6 +175,7 @@ public final class AIOnboardingViewModel {
     @ObservationIgnored public var onGetOllama: (@MainActor () -> Void)?
 
     @ObservationIgnored private let installer: any LocalModelInstaller
+    @ObservationIgnored private let discovering: any LocalAIDiscovering
     @ObservationIgnored private let settings: any SettingRepository
     @ObservationIgnored private let keychain: any KeychainStore
     @ObservationIgnored private var downloadTask: Task<Void, Never>?
@@ -151,9 +191,11 @@ public final class AIOnboardingViewModel {
         settings: any SettingRepository,
         keychain: any KeychainStore,
         appleAvailable: Bool,
-        localModel: LocalAIModel = .tiny
+        localModel: LocalAIModel = .tiny,
+        discovering: any LocalAIDiscovering = NoLocalAIDiscovery()
     ) {
         self.installer = installer
+        self.discovering = discovering
         self.settings = settings
         self.keychain = keychain
         self.appleAvailable = appleAvailable
@@ -167,6 +209,48 @@ public final class AIOnboardingViewModel {
 
     public var isBusy: Bool {
         isApplying || isDownloading
+    }
+
+    /// Looks for local AI software on its common ports. Safe to call on every
+    /// setup window appearance and from the "Scan again" button.
+    public func scanLocalAI() async {
+        guard !isScanning else { return }
+        isScanning = true
+        defer { isScanning = false }
+        discovered = await discovering.scan()
+        for candidate in discovered where selectedModels[candidate.id] == nil {
+            selectedModels[candidate.id] = candidate.models.first
+        }
+    }
+
+    /// Configures the app to use an already-running local server and marks
+    /// setup complete. No download is performed.
+    public func selectModel(_ model: String, for candidate: LocalAICandidate) {
+        selectedModels[candidate.id] = model
+    }
+
+    public func useDiscovered(_ candidate: LocalAICandidate) async {
+        guard !isBusy else { return }
+        let model = selectedModels[candidate.id] ?? candidate.models.first ?? ""
+        guard !model.isEmpty else {
+            lastError = "Choose a model for \(candidate.name)."
+            return
+        }
+        isApplying = true
+        lastError = nil
+        defer { isApplying = false }
+        let saved = await save(
+            provider: candidate.provider,
+            baseURL: candidate.baseURL.absoluteString,
+            model: model,
+            features: AIFeatures.all,
+            timeout: 120
+        )
+        guard saved else { return }
+        configuredOption = .local
+        configuredModelName = "\(candidate.name) · \(model)"
+        downloadState = .completed
+        await markComplete()
     }
 
     /// Checks whether Ollama is reachable and whether the tiny model is
@@ -245,6 +329,7 @@ public final class AIOnboardingViewModel {
         )
         guard saved else { return }
         configuredOption = .apple
+        configuredModelName = "Apple Intelligence"
         await markComplete()
     }
 
@@ -337,6 +422,7 @@ public final class AIOnboardingViewModel {
         )
         guard saved else { return }
         configuredOption = .local
+        configuredModelName = localModel.displayName
         downloadState = .completed
         await markComplete()
     }

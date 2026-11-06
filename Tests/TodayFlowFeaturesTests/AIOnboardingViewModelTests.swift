@@ -34,6 +34,11 @@ private struct FakeError: Error, LocalizedError {
     var errorDescription: String? { message }
 }
 
+private struct FakeDiscovery: LocalAIDiscovering {
+    var candidates: [LocalAICandidate] = []
+    func scan() async -> [LocalAICandidate] { candidates }
+}
+
 @MainActor
 private struct Fixture {
     let settings = InMemorySettingRepository()
@@ -43,14 +48,16 @@ private struct Fixture {
 
     init(
         installer: FakeInstaller = FakeInstaller(),
-        appleAvailable: Bool = true
+        appleAvailable: Bool = true,
+        discovering: any LocalAIDiscovering = NoLocalAIDiscovery()
     ) {
         self.installer = installer
         self.model = AIOnboardingViewModel(
             installer: installer,
             settings: settings,
             keychain: keychain,
-            appleAvailable: appleAvailable
+            appleAvailable: appleAvailable,
+            discovering: discovering
         )
     }
 
@@ -190,6 +197,44 @@ struct AIOnboardingViewModelTests {
         #expect(fixture.model.configuredOption == nil)
         #expect(fixture.model.lastError == "network down")
         #expect(await fixture.storedSettings() == nil)
+    }
+
+    @Test func scanFindsLocalServersAndSelectsTheirFirstModel() async {
+        let candidate = LocalAICandidate(
+            id: "http://127.0.0.1:1234/v1",
+            name: "LM Studio",
+            baseURL: URL(string: "http://127.0.0.1:1234/v1")!,
+            provider: .lmStudio,
+            models: ["qwen3-8b", "llama-3.2-3b"]
+        )
+        let fixture = Fixture(discovering: FakeDiscovery(candidates: [candidate]))
+
+        await fixture.model.scanLocalAI()
+
+        #expect(fixture.model.discovered == [candidate])
+        #expect(fixture.model.selectedModels[candidate.id] == "qwen3-8b")
+    }
+
+    @Test func usingADetectedServerConfiguresTheProviderAndModel() async throws {
+        let candidate = LocalAICandidate(
+            id: "http://127.0.0.1:1234/v1",
+            name: "LM Studio",
+            baseURL: URL(string: "http://127.0.0.1:1234/v1")!,
+            provider: .lmStudio,
+            models: ["qwen3-8b"]
+        )
+        let fixture = Fixture(discovering: FakeDiscovery(candidates: [candidate]))
+        await fixture.model.scanLocalAI()
+        await fixture.model.useDiscovered(candidate)
+
+        let saved = try #require(await fixture.storedSettings())
+        #expect(saved.enabled)
+        #expect(saved.provider == .lmStudio)
+        #expect(saved.baseURL == "http://127.0.0.1:1234/v1")
+        #expect(saved.model == "qwen3-8b")
+        #expect(saved.enabledFeatures == AIFeatures.all)
+        #expect(fixture.model.configuredModelName == "LM Studio · qwen3-8b")
+        #expect(await fixture.settings.value(for: SettingKeys.aiSetupComplete) == "true")
     }
 
     @Test func appleUnavailableDoesNotConfigureAnything() async {

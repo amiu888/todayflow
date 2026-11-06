@@ -30,6 +30,7 @@ public struct TodayView: View {
     private let onUndockApp: (@MainActor () -> Void)?
     private let dockedAppProvider: (@MainActor () -> AppDockState?)?
     private let windowActions: WindowMenuActions?
+    private let aiActions: AIActions?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -64,6 +65,7 @@ public struct TodayView: View {
         self.onUndockApp = nil
         self.dockedAppProvider = nil
         self.windowActions = nil
+        self.aiActions = nil
         _localDockedName = State(initialValue: nil)
     }
 
@@ -82,7 +84,8 @@ public struct TodayView: View {
         onDockToApp: (@MainActor (String, String) -> Void)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
         dockedAppProvider: (@MainActor () -> AppDockState?)? = nil,
-        windowActions: WindowMenuActions? = nil
+        windowActions: WindowMenuActions? = nil,
+        aiActions: AIActions? = nil
     ) {
         self.model = model
         #if canImport(AppKit)
@@ -97,6 +100,7 @@ public struct TodayView: View {
         self.onUndockApp = onUndockApp
         self.dockedAppProvider = dockedAppProvider
         self.windowActions = windowActions
+        self.aiActions = aiActions
         _localDockedName = State(
             initialValue: dockedApp?.isDocked == true ? dockedApp?.appName : nil
         )
@@ -125,7 +129,8 @@ public struct TodayView: View {
         onDockToApp: (@MainActor (String, String) -> Void)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
         dockedAppProvider: (@MainActor () -> AppDockState?)? = nil,
-        windowActions: WindowMenuActions? = nil
+        windowActions: WindowMenuActions? = nil,
+        aiActions: AIActions? = nil
     ) {
         self.model = TodayViewModel(
             repository: repository,
@@ -149,6 +154,7 @@ public struct TodayView: View {
         self.onUndockApp = onUndockApp
         self.dockedAppProvider = dockedAppProvider
         self.windowActions = windowActions
+        self.aiActions = aiActions
         _localDockedName = State(
             initialValue: dockedApp?.isDocked == true ? dockedApp?.appName : nil
         )
@@ -764,6 +770,26 @@ public struct TodayView: View {
     @ViewBuilder
     private var headerActionIcons: some View {
         HStack(spacing: 9) {
+            if let aiActions {
+                Menu {
+                    Button("Ask about tasks…") { aiActions.ask() }
+                    Button("Plan my day…") { aiActions.plan() }
+                    Divider()
+                    Button("AI Setup & Local Models…") { aiActions.configure() }
+                    Button("AI Settings…") { aiActions.settings() }
+                } label: {
+                    Image(systemName: "sparkles")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.accent)
+                }
+                .menuIndicator(.hidden)
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("AI actions, local models, and settings")
+                .accessibilityLabel("AI actions")
+                .accessibilityIdentifier("ai-menu")
+            }
+
             if let windowActions {
                 Button {
                     windowActions.toggleAllDesktops()

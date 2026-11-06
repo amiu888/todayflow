@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (no-op).
-- `swift build` is warning-free; `swift test` passes **694 tests**; the XCUITest suite has 21 cases.
+- `swift build` is warning-free; `swift test` passes **697 tests**; the XCUITest suite has 21 cases.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
@@ -40,7 +40,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 
 `./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`
 (hardened runtime). `scripts/package-dmg.sh` notarizes and staples the DMG when
-`NOTARY_PROFILE` is set; the 1.8.0 DMG is notarized. Known follow-ups: XCUITests +
+`NOTARY_PROFILE` is set; the 1.9.0 DMG is notarized. Known follow-ups: XCUITests +
 performance gates, live Markdown rendering and pasted images in the detail
 description.
 

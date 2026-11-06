@@ -49,9 +49,11 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             let dayPlan = DayPlanWindowController(environment: environment)
             dayPlan.onOpenSettings = { [weak windowManager] in windowManager?.show(.settings) }
             self.dayPlan = dayPlan
+            windowManager.onPlanDay = { [weak dayPlan] in dayPlan?.present() }
             let askAI = AskWindowController(environment: environment)
             askAI.onOpenSettings = { [weak windowManager] in windowManager?.show(.settings) }
             self.askAI = askAI
+            windowManager.onAskAI = { [weak askAI] in askAI?.present() }
             let aiSetup = AIOnboardingController(environment: environment)
             self.aiSetup = aiSetup
             windowManager.onOpenAISetup = { [weak self] in
@@ -186,7 +188,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         let main = NSMenu()
 
         let appItem = NSMenuItem()
-        let appMenu = NSMenu()
+        appItem.title = "TodayFlow"
+        let appMenu = NSMenu(title: "TodayFlow")
         appMenu.addItem(
             item("About TodayFlow", #selector(about), key: "")
         )
@@ -281,6 +284,31 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewItem.submenu = viewMenu
         main.addItem(viewItem)
 
+        let helpItem = NSMenuItem()
+        let helpMenu = NSMenu(title: "Help")
+        let tutorialIndex = item("Tutorial Index on GitHub", #selector(openTutorialMenu(_:)), key: "")
+        tutorialIndex.representedObject = TutorialLinks.index
+        helpMenu.addItem(tutorialIndex)
+        helpMenu.addItem(.separator())
+        let gettingStarted = item("Getting Started", #selector(openTutorialMenu(_:)), key: "")
+        gettingStarted.representedObject = TutorialLinks.gettingStarted
+        helpMenu.addItem(gettingStarted)
+        let contactsGuide = item("Contacts, Groups & Tasks", #selector(openTutorialMenu(_:)), key: "")
+        contactsGuide.representedObject = TutorialLinks.contacts
+        helpMenu.addItem(contactsGuide)
+        let jiraGuide = item("Jira Tickets", #selector(openTutorialMenu(_:)), key: "")
+        jiraGuide.representedObject = TutorialLinks.jira
+        helpMenu.addItem(jiraGuide)
+        let aiGuide = item("Local AI Setup", #selector(openTutorialMenu(_:)), key: "")
+        aiGuide.representedObject = TutorialLinks.localAI
+        helpMenu.addItem(aiGuide)
+        helpMenu.addItem(.separator())
+        let videoGuide = item("Video Walkthrough", #selector(openTutorialMenu(_:)), key: "")
+        videoGuide.representedObject = TutorialLinks.video
+        helpMenu.addItem(videoGuide)
+        helpItem.submenu = helpMenu
+        main.addItem(helpItem)
+
         NSApp.mainMenu = main
     }
 
@@ -319,6 +347,11 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func openAISetupMenu() {
         aiSetup?.present(force: true)
+    }
+
+    @objc private func openTutorialMenu(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func quitApp() {

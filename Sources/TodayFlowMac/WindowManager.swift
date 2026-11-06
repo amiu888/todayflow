@@ -27,6 +27,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private let contactsImporter = ContactsImporter()
     /// Opens the optional first-run AI setup from Settings or the app menu.
     public var onOpenAISetup: (@MainActor @Sendable () -> Void)?
+    /// AI actions surfaced in the Today header.
+    public var onAskAI: (() -> Void)?
+    public var onPlanDay: (() -> Void)?
     /// Snaps floating windows to screen edges and neighbouring windows.
     public let docking = WindowDockController()
     /// When true, all app windows follow the user across every Space.

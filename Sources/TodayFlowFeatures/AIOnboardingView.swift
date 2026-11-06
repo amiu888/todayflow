@@ -17,6 +17,12 @@ public struct AIOnboardingView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     worksWithoutAI
+                    if let configured = model.configuredModelName {
+                        Label("AI is ready · \(configured)", systemImage: "checkmark.circle.fill")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(DesignTokens.Palette.success)
+                    }
+                    detectedLocalAI
                     HStack(alignment: .top, spacing: 14) {
                         appleCard
                         localCard
@@ -38,7 +44,10 @@ public struct AIOnboardingView: View {
         }
         .frame(width: 760, height: 620)
         .background(DesignTokens.Palette.background)
-        .task { await model.refreshServer() }
+        .task {
+            await model.refreshServer()
+            await model.scanLocalAI()
+        }
         .accessibilityIdentifier("ai-setup-window")
     }
 
@@ -87,6 +96,84 @@ public struct AIOnboardingView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(DesignTokens.Palette.success.opacity(0.08))
         )
+    }
+
+    @ViewBuilder
+    private var detectedLocalAI: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Detected on this Mac")
+                    .font(.callout.weight(.semibold))
+                if model.isScanning {
+                    ProgressView().controlSize(.small)
+                }
+                Spacer()
+                Button("Scan again") {
+                    Task { await model.scanLocalAI() }
+                }
+                .buttonStyle(.borderless)
+                .font(.caption.weight(.semibold))
+                .disabled(model.isScanning || model.isApplying)
+                .accessibilityIdentifier("ai-setup-scan-again")
+            }
+
+            if model.discovered.isEmpty {
+                Text("No local AI server found on Ollama (11434), LM Studio (1234), llama.cpp/GPU Buddy (8080), vLLM (8000), text-generation-webui (5000), or Jan (1337). Start one and scan again, or use the tiny model below.")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(model.discovered) { candidate in
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(candidate.name)
+                                .font(.callout.weight(.semibold))
+                            Text(candidate.baseURL.absoluteString)
+                                .font(.caption2)
+                                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                        }
+                        Spacer(minLength: 8)
+                        if candidate.models.count > 1 {
+                            Picker("", selection: Binding(
+                                get: {
+                                    model.selectedModels[candidate.id]
+                                        ?? candidate.models.first
+                                        ?? ""
+                                },
+                                set: { model.selectModel($0, for: candidate) }
+                            )) {
+                                ForEach(candidate.models, id: \.self) { name in
+                                    Text(name).tag(name)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: 190)
+                        } else {
+                            Text(candidate.models.first ?? "")
+                                .font(.caption)
+                                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                                .lineLimit(1)
+                        }
+                        Button("Use") {
+                            Task { await model.useDiscovered(candidate) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(model.isBusy)
+                        .accessibilityIdentifier("ai-setup-use-\(candidate.name)")
+                    }
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(DesignTokens.Palette.surface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
+                    )
+                }
+            }
+        }
     }
 
     private var appleCard: some View {
@@ -165,7 +252,7 @@ public struct AIOnboardingView: View {
                 Label("AI is ready", systemImage: "checkmark.circle.fill")
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(DesignTokens.Palette.success)
-                Text("\(model.localModel.displayName) is configured in Settings and will start automatically when you use an AI feature.")
+                Text("\(model.configuredModelName ?? model.localModel.displayName) is configured in Settings and will start automatically when you use an AI feature.")
                     .font(.caption)
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -260,6 +347,8 @@ public struct AIOnboardingView: View {
                 .accessibilityIdentifier("ai-setup-skip")
             }
             Spacer()
+            Link("Tutorials", destination: TutorialLinks.index)
+                .font(.caption)
             Text("Settings → AI")
                 .font(.caption)
                 .foregroundStyle(DesignTokens.Palette.textSecondary)
