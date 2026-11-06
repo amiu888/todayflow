@@ -1,6 +1,9 @@
 import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
+#if canImport(AppKit)
+import AppKit
+#endif
 import TodayFlowCore
 import TodayFlowDesign
 
@@ -20,6 +23,7 @@ public struct TrayStripView: View {
     @State private var renamingTray: UUIDv7?
     @State private var renameText = ""
     @State private var dropTargetID: UUIDv7?
+    @State private var customColorTray: WorkTray?
 
     public init(
         model: TodayViewModel,
@@ -113,6 +117,12 @@ public struct TrayStripView: View {
                 renamingTray = nil
             }
         }
+        .sheet(item: $customColorTray) { tray in
+            TrayColorPickerSheet(tray: tray) { hex in
+                Task { await model.setTrayColor(tray.id, colorHex: hex) }
+                customColorTray = nil
+            }
+        }
     }
 
     @MainActor
@@ -153,7 +163,10 @@ public struct TrayStripView: View {
                         renamingTray = column.tray.id
                     }
                     Menu("Color") {
-                        ForEach(DesignTokens.TrayPalette.colors, id: \.self) { hex in
+                        ForEach(
+                            Array(DesignTokens.TrayPalette.colors.enumerated()),
+                            id: \.offset
+                        ) { index, hex in
                             Button {
                                 Task {
                                     await model.setTrayColor(column.tray.id, colorHex: hex)
@@ -162,13 +175,17 @@ public struct TrayStripView: View {
                                 HStack {
                                     Circle()
                                         .fill(Color(hex: hex))
-                                        .frame(width: 8, height: 8)
-                                    Text(hex)
+                                        .frame(width: 9, height: 9)
+                                    Text(DesignTokens.TrayPalette.name(at: index))
                                     if hex == column.tray.colorHex {
                                         Image(systemName: "checkmark")
                                     }
                                 }
                             }
+                        }
+                        Divider()
+                        Button("Custom color…") {
+                            customColorTray = column.tray
                         }
                     }
                     Button("Insert tray after…") {
@@ -430,3 +447,101 @@ public struct TrayStripView: View {
         .accessibilityLabel("Add working tray")
     }
 }
+
+
+#if canImport(AppKit)
+private struct TrayColorPickerSheet: View {
+    let tray: WorkTray
+    let onSave: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var color: Color
+    @State private var hex: String
+
+    init(tray: WorkTray, onSave: @escaping (String) -> Void) {
+        self.tray = tray
+        self.onSave = onSave
+        let initial = tray.colorHex ?? DesignTokens.TrayPalette.colors[0]
+        _color = State(initialValue: Color(hex: initial))
+        _hex = State(initialValue: initial.uppercased())
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tray color")
+                        .font(.headline)
+                    Text(tray.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(color)
+                    .frame(width: 42, height: 42)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                    )
+            }
+
+            ColorPicker("Color wheel", selection: $color, supportsOpacity: false)
+                .onChange(of: color) { _, newColor in
+                    hex = newColor.trayHex
+                }
+
+            Text(hex)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                ForEach(Array(DesignTokens.TrayPalette.colors.enumerated()), id: \.offset) { index, value in
+                    Button {
+                        color = Color(hex: value)
+                        hex = value.uppercased()
+                    } label: {
+                        Circle()
+                            .fill(Color(hex: value))
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                Circle().stroke(
+                                    hex == value.uppercased()
+                                        ? Color.primary
+                                        : Color.primary.opacity(0.12),
+                                    lineWidth: hex == value.uppercased() ? 2 : 1
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(DesignTokens.TrayPalette.name(at: index))
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button("Save") {
+                    onSave(hex)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 300)
+    }
+}
+
+private extension Color {
+    var trayHex: String {
+        guard let rgb = NSColor(self).usingColorSpace(.sRGB) else { return "#60A5FA" }
+        return String(
+            format: "#%02X%02X%02X",
+            Int(round(rgb.redComponent * 255)),
+            Int(round(rgb.greenComponent * 255)),
+            Int(round(rgb.blueComponent * 255))
+        )
+    }
+}
+#endif

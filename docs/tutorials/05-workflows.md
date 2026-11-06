@@ -37,4 +37,4 @@ There are no branches, loops, or scripts. This keeps every workflow readable at 
 
 ## Remove or disable a rule
 
-Click the line label or the rule row, then turn **Enabled** off or choose **Delete rule**. The rule is removed immediately; tasks already moved stay where they are.
+Click the **×** on the line label, right-click the line label and choose **Remove workflow**, or select the rule row and choose **Delete rule**. The rule is removed immediately; tasks already moved stay where they are.

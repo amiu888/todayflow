@@ -78,6 +78,15 @@ public enum DesignTokens {
         public static func colorHex(at index: Int) -> String {
             colors[((index % colors.count) + colors.count) % colors.count]
         }
+
+        public static let names = [
+            "Sky", "Violet", "Mint", "Amber",
+            "Coral", "Cyan", "Rose", "Slate",
+        ]
+
+        public static func name(at index: Int) -> String {
+            names[((index % names.count) + names.count) % names.count]
+        }
     }
 
     /// Window mode sizes (driver.md §4: Panel 360×640 min 300×420, Slim bar

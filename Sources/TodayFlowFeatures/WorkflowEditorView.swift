@@ -384,31 +384,47 @@ public struct WorkflowEditorView: View {
             x: ((source?.position.x ?? 0) + (target?.position.x ?? 0)) / 2,
             y: ((source?.position.y ?? 0) + (target?.position.y ?? 0)) / 2
         )
-        return Button {
-            model.selectedRuleID = rule.id
-        } label: {
-            Text(rule.trigger.shortLabel)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(
-                    rule.id == model.selectedRuleID
-                        ? DesignTokens.Palette.accent
-                        : DesignTokens.Palette.textSecondary
-                )
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(
-                    Capsule().fill(DesignTokens.Palette.surface)
-                )
-                .overlay(
-                    Capsule().stroke(
+        return HStack(spacing: 4) {
+            Button {
+                model.selectedRuleID = rule.id
+            } label: {
+                Text(rule.trigger.shortLabel)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(
                         rule.id == model.selectedRuleID
-                            ? DesignTokens.Palette.accent.opacity(0.6)
-                            : DesignTokens.Palette.hairline,
-                        lineWidth: 1
+                            ? DesignTokens.Palette.accent
+                            : DesignTokens.Palette.textSecondary
                     )
-                )
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                Task { await model.deleteRule(rule.id) }
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .help("Remove this workflow")
+            .accessibilityLabel("Remove workflow \(model.trayName(rule.sourceTrayId)) to \(model.trayName(rule.targetTrayId))")
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(DesignTokens.Palette.surface))
+        .overlay(
+            Capsule().stroke(
+                rule.id == model.selectedRuleID
+                    ? DesignTokens.Palette.accent.opacity(0.6)
+                    : DesignTokens.Palette.hairline,
+                lineWidth: 1
+            )
+        )
+        .contextMenu {
+            Button("Remove workflow", role: .destructive) {
+                Task { await model.deleteRule(rule.id) }
+            }
+        }
         .position(point)
     }
 
