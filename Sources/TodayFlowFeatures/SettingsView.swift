@@ -183,7 +183,7 @@ public struct SettingsView: View {
                     }
 
                     LabeledContent("Host") {
-                        TextField("Host", text: $model.obsidianSettings.remoteHost)
+                        TextField("192.168.1.50", text: $model.obsidianSettings.remoteHost)
                     }
                     LabeledContent("Port") {
                         TextField(
