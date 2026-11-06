@@ -20,7 +20,7 @@ TodayFlow creates the note and its folders inside the vault. If the note already
 
 ## Set up a remote Obsidian on the LAN
 
-Obsidian itself does not listen on the network. Install the **Local REST API** plugin inside the remote Obsidian first.
+Obsidian itself does not listen on the network. Install the **Local REST API** plugin inside the remote Obsidian first, and open the target vault (for example **NBCBrain**) in that Obsidian window. The plugin serves the vault that is currently open.
 
 On the remote Obsidian:
 
