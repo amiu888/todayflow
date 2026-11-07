@@ -14,6 +14,7 @@ public struct CaptureDraft: Hashable, Sendable, Codable {
     public var startAt: Date
     public var endAt: Date
     public var priority: Priority
+    public var recurrence: Recurrence?
     public var parentId: UUIDv7?
     public var tags: [String]
     public var objects: [RecognizedObject]
@@ -24,6 +25,7 @@ public struct CaptureDraft: Hashable, Sendable, Codable {
         startAt: Date = .now,
         endAt: Date = .now,
         priority: Priority = .default,
+        recurrence: Recurrence? = nil,
         parentId: UUIDv7? = nil,
         tags: [String] = [],
         objects: [RecognizedObject] = []
@@ -33,6 +35,7 @@ public struct CaptureDraft: Hashable, Sendable, Codable {
         self.startAt = startAt
         self.endAt = endAt
         self.priority = priority
+        self.recurrence = recurrence
         self.parentId = parentId
         self.tags = TagName.normalize(tags)
         self.objects = objects

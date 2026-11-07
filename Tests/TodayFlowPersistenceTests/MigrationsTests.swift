@@ -27,6 +27,11 @@ struct MigrationsTests {
         #expect(tables.contains("activity"))
         #expect(tables.contains("search_index"))
 
+        let workItemColumns = try queue.read { db in
+            try db.columns(in: "work_item").map(\.name)
+        }
+        #expect(workItemColumns.contains("recurrence"))
+
         let triggers = try queue.read { db in
             try Row.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'trigger'")
                 .map { $0["name"] as String }

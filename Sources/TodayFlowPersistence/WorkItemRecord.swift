@@ -24,6 +24,7 @@ struct WorkItemRecord {
             summary: (row["summary"] as String?) ?? "",
             status: Status(rawValue: row["status"] as String) ?? .todo,
             priority: Priority(rawValue: row["priority"] as Int) ?? .normal,
+            recurrence: (row["recurrence"] as String?).flatMap(Recurrence.init(rawValue:)),
             startAt: (row["start_at"] as String?).flatMap(SqlTimestamp.decode) ?? .distantPast,
             endAt: (row["end_at"] as String?).flatMap(SqlTimestamp.decode) ?? .distantPast,
             estimatedMinutes: row["estimated_minutes"] as Int?,

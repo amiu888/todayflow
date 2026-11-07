@@ -483,6 +483,9 @@ public struct DetailView: View {
             if item.kind == .task {
                 projectPill
             }
+            if item.kind == .task || item.kind == .subtask {
+                recurrencePill
+            }
 
             Text(item.kind.label)
                 .font(.caption.weight(.medium))
@@ -945,6 +948,42 @@ public struct DetailView: View {
         .popover(isPresented: $showingNewProject, arrowEdge: .bottom) {
             newProjectPopover
         }
+    }
+
+    @MainActor
+    private var recurrencePill: some View {
+        Menu {
+            Button("Does not repeat") {
+                Task { await model.setRecurrence(nil) }
+            }
+
+            Divider()
+
+            ForEach(Recurrence.allCases, id: \.self) { rule in
+                Button {
+                    Task { await model.setRecurrence(rule) }
+                } label: {
+                    HStack {
+                        Text(rule.label)
+                        if model.recurrence == rule {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "repeat")
+                Text(model.recurrence?.shortLabel ?? "Repeat")
+                    .lineLimit(1)
+            }
+            .font(.callout.weight(.medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(.quaternary.opacity(0.5)))
+        }
+        .disabled(model.isSaving)
+        .help("Repeat this task after it is completed")
     }
 
     @MainActor

@@ -668,6 +668,25 @@ func addChild_createsTheNextHierarchyKind() async {
     #expect(f.vm.children.first?.title == "Write announcement")
 }
 
+// MARK: - Recurrence
+
+@Test @MainActor
+func setRecurrence_persistsThePreset() async throws {
+    let task = WorkItem(kind: .task, title: "Daily standup")
+    let f = Fixture(itemId: task.id)
+    await f.repository.seed(task)
+    await f.vm.load()
+
+    await f.vm.setRecurrence(.weekdays)
+
+    #expect(f.vm.recurrence == .weekdays)
+    let stored = try #require(await f.repository.item(task.id))
+    #expect(stored.recurrence == .weekdays)
+
+    await f.vm.setRecurrence(nil)
+    #expect(f.vm.recurrence == nil)
+}
+
 // MARK: - Project assignment
 
 @Test @MainActor

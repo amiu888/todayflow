@@ -4,6 +4,61 @@ import Foundation
 ///
 /// All four kinds share one shape; `kind` and the optional `parentId` express the
 /// hierarchy. Every kind can stand alone (`parentId == nil`).
+/// How a task repeats after it is completed. Deliberately small and
+/// understandable: five presets, no custom interval or end-date rules.
+public enum Recurrence: String, Codable, CaseIterable, Hashable, Sendable {
+    case daily
+    case weekdays
+    case weekly
+    case monthly
+    case yearly
+
+    public var label: String {
+        switch self {
+        case .daily: return "Every day"
+        case .weekdays: return "Every weekday"
+        case .weekly: return "Every week"
+        case .monthly: return "Every month"
+        case .yearly: return "Every year"
+        }
+    }
+
+    public var shortLabel: String {
+        switch self {
+        case .daily: return "Daily"
+        case .weekdays: return "Weekdays"
+        case .weekly: return "Weekly"
+        case .monthly: return "Monthly"
+        case .yearly: return "Yearly"
+        }
+    }
+
+    /// The next start after `date`, keeping the same time of day.
+    public func nextStart(after date: Date, calendar: Calendar = .current) -> Date? {
+        switch self {
+        case .daily:
+            return calendar.date(byAdding: .day, value: 1, to: date)
+        case .weekdays:
+            guard var next = calendar.date(byAdding: .day, value: 1, to: date) else {
+                return nil
+            }
+            while calendar.isDateInWeekend(next) {
+                guard let following = calendar.date(byAdding: .day, value: 1, to: next) else {
+                    return nil
+                }
+                next = following
+            }
+            return next
+        case .weekly:
+            return calendar.date(byAdding: .weekOfYear, value: 1, to: date)
+        case .monthly:
+            return calendar.date(byAdding: .month, value: 1, to: date)
+        case .yearly:
+            return calendar.date(byAdding: .year, value: 1, to: date)
+        }
+    }
+}
+
 public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
     /// The four work-item kinds, from broadest to most granular.
     public enum Kind: String, Codable, CaseIterable, Sendable, Hashable {
@@ -40,6 +95,8 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
     public var summary: String
     public var status: Status
     public var priority: Priority
+    /// How this item repeats after completion, or `nil` for one-off work.
+    public var recurrence: Recurrence?
     /// When the work is scheduled to start (defaults to the drop/capture time).
     public var startAt: Date
     /// When the work is due (defaults per `WorkCalendar.defaultEndAt`).
@@ -72,6 +129,7 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
         summary: String = "",
         status: Status = .todo,
         priority: Priority = .default,
+        recurrence: Recurrence? = nil,
         startAt: Date = .now,
         endAt: Date = .now,
         estimatedMinutes: Int? = nil,
@@ -93,6 +151,7 @@ public struct WorkItem: Identifiable, Hashable, Sendable, Codable {
         self.summary = summary
         self.status = status
         self.priority = priority
+        self.recurrence = recurrence
         self.startAt = startAt
         self.endAt = endAt
         self.estimatedMinutes = estimatedMinutes

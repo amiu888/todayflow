@@ -318,6 +318,7 @@ public final class CaptureViewModel {
                             startAt: draft.startAt,
                             endAt: draft.endAt,
                             priority: draft.priority,
+                            recurrence: draft.recurrence,
                             tags: draft.tags,
                             placement: .top
                         )
@@ -349,6 +350,7 @@ public final class CaptureViewModel {
                         startAt: draft.startAt,
                         endAt: draft.endAt,
                         priority: draft.priority,
+                        recurrence: draft.recurrence,
                         tags: draft.tags,
                         placement: .top
                     )

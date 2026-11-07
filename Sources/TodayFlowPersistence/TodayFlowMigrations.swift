@@ -41,8 +41,16 @@ public enum TodayFlowMigrations {
         migrator.registerMigration("v7") { db in
             try db.execute(sql: schemaV7)
         }
+        migrator.registerMigration("v8") { db in
+            try db.execute(sql: schemaV8)
+        }
         return migrator
     }
+
+    /// v8 adds the recurrence preset for repeating tasks.
+    static let schemaV8 = """
+        ALTER TABLE work_item ADD COLUMN recurrence TEXT;
+        """
 
     /// v7 adds two-level contact group nesting.
     static let schemaV7 = """

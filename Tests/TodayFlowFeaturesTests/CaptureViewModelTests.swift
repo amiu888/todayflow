@@ -209,6 +209,7 @@ func save_createsItemAndAttachment() async {
     #expect(item.startAt == date(2026, 11, 3, hour: 9))
     #expect(item.endAt == date(2026, 11, 3, hour: 17))
     #expect(saved.ids == [item.id])
+    #expect(item.recurrence == nil)
     #expect(await f.repository.item(item.id) != nil)
 
     let attachments = await f.attachmentRepository.attachments(for: item.id)
@@ -952,4 +953,18 @@ func contactDropCanBeMappedToAGroup() async {
     await f.vm.save()
     let contact = try! #require(await f.contactRepository.contacts().first)
     #expect(await f.contactRepository.groupIds(for: contact.id) == [group.id])
+}
+
+
+@Test @MainActor
+func save_persistsRecurrence() async {
+    let f = Fixture()
+    f.vm.prepare(dropped: [], recognized: [])
+    f.vm.draft.title = "Daily standup"
+    f.vm.draft.recurrence = .daily
+
+    await f.vm.save()
+
+    #expect(f.vm.lastError == nil)
+    #expect(f.vm.savedItem?.recurrence == .daily)
 }

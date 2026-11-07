@@ -25,6 +25,7 @@ public struct CreateTask: Sendable {
         /// work calendar's default end-of-business rule.
         public var endAt: Date?
         public var priority: Priority
+        public var recurrence: Recurrence?
         public var color: String?
         public var tags: [String]
         public var placement: Placement
@@ -37,6 +38,7 @@ public struct CreateTask: Sendable {
             startAt: Date = .now,
             endAt: Date? = nil,
             priority: Priority = .default,
+            recurrence: Recurrence? = nil,
             color: String? = nil,
             tags: [String] = [],
             placement: Placement = .bottom
@@ -48,6 +50,7 @@ public struct CreateTask: Sendable {
             self.startAt = startAt
             self.endAt = endAt
             self.priority = priority
+            self.recurrence = recurrence
             self.color = color
             self.tags = tags
             self.placement = placement
@@ -105,6 +108,7 @@ public struct CreateTask: Sendable {
             parentId: input.parentId,
             descriptionMd: input.descriptionMd,
             priority: input.priority,
+            recurrence: input.recurrence,
             startAt: input.startAt,
             endAt: endAt,
             displayOrder: displayOrder,

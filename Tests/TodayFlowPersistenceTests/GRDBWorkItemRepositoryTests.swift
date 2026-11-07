@@ -19,6 +19,7 @@ struct GRDBWorkItemRepositoryTests {
             summary: "Carol asks for the vendor totals by Friday.",
             status: .inProgress,
             priority: .urgent,
+            recurrence: .weekly,
             startAt: Date.whole(year: 2026, month: 1, day: 5, hour: 9),
             endAt: Date.whole(year: 2026, month: 1, day: 5, hour: 17),
             completedAt: nil,

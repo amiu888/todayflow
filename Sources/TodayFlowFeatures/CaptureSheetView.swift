@@ -543,6 +543,21 @@ public struct CaptureSheetView: View {
                 .fixedSize()
                 .accessibilityLabel("Project")
             }
+
+            HStack(spacing: 6) {
+                Image(systemName: "repeat")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                Picker("Repeat", selection: $draft.recurrence) {
+                    Text("Does not repeat").tag(Recurrence?.none)
+                    ForEach(Recurrence.allCases, id: \.self) { rule in
+                        Text(rule.label).tag(Optional(rule))
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityLabel("Repeat")
+            }
         }
         .padding(12)
         .background(

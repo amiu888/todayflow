@@ -880,6 +880,28 @@ public final class DetailViewModel {
         }
     }
 
+    // MARK: Recurrence
+
+    public var recurrence: Recurrence? { item?.recurrence }
+
+    public func setRecurrence(_ recurrence: Recurrence?) async {
+        await commit()
+        guard var item, !isSaving, item.recurrence != recurrence else { return }
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+        item.recurrence = recurrence
+        item = item.touching(clock())
+        item.deviceId = deviceId
+        do {
+            try await repository.save(item)
+            self.item = item
+            lastSavedAt = clock()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     // MARK: Project assignment
 
     /// Moves the current task under a project, or to the top level when `nil`.
