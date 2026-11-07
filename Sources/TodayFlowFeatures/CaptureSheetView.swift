@@ -68,39 +68,40 @@ public struct CaptureSheetView: View {
         VStack(spacing: 0) {
             header
 
-            VStack(alignment: .leading, spacing: 14) {
-                titleField
-                tagsField
-                attachmentSection
-                if !contactDrops.isEmpty {
-                    contactSection
-                }
-
-                if let errorMessage {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(DesignTokens.Palette.warning)
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(DesignTokens.Palette.textSecondary)
-                        Spacer()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    titleField
+                    tagsField
+                    attachmentSection
+                    if !contactDrops.isEmpty {
+                        contactSection
                     }
-                    .padding(8)
-                    .background(
-                        DesignTokens.Palette.warning.opacity(0.14),
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    )
-                    .accessibilityElement(children: .combine)
+
+                    if let errorMessage {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(DesignTokens.Palette.warning)
+                            Text(errorMessage)
+                                .font(.caption)
+                                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                            Spacer()
+                        }
+                        .padding(8)
+                        .background(
+                            DesignTokens.Palette.warning.opacity(0.14),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        )
+                        .accessibilityElement(children: .combine)
+                    }
+
+                    scheduleCard
+                    descriptionSection
                 }
-
-                scheduleCard
-                descriptionSection
-
-                Spacer(minLength: 0)
+                .padding(.horizontal, 18)
+                .padding(.top, 16)
+                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
 
             footer
         }
@@ -517,7 +518,6 @@ public struct CaptureSheetView: View {
             HStack(spacing: 10) {
                 dateColumn(
                     title: "Starts",
-                    day: dayLabel(for: draft.startAt),
                     selection: $draft.startAt
                 )
                 Image(systemName: "arrow.right")
@@ -525,7 +525,6 @@ public struct CaptureSheetView: View {
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
                 dateColumn(
                     title: "Due",
-                    day: dayLabel(for: draft.endAt),
                     selection: $draft.endAt
                 )
             }
@@ -559,36 +558,20 @@ public struct CaptureSheetView: View {
     @MainActor
     private func dateColumn(
         title: String,
-        day: String,
         selection: Binding<Date>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(DesignTokens.Palette.textSecondary)
-            Text(day)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Palette.textPrimary)
+            DatePicker("", selection: selection, displayedComponents: [.date])
+                .labelsHidden()
+                .accessibilityLabel("\(title) date")
             DatePicker("", selection: selection, displayedComponents: [.hourAndMinute])
                 .labelsHidden()
-                .accessibilityLabel(title)
+                .accessibilityLabel("\(title) time")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// "Today" / "Tomorrow" / "EEE d MMM" for a date.
-    private func dayLabel(for date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) {
-            return "Today"
-        }
-        if calendar.isDateInTomorrow(date) {
-            return "Tomorrow"
-        }
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateFormat = "EEE d MMM"
-        return formatter.string(from: date)
     }
 
     @MainActor

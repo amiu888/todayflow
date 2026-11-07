@@ -38,6 +38,10 @@ public struct DetailView: View {
     @State private var newContactName = ""
     @State private var newContactEmail = ""
     @State private var newContactPhone = ""
+    @State private var newActionText = ""
+    @State private var newChildTitle = ""
+    @State private var showingNewProject = false
+    @State private var newProjectName = ""
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -204,12 +208,13 @@ public struct DetailView: View {
                         estimateMenu
                     }
                     descriptionSection
+                    actionsSection
 
                     if model.assistant != nil {
                         aiBreakdownSection
                     }
 
-                    if !model.children.isEmpty {
+                    if model.canAddChild || !model.children.isEmpty {
                         childrenSection
                     }
                     if !model.attachments.isEmpty {
@@ -475,6 +480,9 @@ public struct DetailView: View {
         HStack(spacing: 8) {
             statusPill
             priorityPill
+            if item.kind == .task {
+                projectPill
+            }
 
             Text(item.kind.label)
                 .font(.caption.weight(.medium))
@@ -867,6 +875,203 @@ public struct DetailView: View {
                     PriorityDotView(priority: child.priority, size: 8)
                 }
                 .frame(height: DesignTokens.Spacing.rowHeight)
+            }
+
+            if model.canAddChild {
+                HStack(spacing: 8) {
+                    TextField(model.addChildPlaceholder, text: $newChildTitle)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { addChild() }
+                    Button {
+                        addChild()
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(
+                        newChildTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || model.isSaving
+                    )
+                    .accessibilityLabel(model.addChildPlaceholder)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private var projectPill: some View {
+        Menu {
+            Button("No project") {
+                Task { await model.setProject(nil) }
+            }
+
+            if !model.availableProjects.isEmpty {
+                Divider()
+                ForEach(model.availableProjects) { project in
+                    Button {
+                        Task { await model.setProject(project.id) }
+                    } label: {
+                        HStack {
+                            Text(project.title)
+                            if model.parent?.id == project.id {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+            Button("New Project…") {
+                newProjectName = ""
+                showingNewProject = true
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "folder")
+                Text(model.parent?.kind == .project
+                     ? (model.parent?.title ?? "Project")
+                     : "Project")
+                    .lineLimit(1)
+                    .frame(maxWidth: 160, alignment: .leading)
+            }
+            .font(.callout.weight(.medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(.quaternary.opacity(0.5)))
+        }
+        .disabled(model.isSaving)
+        .help("Assign this task to a project")
+        .popover(isPresented: $showingNewProject, arrowEdge: .bottom) {
+            newProjectPopover
+        }
+    }
+
+    @MainActor
+    private var newProjectPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("New Project")
+                .font(.headline)
+
+            TextField("Project name", text: $newProjectName)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { createProject() }
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    showingNewProject = false
+                }
+                Button("Create") {
+                    createProject()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(
+                    newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || model.isSaving
+                )
+            }
+        }
+        .padding(12)
+        .frame(width: 280)
+    }
+
+    private func createProject() {
+        let title = newProjectName
+        Task {
+            let project = await model.createProjectAndAssign(named: title)
+            if project != nil {
+                showingNewProject = false
+                newProjectName = ""
+            }
+        }
+    }
+
+    private func addChild() {
+        let title = newChildTitle
+        Task {
+            await model.addChild(title: title)
+            if model.lastError == nil {
+                newChildTitle = ""
+            }
+        }
+    }
+
+    @MainActor
+    private var actionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Actions")
+                    .font(.headline)
+                Spacer()
+                if !model.actions.isEmpty {
+                    Text("\(model.actions.filter { $0.isDone }.count)/\(model.actions.count)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            ForEach(model.actions) { action in
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await model.toggleAction(action) }
+                    } label: {
+                        Image(systemName: action.isDone ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(
+                                action.isDone
+                                    ? DesignTokens.Palette.success
+                                    : Color.secondary
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(action.isDone ? "Mark action open" : "Mark action done")
+
+                    Text(action.text)
+                        .strikethrough(action.isDone)
+                        .foregroundStyle(action.isDone ? .secondary : .primary)
+
+                    Spacer()
+
+                    Button {
+                        Task { await model.deleteAction(action) }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove action")
+                    .accessibilityLabel("Remove action")
+                }
+                .padding(.vertical, 2)
+            }
+
+            HStack(spacing: 8) {
+                TextField("Email, ask a question, or a short step…", text: $newActionText)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { addAction() }
+
+                Button {
+                    addAction()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .disabled(
+                    newActionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || model.isSaving
+                )
+                .accessibilityLabel("Add action")
+            }
+        }
+    }
+
+    private func addAction() {
+        let text = newActionText
+        Task {
+            await model.addAction(text)
+            if model.lastError == nil {
+                newActionText = ""
             }
         }
     }

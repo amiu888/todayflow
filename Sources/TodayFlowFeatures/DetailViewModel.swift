@@ -107,6 +107,10 @@ public final class DetailViewModel {
     /// Every contact, for the add-contact picker.
     public private(set) var allContacts: [Contact] = []
     public private(set) var children: [WorkItem] = []
+    /// Checkable steps inside this item.
+    public private(set) var actions: [ActionItem] = []
+    /// Projects the current task can be moved under.
+    public private(set) var availableProjects: [WorkItem] = []
     /// Prerequisites: the `from` end of `.blocks` links pointing at the item.
     public private(set) var blockers: [WorkItem] = []
     /// Dependents: the `to` end of `.blocks` links from the item.
@@ -162,6 +166,7 @@ public final class DetailViewModel {
     @ObservationIgnored private let contactRepository: (any ContactRepository)?
     @ObservationIgnored private let activityRepository: (any ActivityRepository)?
     @ObservationIgnored private let reminderRepository: (any ReminderRepository)?
+    @ObservationIgnored private let actionRepository: (any ActionItemRepository)?
     @ObservationIgnored private let calendar: WorkCalendar
     @ObservationIgnored private let deviceId: String
     @ObservationIgnored private let clock: @Sendable () -> Date
@@ -179,6 +184,7 @@ public final class DetailViewModel {
         contactRepository: (any ContactRepository)? = nil,
         activityRepository: (any ActivityRepository)? = nil,
         reminderRepository: (any ReminderRepository)? = nil,
+        actionRepository: (any ActionItemRepository)? = nil,
         calendar: WorkCalendar = .standard,
         deviceId: String = "local",
         clock: @escaping @Sendable () -> Date = { .now },
@@ -191,6 +197,7 @@ public final class DetailViewModel {
         self.contactRepository = contactRepository
         self.activityRepository = activityRepository
         self.reminderRepository = reminderRepository
+        self.actionRepository = actionRepository
         self.calendar = calendar
         self.deviceId = deviceId
         self.clock = clock
@@ -258,6 +265,10 @@ public final class DetailViewModel {
         linkCandidates = allItems
             .filter { $0.id != item.id && !$0.isDeleted }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        availableProjects = linkCandidates
+            .filter { $0.kind == .project }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        actions = await actionRepository?.actions(for: item.id) ?? []
 
         let blockerLinks = toLinks.filter { $0.kind == .blocks }
         let blockingLinks = fromLinks.filter { $0.kind == .blocks }
@@ -751,6 +762,188 @@ public final class DetailViewModel {
     /// Closes the suggestion list without creating anything.
     public func dismissSubtaskSuggestions() {
         subtaskSuggestions = []
+    }
+
+    // MARK: Manual children
+
+    /// True when this item can own a child in the hierarchy.
+    public var canAddChild: Bool {
+        guard let item else { return false }
+        return item.kind != .subtask
+    }
+
+    /// Placeholder for the manual child field.
+    public var addChildPlaceholder: String {
+        switch item?.kind {
+        case .epic: return "Add a project"
+        case .project: return "Add a task"
+        case .task: return "Add a subtask"
+        default: return ""
+        }
+    }
+
+    /// Creates one child with the next allowed kind (epic → project,
+    /// project → task, task → subtask).
+    public func addChild(title: String) async {
+        guard let item, canAddChild, !isSaving else { return }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let childKind: WorkItem.Kind
+        switch item.kind {
+        case .epic: childKind = .project
+        case .project: childKind = .task
+        case .task: childKind = .subtask
+        case .subtask: return
+        }
+
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+        do {
+            try await CreateTask(
+                repository: repository,
+                calendar: calendar,
+                deviceId: deviceId
+            ).execute(
+                CreateTask.Input(
+                    kind: childKind,
+                    title: trimmed,
+                    parentId: item.id,
+                    startAt: clock(),
+                    priority: item.priority
+                )
+            )
+            await reloadRelated()
+            lastSavedAt = clock()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    // MARK: Actions
+
+    public func addAction(_ text: String) async {
+        guard let item, let actionRepository, !isSaving else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+        let nextOrder = (actions.map(\.sortOrder).max() ?? -1) + 1
+        let action = ActionItem(
+            itemId: item.id,
+            text: trimmed,
+            sortOrder: nextOrder,
+            createdAt: clock(),
+            deviceId: deviceId
+        )
+        do {
+            try await actionRepository.save(action)
+            actions = await actionRepository.actions(for: item.id)
+            lastSavedAt = clock()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    public func toggleAction(_ action: ActionItem) async {
+        guard let item, let actionRepository, !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+        var updated = action
+        updated.isDone.toggle()
+        updated.version += 1
+        updated.deviceId = deviceId
+        do {
+            try await actionRepository.save(updated)
+            actions = await actionRepository.actions(for: item.id)
+            lastSavedAt = clock()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    public func deleteAction(_ action: ActionItem) async {
+        guard let item, let actionRepository, !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+        do {
+            try await actionRepository.delete(action.id)
+            actions = await actionRepository.actions(for: item.id)
+            lastSavedAt = clock()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    // MARK: Project assignment
+
+    /// Moves the current task under a project, or to the top level when `nil`.
+    public func setProject(_ projectId: UUIDv7?) async {
+        await commit()
+        guard let item, item.kind == .task, !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+        do {
+            try await ReorderTask(
+                repository: repository,
+                deviceId: deviceId
+            ).execute(
+                item.id,
+                newParentId: projectId,
+                toTopLevel: projectId == nil,
+                at: clock()
+            )
+            await load()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Creates a top-level project and assigns the current task to it.
+    @discardableResult
+    public func createProjectAndAssign(named title: String) async -> WorkItem? {
+        await commit()
+        guard let item, item.kind == .task, !isSaving else { return nil }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+        do {
+            let project = try await CreateTask(
+                repository: repository,
+                calendar: calendar,
+                deviceId: deviceId
+            ).execute(
+                CreateTask.Input(
+                    kind: .project,
+                    title: trimmed,
+                    startAt: clock(),
+                    priority: item.priority
+                )
+            )
+            try await ReorderTask(
+                repository: repository,
+                deviceId: deviceId
+            ).execute(
+                item.id,
+                newParentId: project.id,
+                at: clock()
+            )
+            await load()
+            lastSavedAt = clock()
+            return project
+        } catch {
+            lastError = error.localizedDescription
+            return nil
+        }
     }
 
     // MARK: Tags

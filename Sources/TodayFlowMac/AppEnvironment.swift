@@ -17,6 +17,8 @@ public final class AppEnvironment {
     public let keychain: any KeychainStore
     /// Per-task custom reminders (FR-42).
     public let reminders: any ReminderRepository
+    /// Checkable action list inside each task.
+    public let actions: any ActionItemRepository
     /// Append-only audit trail (FR-20 activity log).
     public let activities: any ActivityRepository
     public let pipeline: RecognitionPipeline
@@ -42,6 +44,7 @@ public final class AppEnvironment {
         settings: any SettingRepository,
         keychain: any KeychainStore,
         reminders: (any ReminderRepository)? = nil,
+        actions: (any ActionItemRepository)? = nil,
         activities: (any ActivityRepository)? = nil,
         pipeline: RecognitionPipeline,
         materializer: Materializer = Materializer(
@@ -60,6 +63,7 @@ public final class AppEnvironment {
         self.settings = settings
         self.keychain = keychain
         self.reminders = reminders ?? InMemoryReminderRepository()
+        self.actions = actions ?? InMemoryActionItemRepository()
         self.activities = activities ?? InMemoryActivityRepository()
         self.pipeline = pipeline
         self.materializer = materializer
@@ -86,6 +90,7 @@ public final class AppEnvironment {
             settings: settings,
             keychain: keychain,
             reminders: GRDBReminderRepository(queue: queue),
+            actions: GRDBActionItemRepository(queue: queue),
             activities: GRDBActivityRepository(queue: queue),
             pipeline: .standard,
             ai: AIEnvironment(settingsRepository: settings, keychain: keychain),

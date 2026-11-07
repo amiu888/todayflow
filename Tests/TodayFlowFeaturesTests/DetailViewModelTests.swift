@@ -44,6 +44,7 @@ private struct Fixture {
     let attachmentRepository: InMemoryAttachmentRepository
     let activityRepository = InMemoryActivityRepository()
     let reminderRepository = InMemoryReminderRepository()
+    let actionRepository = InMemoryActionItemRepository()
     let vm: DetailViewModel
 
     init(
@@ -63,6 +64,7 @@ private struct Fixture {
             attachmentRepository: attachmentRepository,
             activityRepository: activityRepository,
             reminderRepository: reminderRepository,
+            actionRepository: actionRepository,
             calendar: WorkCalendar(calendar: testCalendar),
             clock: { testNow },
             onClosed: onClosed
@@ -620,4 +622,82 @@ func refreshSummaryPicksUpABackgroundSummaryWithoutOverwritingEdits() async {
     try? await f.repository.save(changed)
     await f.vm.refreshSummaryIfEmpty()
     #expect(f.vm.edit.summary == "My own note")
+}
+
+
+// MARK: - Actions
+
+@Test @MainActor
+func actions_addToggleAndDelete() async {
+    let item = WorkItem(kind: .task, title: "Email the team")
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.vm.load()
+
+    await f.vm.addAction("Email Alice about the launch")
+    await f.vm.addAction("Ask Bob about the budget")
+    #expect(f.vm.actions.map(\.text) == [
+        "Email Alice about the launch",
+        "Ask Bob about the budget",
+    ])
+
+    let first = f.vm.actions[0]
+    await f.vm.toggleAction(first)
+    #expect(f.vm.actions[0].isDone)
+    #expect(!f.vm.actions[1].isDone)
+
+    await f.vm.deleteAction(f.vm.actions[1])
+    #expect(f.vm.actions.map(\.text) == ["Email Alice about the launch"])
+    #expect(await f.actionRepository.actions(for: item.id).count == 1)
+}
+
+// MARK: - Manual children
+
+@Test @MainActor
+func addChild_createsTheNextHierarchyKind() async {
+    let task = WorkItem(kind: .task, title: "Plan launch")
+    let f = Fixture(itemId: task.id)
+    await f.repository.seed(task)
+    await f.vm.load()
+
+    await f.vm.addChild(title: "Write announcement")
+
+    #expect(f.vm.children.count == 1)
+    #expect(f.vm.children.first?.kind == .subtask)
+    #expect(f.vm.children.first?.parentId == task.id)
+    #expect(f.vm.children.first?.title == "Write announcement")
+}
+
+// MARK: - Project assignment
+
+@Test @MainActor
+func setProject_reparensTheTask() async throws {
+    let project = WorkItem(kind: .project, title: "Website")
+    let task = WorkItem(kind: .task, title: "Write copy")
+    let f = Fixture(itemId: task.id)
+    await f.repository.seed(project)
+    await f.repository.seed(task)
+    await f.vm.load()
+
+    await f.vm.setProject(project.id)
+
+    let stored = try #require(await f.repository.item(task.id))
+    #expect(stored.parentId == project.id)
+    #expect(f.vm.parent?.id == project.id)
+}
+
+@Test @MainActor
+func createProjectAndAssign_createsAndMovesTheTask() async throws {
+    let task = WorkItem(kind: .task, title: "Write copy")
+    let f = Fixture(itemId: task.id)
+    await f.repository.seed(task)
+    await f.vm.load()
+
+    let project = try #require(await f.vm.createProjectAndAssign(named: "Website"))
+
+    #expect(project.kind == .project)
+    #expect(project.title == "Website")
+    let stored = try #require(await f.repository.item(task.id))
+    #expect(stored.parentId == project.id)
+    #expect(f.vm.availableProjects.contains { $0.id == project.id })
 }

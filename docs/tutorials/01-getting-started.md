@@ -6,7 +6,10 @@
 
 - Press **⌘N** or **⌃⌥Space**, type a title, and press **Add task**.
 - Or drag almost anything onto the panel: a file, folder, URL, email, Teams message, image, or Jira ticket. TodayFlow opens the capture sheet with a suggested title.
+- The **Schedule** card lets you pick both the **start date/time** and the **due date/time**. The start defaults to **9:00 AM**; the due time defaults to the end of the workday.
 - The **Tags** row in the capture sheet accepts comma-separated tags before you save.
+- The **Add task** button stays visible while you expand the description; the form scrolls behind it.
+- Spelling is checked in every editable text field.
 
 ## 2. Add tags
 
@@ -41,6 +44,14 @@ Open the tray’s **…** menu → **Color**. Pick one of the named swatches, or
 3. The project appears in the project filter and in **Hierarchy**.
 4. To put a project under an epic, open **Hierarchy**, right-click the epic, and choose **Add project**.
 5. To change its tags later, choose it in the folder filter and pick **Edit tags for …**, or double-click it in **Hierarchy**.
+
+## 4b. Actions, subtasks, and the project pill
+
+Open any task to use these:
+
+- **Actions** — type a short step such as “Email the team” or “Ask about the budget” and press Return. Check it off when done; the **×** removes it.
+- **Project** — the pill next to the status shows the task’s project. Pick another project, clear it, or choose **New Project…** to create a project and move the task into it immediately.
+- **Subtasks** — type a subtask in the field under the task’s children and press Return. Projects use the same field to add tasks; epics use it to add projects.
 
 ## 5. Keep Today on this desktop
 

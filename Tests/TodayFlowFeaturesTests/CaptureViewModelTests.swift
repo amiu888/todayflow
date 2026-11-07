@@ -153,7 +153,7 @@ func prepare_buildsDraftFromRecognizedObjects() {
     #expect(f.vm.draft.title == "Review contract")
     #expect(f.vm.draft.objects.count == 1)
     // "Review contract" has no date expression, so the builder's defaults stand.
-    #expect(f.vm.draft.startAt == f.now) // Tue 10:00
+    #expect(f.vm.draft.startAt == date(2026, 11, 3, hour: 9)) // Tue 09:00
     #expect(f.vm.draft.endAt == date(2026, 11, 3, hour: 17)) // Tue 17:00 EOB
     #expect(f.vm.lastError == nil)
     #expect(f.vm.savedItem == nil)
@@ -206,7 +206,7 @@ func save_createsItemAndAttachment() async {
     #expect(f.vm.savedItem != nil)
     guard let item = f.vm.savedItem else { return }
     #expect(item.title == "Review contract")
-    #expect(item.startAt == f.now)
+    #expect(item.startAt == date(2026, 11, 3, hour: 9))
     #expect(item.endAt == date(2026, 11, 3, hour: 17))
     #expect(saved.ids == [item.id])
     #expect(await f.repository.item(item.id) != nil)

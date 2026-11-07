@@ -33,6 +33,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         applyAppearance()
+        SpellCheckEnabler.shared.start()
         do {
             let environment = try AppEnvironment.makeProduction()
             self.environment = environment

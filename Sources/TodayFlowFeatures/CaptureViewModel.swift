@@ -101,7 +101,7 @@ public final class CaptureViewModel {
         let now = clock()
         self.draft = CaptureDraft(
             title: "",
-            startAt: now,
+            startAt: calendar.startOfBusiness(for: now),
             // A capture belongs to today's plan: due at today's end of
             // business, even when created after hours.
             endAt: calendar.endOfBusiness(for: now)
@@ -156,7 +156,7 @@ public final class CaptureViewModel {
         let hasExplicitDate = !parser.parse(draft.title, at: now).isEmpty
             || !parser.parse(draft.descriptionMd, at: now).isEmpty
         if !hasExplicitDate {
-            draft.startAt = now
+            draft.startAt = calendar.startOfBusiness(for: now)
             draft.endAt = calendar.endOfBusiness(for: now)
         }
 
