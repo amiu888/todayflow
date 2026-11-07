@@ -36,7 +36,7 @@ On the remote Obsidian:
 On this Mac:
 
 1. Open **TodayFlow → Settings → Obsidian**.
-2. Choose **Remote**.
+2. Choose **Remote**. Remote mode uses the vault currently open in Obsidian; the plugin cannot list or switch vaults. Open **NBCBrain** in Obsidian if that is the vault you want, and optionally set a **Vault label** in TodayFlow for your own reference.
 3. Click **Find Local REST API on LAN**. Allow the macOS **Local Network** permission when asked.
 4. Select the discovered server. If it is not found, enter the host and port manually:
    - HTTP: `27123`

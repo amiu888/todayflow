@@ -18,6 +18,7 @@ public final class CaptureWindowController {
     private let environment: AppEnvironment
     private var panel: PanelWindow?
     private var currentModel: CaptureViewModel?
+    public var mainWindowProvider: (@MainActor () -> NSWindow?)?
     /// Called after a successful save, after the sheet closes (the host uses
     /// it to force the Today list to refresh and come forward).
     public var onSaved: (@MainActor (UUIDv7) -> Void)?
@@ -60,7 +61,7 @@ public final class CaptureWindowController {
         self.panel = panel
 
         NSApp.activate(ignoringOtherApps: true)
-        panel.center()
+        WindowPlacement.besideMainWindow(panel, main: mainWindowProvider?())
         panel.makeKeyAndOrderFront(nil)
         Diagnostics.log(
             "capture",

@@ -150,7 +150,7 @@ public struct SettingsView: View {
 
                             Text(model.obsidianSettings.mode == .local
                                  ? "Uses a vault folder on this Mac, including iCloud or any synced folder."
-                                 : "Uses the Local REST API plugin inside Obsidian on another Mac.")
+                                 : "Uses the vault currently open in Obsidian on another Mac. There is no remote vault picker; switch vaults in Obsidian.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -255,6 +255,16 @@ public struct SettingsView: View {
                                         }
                                     }
                                 }
+
+                                LabeledContent("Vault label") {
+                                    TextField("NBCBrain", text: $model.obsidianSettings.remoteDisplayName)
+                                        .textFieldStyle(.squareBorder)
+                                        .accessibilityLabel("Remote vault label")
+                                }
+                                Text("A name for this connection. The plugin serves the vault currently open in Obsidian; it cannot list or switch vaults.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
 
                                 LabeledContent("Host") {
                                     TextField("", text: $model.obsidianSettings.remoteHost)

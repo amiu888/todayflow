@@ -190,14 +190,7 @@ public enum TrayWindowLayout {
         screen: CGRect,
         gap: CGFloat = 8
     ) -> CGRect {
-        let anchor = existing.max { lhs, rhs in
-            if lhs.maxX == rhs.maxX {
-                // Prefer the window on the lower row when a row is full.
-                return lhs.maxY > rhs.maxY
-            }
-            return lhs.maxX < rhs.maxX
-        } ?? panel
-        guard let anchor else {
+        guard let panel else {
             return CGRect(
                 x: screen.maxX - size.width - 24,
                 y: screen.maxY - size.height - 24,
@@ -206,16 +199,35 @@ public enum TrayWindowLayout {
             )
         }
 
+        // Only windows already to the right of the panel participate in the
+        // right-hand row; windows placed on the left must not become anchors.
+        let rightSide = existing.filter { $0.minX >= panel.maxX }
+        let anchor = rightSide.max {
+            if $0.maxX == $1.maxX {
+                return $0.maxY > $1.maxY
+            }
+            return $0.maxX < $1.maxX
+        } ?? panel
+
         var origin = CGPoint(
             x: anchor.maxX + gap,
             y: anchor.maxY - size.height
         )
         if origin.x + size.width > screen.maxX {
-            // No room to the right: stack a new row below the anchor.
-            origin = CGPoint(
-                x: min(anchor.minX, screen.maxX - size.width),
-                y: anchor.minY - size.height - gap
-            )
+            // No room to the right: open to the left of the panel, tiling
+            // further left when other windows are already there.
+            let leftSide = existing.filter { $0.maxX <= panel.minX }
+            let leftEdge = leftSide.map(\.minX).min() ?? panel.minX
+            let leftX = leftEdge - gap - size.width
+            if leftX >= screen.minX {
+                origin = CGPoint(x: leftX, y: panel.maxY - size.height)
+            } else {
+                // Neither side has room: stack below the anchor.
+                origin = CGPoint(
+                    x: min(anchor.minX, screen.maxX - size.width),
+                    y: anchor.minY - size.height - gap
+                )
+            }
         }
         if origin.y < screen.minY {
             origin.y = screen.minY

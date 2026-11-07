@@ -10,6 +10,7 @@ public final class FocusWindowController: NSObject, NSWindowDelegate {
     private let environment: AppEnvironment
     private var window: NSWindow?
     private var model: FocusViewModel?
+    public var mainWindowProvider: (@MainActor () -> NSWindow?)?
 
     public init(environment: AppEnvironment) {
         self.environment = environment
@@ -44,7 +45,7 @@ public final class FocusWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = false
         window.delegate = self
-        window.center()
+        WindowPlacement.besideMainWindow(window, main: mainWindowProvider?())
         self.window = window
 
         NSApp.activate(ignoringOtherApps: true)

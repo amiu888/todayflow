@@ -143,7 +143,7 @@ struct TrayWindowLayoutTests {
         #expect(second.maxY == first.maxY)
     }
 
-    @Test func fallsBackBelowWhenTheRowIsFull() {
+    @Test func fallsBackToTheLeftWhenTheRowIsFull() {
         let rightPanel = CGRect(x: 780, y: 700, width: 360, height: 300)
         let stackedSize = CGSize(width: 420, height: 250)
         let first = TrayWindowLayout.frame(
@@ -158,6 +158,8 @@ struct TrayWindowLayoutTests {
             existing: [first],
             screen: screen
         )
+        #expect(second.maxX <= rightPanel.minX - 8)
+
         let third = TrayWindowLayout.frame(
             size: stackedSize,
             panel: rightPanel,
@@ -165,7 +167,7 @@ struct TrayWindowLayoutTests {
             screen: screen
         )
         #expect(third.maxX <= screen.maxX)
-        #expect(third.maxY <= second.minY)
+        #expect(third.maxY <= screen.maxY)
     }
 }
 
