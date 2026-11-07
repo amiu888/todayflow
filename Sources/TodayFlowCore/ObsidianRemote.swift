@@ -33,6 +33,8 @@ public protocol ObsidianRemoteTransport: Sendable {
     func read(_ path: String) async throws -> String?
     func write(_ path: String, content: String) async throws
     func open(_ path: String) async throws
+    /// Lists one vault directory. Directory names end with "/".
+    func list(_ path: String) async throws -> [String]
 }
 
 /// Talks to the Obsidian Local REST API plugin on another machine.
@@ -77,6 +79,24 @@ public final class ObsidianRemoteClient: ObsidianRemoteTransport, @unchecked Sen
             throw ObsidianRemoteError.server(response.statusCode)
         }
         _ = data
+    }
+
+    public func list(_ path: String) async throws -> [String] {
+        let clean = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let requestPath = clean.isEmpty ? "/vault/" : "/vault/\(clean)/"
+        let (data, response) = try await send(method: "GET", path: requestPath)
+        if response.statusCode == 404 { return [] }
+        if response.statusCode == 401 || response.statusCode == 403 {
+            throw ObsidianRemoteError.unauthorized
+        }
+        guard (200...299).contains(response.statusCode) else {
+            throw ObsidianRemoteError.server(response.statusCode)
+        }
+        struct Listing: Decodable { let files: [String] }
+        guard let listing = try? JSONDecoder().decode(Listing.self, from: data) else {
+            throw ObsidianRemoteError.tool("Obsidian returned an unreadable folder listing.")
+        }
+        return listing.files
     }
 
     public func read(_ path: String) async throws -> String? {

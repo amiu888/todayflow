@@ -42,6 +42,23 @@ public final class ObsidianMCPClient: ObsidianRemoteTransport, @unchecked Sendab
         _ = try await call(method: "tools/list")
     }
 
+    public func list(_ path: String) async throws -> [String] {
+        let result = try await call(
+            method: "tools/call",
+            tool: "vault_list",
+            arguments: ["path": path]
+        )
+        try checkToolResult(result)
+        guard let text = textContent(result),
+              let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let files = object["files"] as? [String]
+        else {
+            throw ObsidianRemoteError.tool("MCP returned an unreadable folder listing.")
+        }
+        return files
+    }
+
     public func read(_ path: String) async throws -> String? {
         let result = try await call(
             method: "tools/call",
@@ -103,7 +120,7 @@ public final class ObsidianMCPClient: ObsidianRemoteTransport, @unchecked Sendab
                 "io.modelcontextprotocol/protocolVersion": Self.protocolVersion,
                 "io.modelcontextprotocol/clientInfo": [
                     "name": Self.clientName,
-                    "version": "1.9.15",
+                    "version": "1.9.16",
                 ],
                 "io.modelcontextprotocol/clientCapabilities": [:],
             ],

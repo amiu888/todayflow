@@ -12,7 +12,7 @@ The connection is optional: if Obsidian is not installed or not configured, Toda
 1. Open **Settings → Obsidian**.
 2. Open the **Vault** menu. TodayFlow lists the vaults registered with Obsidian, such as **NBCBrain** or **HermesBrain**; choose one. For any other folder, choose **Choose Folder…**.
 3. Check the **Vault name** field. It must match the vault name Obsidian uses; it is normally the folder name.
-4. Leave the sync note at `TodayFlow/Tasks.md`, or enter another vault-relative path. Use **Folder…** to put the note inside a folder such as `Conversations/Daily/TodayFlow.md`.
+4. Leave the sync note at `TodayFlow/Tasks.md`, or click **Browse…** to pick an existing note or folder from the vault. You can also type any new vault-relative path, such as `Conversations/Daily/TodayFlow.md`.
 5. Turn on **Sync with Obsidian** and press **Save** in the bar at the bottom of Settings (or press **⌘S**). The bar stays visible while the form scrolls.
 6. Press **Sync now**, or wait a few seconds.
 
@@ -42,7 +42,7 @@ On this Mac:
    - HTTP: `27123`
    - HTTPS: `27124`
 5. Paste the API key, click **Test connection**, then **Save**.
-6. Set the note path and press **Sync now**.
+6. Set the note path — **Browse…** reads the remote vault’s folders and notes — and press **Sync now**.
 
 TodayFlow accepts the plugin’s self-signed HTTPS certificate for this connection. Use the feature on a trusted LAN. HTTP is unencrypted; HTTPS is encrypted but the certificate is not verified by a public authority.
 

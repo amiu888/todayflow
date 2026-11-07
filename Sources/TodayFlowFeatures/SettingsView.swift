@@ -18,6 +18,7 @@ public struct SettingsView: View {
     private let onObsidianOpenNote: (@MainActor @Sendable () -> Void)?
     @State private var selectedTab: SettingsTab = .general
     @State private var showResetConfirmation = false
+    @State private var showingNoteBrowser = false
 
     public init(
         model: SettingsViewModel,
@@ -330,15 +331,23 @@ public struct SettingsView: View {
                                     TextField("", text: $model.obsidianSettings.notePath)
                                         .textFieldStyle(.squareBorder)
                                         .accessibilityLabel("Note path")
-                                    if model.obsidianSettings.mode == .local {
-                                        Button("Folder…") {
-                                            chooseObsidianNoteFolder()
-                                        }
-                                        .help("Choose a folder inside the vault for the sync note")
+                                    Button("Browse…") {
+                                        showingNoteBrowser = true
                                     }
+                                    .help("Choose an existing note or folder from the vault")
                                 }
                             }
-                            Text("Relative to the vault. In remote mode, relative to the vault open in Obsidian.")
+                            .popover(isPresented: $showingNoteBrowser, arrowEdge: .bottom) {
+                                NotePathBrowser(
+                                    selectedPath: model.obsidianSettings.normalizedNotePath,
+                                    load: { await model.obsidianBrowserEntries(at: $0) },
+                                    onChoose: { path in
+                                        model.obsidianSettings.notePath = path
+                                        showingNoteBrowser = false
+                                    }
+                                )
+                            }
+                            Text("Relative to the vault. Browse… lists existing notes and folders; you can still type a new path.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -760,33 +769,6 @@ public struct SettingsView: View {
         model.obsidianSettings.enabled = true
     }
 
-    private func chooseObsidianNoteFolder() {
-        #if canImport(AppKit)
-        let vaultPath = model.obsidianSettings.vaultPath
-        guard !vaultPath.isEmpty else { return }
-        let vaultURL = URL(fileURLWithPath: vaultPath, isDirectory: true)
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = vaultURL
-        panel.prompt = "Use This Folder"
-        panel.message = "Choose a folder inside the vault for the TodayFlow sync note."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-
-        let vault = vaultURL.standardizedFileURL.path
-        let selected = url.standardizedFileURL.path
-        var relative = ""
-        if selected.hasPrefix(vault + "/") {
-            relative = String(selected.dropFirst(vault.count + 1))
-        }
-        while relative.hasPrefix("/") { relative.removeFirst() }
-        model.obsidianSettings.notePath = relative.isEmpty
-            ? "TodayFlow.md"
-            : "\(relative)/TodayFlow.md"
-        #endif
-    }
-
     private func chooseObsidianVault() {
         #if canImport(AppKit)
         let panel = NSOpenPanel()
@@ -816,6 +798,164 @@ public struct SettingsView: View {
         case 6: return "Friday"
         default: return "Saturday"
         }
+    }
+}
+
+private struct NotePathBrowser: View {
+    let selectedPath: String
+    let load: @MainActor (String) async -> Result<[ObsidianVaultEntry], ObsidianBrowserError>
+    let onChoose: @MainActor (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var path = ""
+    @State private var entries: [ObsidianVaultEntry] = []
+    @State private var error: String?
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Button {
+                    Task { await open(parentPath) }
+                } label: {
+                    Image(systemName: "chevron.up")
+                }
+                .buttonStyle(.borderless)
+                .disabled(path.isEmpty || isLoading)
+                .help("Go up one folder")
+
+                Text(path.isEmpty ? "Vault root" : path)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer()
+
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .padding(10)
+
+            Divider()
+            content
+            Divider()
+
+            HStack(spacing: 8) {
+                Button("Use This Folder") {
+                    onChoose(path.isEmpty ? "Tasks.md" : "\(path)/Tasks.md")
+                }
+                .disabled(isLoading || error != nil)
+
+                Spacer()
+
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+            .padding(10)
+
+            Text("Pick a note, or use this folder to create Tasks.md.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 8)
+        }
+        .frame(width: 360, height: 380)
+        .task { await open("") }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let error {
+            VStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Text(error)
+                    .multilineTextAlignment(.center)
+                Text("You can still type a path in Settings.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if isLoading, entries.isEmpty {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if entries.isEmpty {
+            Text("No notes or folders here.")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(entries) { entry in
+                        Button {
+                            if entry.isDirectory {
+                                Task { await open(entry.path) }
+                            } else {
+                                onChoose(entry.path)
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: entry.isDirectory ? "folder" : "doc.text")
+                                    .foregroundStyle(
+                                        entry.isDirectory
+                                            ? Color.accentColor
+                                            : Color.secondary
+                                    )
+                                Text(entry.name)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer()
+                                if !entry.isDirectory, entry.path == selectedPath {
+                                    Image(systemName: "checkmark")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color.accentColor)
+                                } else if entry.isDirectory {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Divider()
+                            .padding(.leading, 32)
+                    }
+                }
+            }
+        }
+    }
+
+    private var parentPath: String {
+        var parts = path.split(separator: "/")
+        guard !parts.isEmpty else { return "" }
+        parts.removeLast()
+        return parts.joined(separator: "/")
+    }
+
+    @MainActor
+    private func open(_ newPath: String) async {
+        path = newPath
+        isLoading = true
+        error = nil
+        let result = await load(newPath)
+        guard !Task.isCancelled else { return }
+        switch result {
+        case .success(let values):
+            entries = values
+        case .failure(let failure):
+            entries = []
+            error = failure.localizedDescription
+        }
+        isLoading = false
     }
 }
 

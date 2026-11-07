@@ -400,3 +400,33 @@ struct SettingsViewModelTests {
         #expect(calendar.calendar == testCalendar)
     }
 }
+
+    @Test @MainActor
+    func obsidianBrowser_listsLocalFoldersAndNotes() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Alpha", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("Beta", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try Data("# note".utf8).write(to: root.appendingPathComponent("Today.md"))
+        try Data("image".utf8).write(to: root.appendingPathComponent("image.png"))
+        try Data("# hidden".utf8).write(to: root.appendingPathComponent(".hidden.md"))
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let f = Fixture()
+        f.vm.obsidianSettings.mode = .local
+        f.vm.obsidianSettings.vaultPath = root.path
+
+        switch await f.vm.obsidianBrowserEntries(at: "") {
+        case .success(let entries):
+            #expect(entries.map(\.name) == ["Alpha", "Beta", "Today.md"])
+            #expect(entries.first?.isDirectory == true)
+        case .failure(let error):
+            Issue.record("browser failed: \(error)")
+        }
+    }

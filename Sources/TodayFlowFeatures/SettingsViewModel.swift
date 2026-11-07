@@ -2,6 +2,17 @@ import Foundation
 import Observation
 import TodayFlowCore
 
+/// An error shown inside the note-path browser.
+public struct ObsidianBrowserError: LocalizedError, Equatable, Sendable {
+    public let message: String
+
+    public init(_ message: String) {
+        self.message = message
+    }
+
+    public var errorDescription: String? { message }
+}
+
 /// Model for the settings screen (driver.md §11 feature 5).
 ///
 /// Owns the two settings groups the app persists in the `setting` store:
@@ -250,20 +261,7 @@ public final class SettingsViewModel {
     /// Verifies the current remote host/port and API key without saving.
     public func testObsidianConnection() async {
         obsidianConnectionStatus = nil
-        let transport: (any ObsidianRemoteTransport)?
-        switch obsidianSettings.remoteTransport {
-        case .rest:
-            transport = ObsidianRemoteClient(
-                settings: obsidianSettings,
-                apiKey: obsidianAPIKey
-            )
-        case .mcp:
-            transport = ObsidianMCPClient(
-                settings: obsidianSettings,
-                apiKey: obsidianAPIKey
-            )
-        }
-        guard let transport else {
+        guard let transport = makeRemoteTransport() else {
             obsidianConnectionStatus = "Enter a remote host and port first."
             return
         }
@@ -272,6 +270,97 @@ public final class SettingsViewModel {
             obsidianConnectionStatus = "Connected via \(obsidianSettings.remoteTransport.label) to \(obsidianSettings.sanitizedRemoteHost):\(obsidianSettings.remotePort)."
         } catch {
             obsidianConnectionStatus = error.localizedDescription
+        }
+    }
+
+    private func makeRemoteTransport() -> (any ObsidianRemoteTransport)? {
+        switch obsidianSettings.remoteTransport {
+        case .rest:
+            return ObsidianRemoteClient(
+                settings: obsidianSettings,
+                apiKey: obsidianAPIKey
+            )
+        case .mcp:
+            return ObsidianMCPClient(
+                settings: obsidianSettings,
+                apiKey: obsidianAPIKey
+            )
+        }
+    }
+
+    /// Lists one folder for the note-path browser. Local vaults are read from
+    /// disk; remote vaults ask the plugin (REST or MCP) for a directory listing.
+    public func obsidianBrowserEntries(
+        at path: String
+    ) async -> Result<[ObsidianVaultEntry], ObsidianBrowserError> {
+        let relative = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        if obsidianSettings.mode == .local {
+            guard let vaultURL = obsidianSettings.vaultURL else {
+                return .failure(ObsidianBrowserError("Choose a vault first."))
+            }
+            let directory = relative.isEmpty
+                ? vaultURL
+                : vaultURL.appendingPathComponent(relative, isDirectory: true)
+            do {
+                // Use the path-based enumeration for iCloud/FileProvider
+                // vaults; the URL-based variant can report an empty folder
+                // before the provider has materialized it.
+                let names = try FileManager.default.contentsOfDirectory(
+                    atPath: directory.path
+                )
+                let entries = names.compactMap { name -> ObsidianVaultEntry? in
+                    guard !name.hasPrefix(".") else { return nil }
+                    let url = directory.appendingPathComponent(name)
+                    var isDirectory: ObjCBool = false
+                    guard FileManager.default.fileExists(
+                        atPath: url.path,
+                        isDirectory: &isDirectory
+                    ) else { return nil }
+                    if !isDirectory.boolValue, url.pathExtension.lowercased() != "md" {
+                        return nil
+                    }
+                    return ObsidianVaultEntry(
+                        path: relative.isEmpty ? name : "\(relative)/\(name)",
+                        name: name,
+                        isDirectory: isDirectory.boolValue
+                    )
+                }
+                return .success(Self.sortedObsidianEntries(entries))
+            } catch {
+                return .failure(ObsidianBrowserError(error.localizedDescription))
+            }
+        }
+
+        guard let transport = makeRemoteTransport() else {
+            return .failure(ObsidianBrowserError("Enter a remote host and port first."))
+        }
+        do {
+            let names = try await transport.list(relative)
+            let entries = names.compactMap { value -> ObsidianVaultEntry? in
+                let isDirectory = value.hasSuffix("/")
+                let name = isDirectory ? String(value.dropLast()) : value
+                if !isDirectory, !name.lowercased().hasSuffix(".md") {
+                    return nil
+                }
+                return ObsidianVaultEntry(
+                    path: relative.isEmpty ? name : "\(relative)/\(name)",
+                    name: name,
+                    isDirectory: isDirectory
+                )
+            }
+            return .success(Self.sortedObsidianEntries(entries))
+        } catch {
+            return .failure(ObsidianBrowserError(error.localizedDescription))
+        }
+    }
+
+    private static func sortedObsidianEntries(
+        _ entries: [ObsidianVaultEntry]
+    ) -> [ObsidianVaultEntry] {
+        entries.sorted {
+            if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
+            return $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
     }
 

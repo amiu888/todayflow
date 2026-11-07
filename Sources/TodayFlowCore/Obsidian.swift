@@ -551,6 +551,21 @@ public enum ObsidianItemNote {
     }
 }
 
+/// One folder or note shown by the Settings note-path browser.
+public struct ObsidianVaultEntry: Identifiable, Hashable, Sendable {
+    public let path: String
+    public let name: String
+    public let isDirectory: Bool
+
+    public var id: String { path }
+
+    public init(path: String, name: String, isDirectory: Bool) {
+        self.path = path
+        self.name = name
+        self.isDirectory = isDirectory
+    }
+}
+
 /// A vault registered with the Obsidian desktop app.
 public struct ObsidianVault: Identifiable, Hashable, Sendable {
     public let name: String
