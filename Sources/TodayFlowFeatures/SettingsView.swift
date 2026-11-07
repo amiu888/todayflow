@@ -256,12 +256,12 @@ public struct SettingsView: View {
                                     }
                                 }
 
-                                LabeledContent("Vault label") {
+                                LabeledContent("Vault name") {
                                     TextField("NBCBrain", text: $model.obsidianSettings.remoteDisplayName)
                                         .textFieldStyle(.squareBorder)
-                                        .accessibilityLabel("Remote vault label")
+                                        .accessibilityLabel("Remote vault name")
                                 }
-                                Text("A name for this connection. The plugin serves the vault currently open in Obsidian; it cannot list or switch vaults.")
+                                Text("The plugin does not report the active vault's name. Enter the name of the vault open in Obsidian (for example NBCBrain) so you can recognize this connection.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -349,6 +349,7 @@ public struct SettingsView: View {
                             }
                             .popover(isPresented: $showingNoteBrowser, arrowEdge: .bottom) {
                                 NotePathBrowser(
+                                    vaultName: model.obsidianSettings.resolvedVaultName,
                                     selectedPath: model.obsidianSettings.normalizedNotePath,
                                     load: { await model.obsidianBrowserEntries(at: $0) },
                                     onChoose: { path in
@@ -812,6 +813,7 @@ public struct SettingsView: View {
 }
 
 private struct NotePathBrowser: View {
+    let vaultName: String
     let selectedPath: String
     let load: @MainActor (String) async -> Result<[ObsidianVaultEntry], ObsidianBrowserError>
     let onChoose: @MainActor (String) -> Void
@@ -834,7 +836,9 @@ private struct NotePathBrowser: View {
                 .disabled(path.isEmpty || isLoading)
                 .help("Go up one folder")
 
-                Text(path.isEmpty ? "Vault root" : path)
+                Text(path.isEmpty
+                     ? (vaultName.isEmpty ? "Vault root" : vaultName)
+                     : "\(vaultName.isEmpty ? "Vault" : vaultName) / \(path)")
                     .font(.callout.weight(.semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)

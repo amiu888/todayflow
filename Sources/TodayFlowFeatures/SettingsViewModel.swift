@@ -267,7 +267,12 @@ public final class SettingsViewModel {
         }
         do {
             try await transport.verify()
-            obsidianConnectionStatus = "Connected via \(obsidianSettings.remoteTransport.label) to \(obsidianSettings.sanitizedRemoteHost):\(obsidianSettings.remotePort)."
+            let name = obsidianSettings.remoteDisplayName
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let address = "\(obsidianSettings.sanitizedRemoteHost):\(obsidianSettings.remotePort)"
+            obsidianConnectionStatus = name.isEmpty
+                ? "Connected via \(obsidianSettings.remoteTransport.label) to \(address)."
+                : "Connected via \(obsidianSettings.remoteTransport.label) to \(name) at \(address)."
         } catch {
             obsidianConnectionStatus = error.localizedDescription
         }
