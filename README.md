@@ -107,7 +107,7 @@ visible at the bottom of the task detail window.
 Distribution status:
 
 - Developer ID signing, hardened runtime, and **notarization + stapling** are done for
-  the 1.9.20 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
+  the 1.9.21 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
 - Broader XCUITest coverage (drag/drop, trays, calendar, focus) and the NFR-01…05
   performance gates remain follow-ups.
 - Live Markdown rendering and pasted-image attachments inside the detail description.

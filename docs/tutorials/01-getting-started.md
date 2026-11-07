@@ -52,6 +52,8 @@ Open any task to use these:
 - **Actions** — type a short step such as “Email the team” or “Ask about the budget” and press Return. Check it off when done; the **×** removes it.
 - **Project** — the pill next to the status shows the task’s project. Pick another project, clear it, or choose **New Project…** to create a project and move the task into it immediately.
 - **Subtasks** — type a subtask in the field under the task’s children and press Return. Projects use the same field to add tasks; epics use it to add projects.
+- **Activity** is collapsed by default; click its header to expand the audit trail.
+- The task action bar is pinned at the bottom: **Delete** on the left; **Move to tomorrow**, **Complete**, and **Save** on the right.
 - **Repeat** — choose **Does not repeat**, **Every day**, **Every weekday**, **Every week**, **Every month**, or **Every year**. Completing the task creates the next occurrence automatically; the completed one stays in history. Core details (title, notes, tags, priority, project, duration) are copied; attachments and links are not.
 
 ## 5. Keep Today on this desktop

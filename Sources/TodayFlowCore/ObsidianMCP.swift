@@ -120,7 +120,7 @@ public final class ObsidianMCPClient: ObsidianRemoteTransport, @unchecked Sendab
                 "io.modelcontextprotocol/protocolVersion": Self.protocolVersion,
                 "io.modelcontextprotocol/clientInfo": [
                     "name": Self.clientName,
-                    "version": "1.9.20",
+                    "version": "1.9.21",
                 ],
                 "io.modelcontextprotocol/clientCapabilities": [:],
             ],

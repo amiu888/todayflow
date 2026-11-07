@@ -42,6 +42,7 @@ public struct DetailView: View {
     @State private var newChildTitle = ""
     @State private var showingNewProject = false
     @State private var newProjectName = ""
+    @State private var isActivityExpanded = false
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -173,71 +174,83 @@ public struct DetailView: View {
     @ViewBuilder
     private var content: some View {
         if let item = model.item {
-            ScrollView {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap * 2) {
-                    HStack(spacing: 8) {
-                        breadcrumb(item)
-                        Spacer()
-                        if model.corrector != nil {
-                            Button {
-                                Task { await model.correctDraftText() }
-                            } label: {
-                                if model.isCorrectingText {
-                                    ProgressView().controlSize(.small)
-                                } else {
-                                    Label("Fix spelling & grammar", systemImage: "wand.and.stars")
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap * 2) {
+                        HStack(spacing: 8) {
+                            breadcrumb(item)
+                            Spacer()
+                            if model.corrector != nil {
+                                Button {
+                                    Task { await model.correctDraftText() }
+                                } label: {
+                                    if model.isCorrectingText {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        Label("Fix spelling & grammar", systemImage: "wand.and.stars")
+                                    }
                                 }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .disabled(model.isCorrectingText)
+                                .help("Correct the title, summary, and description with AI")
+                                .accessibilityIdentifier("task-ai-correct")
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .disabled(model.isCorrectingText)
-                            .help("Correct the title, summary, and description with AI")
-                            .accessibilityIdentifier("task-ai-correct")
+                        }
+                        titleField
+                        summarySection
+                        pillsRow(item)
+                        tagsRow(item)
+                        contactsSection
+                        datesRow
+                        HStack(spacing: 10) {
+                            if model.remindersAvailable {
+                                reminderSection
+                            }
+                            estimateMenu
+                        }
+                        descriptionSection
+                        actionsSection
+
+                        if model.assistant != nil {
+                            aiBreakdownSection
+                        }
+
+                        if model.canAddChild || !model.children.isEmpty {
+                            childrenSection
+                        }
+                        if !model.attachments.isEmpty {
+                            attachmentsSection
+                        }
+
+                        linksSection
+
+                        if !model.activity.isEmpty {
+                            activitySection
+                        }
+
+                        if let error = model.lastError {
+                            Text(error)
+                                .font(.callout)
+                                .foregroundStyle(.red)
                         }
                     }
-                    titleField
-                    summarySection
-                    pillsRow(item)
-                    tagsRow(item)
-                    contactsSection
-                    datesRow
-                    HStack(spacing: 10) {
-                        if model.remindersAvailable {
-                            reminderSection
-                        }
-                        estimateMenu
-                    }
-                    descriptionSection
-                    actionsSection
-
-                    if model.assistant != nil {
-                        aiBreakdownSection
-                    }
-
-                    if model.canAddChild || !model.children.isEmpty {
-                        childrenSection
-                    }
-                    if !model.attachments.isEmpty {
-                        attachmentsSection
-                    }
-
-                    linksSection
-
-                    if !model.activity.isEmpty {
-                        activitySection
-                    }
-
-                    if let error = model.lastError {
-                        Text(error)
-                            .font(.callout)
-                            .foregroundStyle(.red)
-                    }
-
-                    actionsRow
+                    .padding(20)
                 }
-                .padding(20)
+
+                Divider()
+                fixedActionBar
             }
         }
+    }
+
+    @MainActor
+    private var fixedActionBar: some View {
+        actionsRow
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
     }
 
     // MARK: Sections
@@ -677,7 +690,6 @@ public struct DetailView: View {
             }
         }
         .font(.callout)
-        .disabled(model.isSaving)
     }
 
     @MainActor
@@ -739,6 +751,10 @@ public struct DetailView: View {
             )
             .labelsHidden()
             .accessibilityLabel("Reminder time")
+            .onChange(of: model.reminderDate) { _, newDate in
+                guard model.reminder != nil else { return }
+                Task { await model.setReminder(at: newDate) }
+            }
 
             Button(model.reminder == nil ? "Set" : "Update") {
                 Task { await model.setReminder(at: model.reminderDate) }
@@ -1220,10 +1236,30 @@ public struct DetailView: View {
     @MainActor
     private var activitySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Activity")
-                .font(.headline)
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isActivityExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Text("Activity")
+                        .font(.headline)
+                    Text("\(model.activity.count)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: isActivityExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Activity")
+            .accessibilityValue(isActivityExpanded ? "Expanded" : "Collapsed")
 
-            ForEach(model.activity) { event in
+            if isActivityExpanded {
+                ForEach(model.activity) { event in
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: activitySymbol(event.kind))
                         .font(.caption)
@@ -1267,6 +1303,7 @@ public struct DetailView: View {
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(activityAccessibilityLabel(event))
+            }
             }
         }
     }
@@ -1336,6 +1373,21 @@ public struct DetailView: View {
     @MainActor
     private var actionsRow: some View {
         HStack(spacing: 12) {
+            Button(role: .destructive) {
+                Task { await model.delete() }
+            } label: {
+                Label("Delete", systemImage: "trash")
+                    .foregroundStyle(.red)
+            }
+            .help("Delete this task")
+
+            Spacer()
+
+            Button("Move to tomorrow") {
+                Task { await model.moveToTomorrow() }
+            }
+            .help("Reschedule to the next working day")
+
             if model.item?.status.isComplete == true {
                 Button("Reopen") {
                     Task { await model.setStatus(.todo) }
@@ -1355,22 +1407,9 @@ public struct DetailView: View {
             } label: {
                 Label("Save", systemImage: "checkmark.circle")
             }
-            .help("Save changes now")
+            .keyboardShortcut("s", modifiers: .command)
+            .help("Save changes now (⌘S)")
             .disabled(model.isSaving)
-
-            Button("Move to tomorrow") {
-                Task { await model.moveToTomorrow() }
-            }
-            .help("Reschedule to the next working day")
-
-            Spacer()
-
-            Button(role: .destructive) {
-                Task { await model.delete() }
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            .help("Delete this task")
         }
         .disabled(model.isSaving)
     }
