@@ -108,17 +108,29 @@ public struct AIOnboardingView: View {
                     ProgressView().controlSize(.small)
                 }
                 Spacer()
-                Button("Scan again") {
-                    Task { await model.scanLocalAI() }
+                HStack(spacing: 6) {
+                    Text("Port")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                    TextField("8000", text: $model.customScanPort)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 64)
+                        .accessibilityLabel("Custom AI server port")
+                        .onSubmit {
+                            Task { await model.scanLocalAI() }
+                        }
+                    Button("Scan") {
+                        Task { await model.scanLocalAI() }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption.weight(.semibold))
+                    .disabled(model.isScanning || model.isApplying)
+                    .accessibilityIdentifier("ai-setup-scan")
                 }
-                .buttonStyle(.borderless)
-                .font(.caption.weight(.semibold))
-                .disabled(model.isScanning || model.isApplying)
-                .accessibilityIdentifier("ai-setup-scan-again")
             }
 
             if model.discovered.isEmpty {
-                Text("No local AI server found on Ollama (11434), LM Studio (1234), llama.cpp/GPU Buddy (8080), vLLM (8000), text-generation-webui (5000), or Jan (1337). Start one and scan again, or use the tiny model below.")
+                Text("No local AI server found on Ollama (11434), LM Studio (1234), llama.cpp/GPU Buddy (8080), vLLM (8000), text-generation-webui (5000), or Jan (1337). Start one and scan again, enter its port above, or use the tiny model below.")
                     .font(.caption)
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

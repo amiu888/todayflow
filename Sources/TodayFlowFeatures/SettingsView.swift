@@ -426,18 +426,30 @@ public struct SettingsView: View {
                                             .textFieldStyle(.squareBorder)
                                             .accessibilityLabel("AI API key")
                                     }
-                                    LabeledContent("Model") {
+                                    if model.modelCatalogAvailable {
                                         HStack(spacing: 8) {
-                                            TextField("", text: $model.aiSettings.model)
-                                                .textFieldStyle(.squareBorder)
-                                                .accessibilityLabel("Model")
-                                            if model.modelCatalogAvailable {
-                                                Button(model.isFetchingModels ? "Fetching…" : "Fetch models") {
-                                                    Task { @MainActor in await model.fetchModels() }
-                                                }
-                                                .disabled(model.isFetchingModels)
+                                            Button {
+                                                Task { @MainActor in await model.fetchModels() }
+                                            } label: {
+                                                Label(
+                                                    model.isFetchingModels ? "Scanning…" : "Scan server",
+                                                    systemImage: "arrow.clockwise"
+                                                )
+                                            }
+                                            .disabled(model.isFetchingModels)
+
+                                            if !model.isFetchingModels, !model.availableModels.isEmpty {
+                                                Text("Found \(model.availableModels.count) model\(model.availableModels.count == 1 ? "" : "s").")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
                                             }
                                         }
+                                    }
+
+                                    LabeledContent("Model") {
+                                        TextField("", text: $model.aiSettings.model)
+                                            .textFieldStyle(.squareBorder)
+                                            .accessibilityLabel("Model")
                                     }
 
                                     if !model.availableModels.isEmpty {

@@ -128,6 +128,15 @@ public struct LocalAICandidate: Identifiable, Sendable, Hashable {
 /// vLLM, and similar OpenAI-compatible servers.
 public protocol LocalAIDiscovering: Sendable {
     func scan() async -> [LocalAICandidate]
+    func scan(customPort: Int?) async -> [LocalAICandidate]
+}
+
+public extension LocalAIDiscovering {
+    /// Hosts that do not implement custom-port discovery fall back to the
+    /// standard scan.
+    func scan(customPort: Int?) async -> [LocalAICandidate] {
+        await scan()
+    }
 }
 
 public struct NoLocalAIDiscovery: LocalAIDiscovering {
@@ -167,6 +176,8 @@ public final class AIOnboardingViewModel {
     public private(set) var discovered: [LocalAICandidate] = []
     public private(set) var selectedModels: [String: String] = [:]
     public private(set) var isScanning = false
+    /// Optional non-standard port to probe in addition to the usual ports.
+    public var customScanPort = ""
 
     /// Set by the host window: called after a successful setup or a skip.
     @ObservationIgnored public var onFinish: (@MainActor () -> Void)?
@@ -215,9 +226,16 @@ public final class AIOnboardingViewModel {
     /// setup window appearance and from the "Scan again" button.
     public func scanLocalAI() async {
         guard !isScanning else { return }
+        let trimmed = customScanPort.trimmingCharacters(in: .whitespacesAndNewlines)
+        let port = trimmed.isEmpty ? nil : Int(trimmed)
+        if !trimmed.isEmpty, port == nil || !(1...65_535).contains(port!) {
+            lastError = "Enter a port between 1 and 65535."
+            return
+        }
         isScanning = true
+        lastError = nil
         defer { isScanning = false }
-        discovered = await discovering.scan()
+        discovered = await discovering.scan(customPort: port)
         for candidate in discovered where selectedModels[candidate.id] == nil {
             selectedModels[candidate.id] = candidate.models.first
         }

@@ -21,7 +21,7 @@ The setup window checks localhost ports for common OpenAI-compatible servers:
 | text-generation-webui | 5000 |
 | Jan | 1337 |
 
-If a server is running, its name, endpoint, and models appear under **Detected on this Mac**. Choose a model and click **Use**. No download is needed.
+If a server is running, its name, endpoint, and models appear under **Detected on this Mac**. Choose a model and click **Use**. No download is needed. For a server on a non-standard port, type the port in the **Port** field next to **Detected on this Mac** and click **Scan**.
 
 The scan only checks the standard ports above. If your server uses a non-standard port, open **Settings → AI → Port** and enter it; TodayFlow updates the base URL. The scan cannot discover arbitrary ports, so configure those manually.
 
@@ -43,7 +43,7 @@ On supported Macs, **Apple Intelligence** uses the built-in system model with **
 
 ## 5. Reconfigure later
 
-Open **Settings → AI** to change the provider, base URL, **port**, model, timeout, or feature toggles. **Fetch models** lists what the endpoint offers. The **gear** icon in the Today header opens Settings; the **sparkles** menu also opens AI setup and settings.
+Open **Settings → AI** to change the provider, base URL, **port**, model, timeout, or feature toggles. **Scan server** checks the endpoint and lists the models it offers. The **gear** icon in the Today header opens Settings; the **sparkles** menu also opens AI setup and settings.
 
 **GPU Buddy:** its OpenAI-compatible proxy is on **8080** by default. A model server or another app may use 8000; that is not the proxy endpoint. Use the port shown by GPU Buddy's OpenAI API settings, or set it in TodayFlow → Settings → AI → Port.
 

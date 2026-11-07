@@ -168,3 +168,63 @@ struct TrayWindowLayoutTests {
         #expect(third.maxY <= second.minY)
     }
 }
+
+struct WindowOpeningLayoutTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+    private let detailSize = CGSize(width: 720, height: 640)
+
+    @Test func opensToTheRightWhenItFits() throws {
+        let panel = CGRect(x: 100, y: 300, width: 360, height: 448)
+        let frame = try #require(WindowOpeningLayout.frame(
+            size: detailSize,
+            panel: panel,
+            screen: screen
+        ))
+        #expect(frame.minX == panel.maxX + 8)
+        #expect(frame.maxY == panel.maxY)
+        #expect(frame.maxX <= screen.maxX)
+    }
+
+    @Test func opensToTheLeftWhenTheRightSideIsFull() throws {
+        let panel = CGRect(x: 1100, y: 300, width: 360, height: 448)
+        let frame = try #require(WindowOpeningLayout.frame(
+            size: detailSize,
+            panel: panel,
+            screen: screen
+        ))
+        #expect(frame.maxX == panel.minX - 8)
+        #expect(frame.maxY == panel.maxY)
+        #expect(frame.minX >= screen.minX)
+    }
+
+    @Test func staysOnScreenWhenNeitherSideFits() throws {
+        let panel = CGRect(x: 600, y: 300, width: 360, height: 448)
+        let frame = try #require(WindowOpeningLayout.frame(
+            size: CGSize(width: 1000, height: 640),
+            panel: panel,
+            screen: screen
+        ))
+        #expect(frame.minX >= screen.minX)
+        #expect(frame.maxX <= screen.maxX)
+        #expect(frame.maxY <= screen.maxY)
+    }
+
+    @Test func clampsVerticallyToTheVisibleScreen() throws {
+        let panel = CGRect(x: 100, y: 50, width: 360, height: 448)
+        let frame = try #require(WindowOpeningLayout.frame(
+            size: detailSize,
+            panel: panel,
+            screen: screen
+        ))
+        #expect(frame.minY >= screen.minY)
+        #expect(frame.maxY <= screen.maxY)
+    }
+
+    @Test func withoutAPanelTheCallerFallsBackToCenter() {
+        #expect(WindowOpeningLayout.frame(
+            size: detailSize,
+            panel: nil,
+            screen: screen
+        ) == nil)
+    }
+}

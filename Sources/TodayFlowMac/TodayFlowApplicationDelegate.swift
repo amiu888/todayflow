@@ -56,6 +56,13 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             windowManager.onAskAI = { [weak askAI] in askAI?.present() }
             let aiSetup = AIOnboardingController(environment: environment)
             self.aiSetup = aiSetup
+            let mainWindowProvider: @MainActor () -> NSWindow? = { [weak windowManager] in
+                windowManager?.window(for: .panel) ?? windowManager?.window(for: .slimBar)
+            }
+            aiSetup.mainWindowProvider = mainWindowProvider
+            dayPlan.mainWindowProvider = mainWindowProvider
+            askAI.mainWindowProvider = mainWindowProvider
+            review.mainWindowProvider = mainWindowProvider
             windowManager.onOpenAISetup = { [weak self] in
                 self?.aiSetup?.present(force: true)
             }

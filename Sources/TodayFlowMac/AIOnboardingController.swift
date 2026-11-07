@@ -11,6 +11,8 @@ import TodayFlowFeatures
 public final class AIOnboardingController: NSObject, NSWindowDelegate {
     private let environment: AppEnvironment
     private var window: NSWindow?
+    /// The Today panel (or slim bar) the new window should open beside.
+    public var mainWindowProvider: (@MainActor () -> NSWindow?)?
     private var model: AIOnboardingViewModel?
     /// Called after the setup window closes (the first-run host uses this to
     /// defer the notification-permission prompt until the AI choice is done).
@@ -89,7 +91,7 @@ public final class AIOnboardingController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = false
         window.delegate = self
-        window.center()
+        WindowPlacement.besideMainWindow(window, main: mainWindowProvider?())
         self.window = window
 
         NSApp.activate(ignoringOtherApps: true)

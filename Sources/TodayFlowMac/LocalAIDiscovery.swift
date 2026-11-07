@@ -27,8 +27,25 @@ public final class LocalAIDiscovery: LocalAIDiscovering, @unchecked Sendable {
     }
 
     public func scan() async -> [LocalAICandidate] {
-        await withTaskGroup(of: LocalAICandidate?.self) { group in
-            for endpoint in Self.endpoints {
+        await scan(customPort: nil)
+    }
+
+    public func scan(customPort: Int?) async -> [LocalAICandidate] {
+        var endpoints = Self.endpoints
+        if let customPort, (1...65_535).contains(customPort),
+           let url = URL(string: "http://127.0.0.1:\(customPort)/v1")
+        {
+            // Replace the standard entry for this port so the result names the
+            // port the user actually asked for instead of guessing the product.
+            endpoints.removeAll { $0.baseURL == url }
+            endpoints.append(Endpoint(
+                name: "Local server (port \(customPort))",
+                baseURL: url,
+                provider: .custom
+            ))
+        }
+        return await withTaskGroup(of: LocalAICandidate?.self) { group in
+            for endpoint in endpoints {
                 group.addTask { await self.probe(endpoint) }
             }
             var found: [LocalAICandidate] = []

@@ -121,6 +121,66 @@ public enum AppDockGeometry {
     }
 }
 
+/// Places a newly opened window beside the Today panel. The right side is
+/// preferred; when the window does not fit there, the left side is used. If
+/// neither side has room, the window is pinned to the side with more space so
+/// it stays fully on screen.
+public enum WindowOpeningLayout {
+    public static func frame(
+        size: CGSize,
+        panel: CGRect?,
+        screen: CGRect,
+        gap: CGFloat = 8
+    ) -> CGRect? {
+        guard let panel else { return nil }
+
+        let width = min(size.width, screen.width)
+        let height = min(size.height, screen.height)
+        let maxY = max(screen.minY, screen.maxY - height)
+        let y = min(max(panel.maxY - height, screen.minY), maxY)
+
+        let rightX = panel.maxX + gap
+        if rightX + width <= screen.maxX {
+            return CGRect(x: rightX, y: y, width: width, height: height)
+        }
+
+        let leftX = panel.minX - gap - width
+        if leftX >= screen.minX {
+            return CGRect(x: leftX, y: y, width: width, height: height)
+        }
+
+        // Neither side fits (for example, a very wide window or a centered
+        // panel). Keep the window visible on the roomier side.
+        let rightSpace = screen.maxX - panel.maxX
+        let leftSpace = panel.minX - screen.minX
+        let fallbackX = rightSpace >= leftSpace
+            ? screen.maxX - width
+            : screen.minX
+        return CGRect(x: fallbackX, y: y, width: width, height: height)
+    }
+}
+
+/// Places a standard window beside TodayFlow's main panel. Kept here so the
+/// separate window controllers (Settings-adjacent AI windows, plan, ask,
+/// review) use exactly the same rule as WindowManager.
+@MainActor
+public enum WindowPlacement {
+    public static func besideMainWindow(_ window: NSWindow, main: NSWindow?) {
+        let screen = main?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
+        guard let screen,
+              let frame = WindowOpeningLayout.frame(
+                  size: window.frame.size,
+                  panel: main?.frame,
+                  screen: screen
+              )
+        else {
+            window.center()
+            return
+        }
+        window.setFrame(frame, display: false)
+    }
+}
+
 /// A pure left-to-right layout for tray windows attached to the panel.
 public enum TrayWindowLayout {
     public static func frame(

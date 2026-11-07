@@ -39,6 +39,17 @@ private struct FakeDiscovery: LocalAIDiscovering {
     func scan() async -> [LocalAICandidate] { candidates }
 }
 
+private actor PortRecordingDiscovery: LocalAIDiscovering {
+    private(set) var ports: [Int?] = []
+
+    func scan() async -> [LocalAICandidate] { [] }
+
+    func scan(customPort: Int?) async -> [LocalAICandidate] {
+        ports.append(customPort)
+        return []
+    }
+}
+
 @MainActor
 private struct Fixture {
     let settings = InMemorySettingRepository()
@@ -213,6 +224,28 @@ struct AIOnboardingViewModelTests {
 
         #expect(fixture.model.discovered == [candidate])
         #expect(fixture.model.selectedModels[candidate.id] == "qwen3-8b")
+    }
+
+    @Test func scanUsesTheCustomPort() async {
+        let discovery = PortRecordingDiscovery()
+        let fixture = Fixture(discovering: discovery)
+        fixture.model.customScanPort = "8000"
+
+        await fixture.model.scanLocalAI()
+
+        #expect(await discovery.ports == [8000])
+        #expect(fixture.model.lastError == nil)
+    }
+
+    @Test func scanRejectsAnInvalidCustomPort() async {
+        let discovery = PortRecordingDiscovery()
+        let fixture = Fixture(discovering: discovery)
+        fixture.model.customScanPort = "not-a-port"
+
+        await fixture.model.scanLocalAI()
+
+        #expect(fixture.model.lastError != nil)
+        #expect(await discovery.ports.isEmpty)
     }
 
     @Test func usingADetectedServerConfiguresTheProviderAndModel() async throws {

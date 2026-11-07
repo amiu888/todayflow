@@ -367,25 +367,29 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Contacts open beside the Today panel instead of covering it. Other
-    /// windows keep their centered first-use placement.
+    /// New windows open beside the main Today panel: to the right when there
+    /// is room, otherwise to the left, and clamped on screen as a last resort.
     private func place(_ window: NSWindow, for kind: WindowKind) {
-        guard kind == .contacts else {
+        switch kind {
+        case .panel, .slimBar:
+            window.center()
+            return
+        default:
+            break
+        }
+
+        let mainWindow = windows[.panel] ?? windows[.slimBar]
+        let screen = mainWindow?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
+        guard let screen,
+              let frame = WindowOpeningLayout.frame(
+                  size: window.frame.size,
+                  panel: mainWindow?.frame,
+                  screen: screen
+              )
+        else {
             window.center()
             return
         }
-        let panel = windows[.panel]
-        let screen = panel?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
-        guard let screen else {
-            window.center()
-            return
-        }
-        let frame = TrayWindowLayout.frame(
-            size: window.frame.size,
-            panel: panel?.frame,
-            existing: [],
-            screen: screen
-        )
         window.setFrame(frame, display: false)
     }
 
@@ -480,7 +484,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         let window = makeTutorialWindow()
         windows[.tutorial] = window
         window.delegate = self
-        window.center()
+        place(window, for: .tutorial)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }
