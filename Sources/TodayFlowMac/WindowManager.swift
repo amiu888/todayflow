@@ -525,6 +525,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             onOpenTray: { [weak self] id in self?.openTray(id) },
             onOpenContacts: { [weak self] in self?.show(.contacts) },
             onOpenWorkflows: { [weak self] in self?.show(.workflows) },
+            onOpenSettings: { [weak self] in self?.show(.settings) },
             dockedApp: docking.dockedTarget.map {
                 AppDockState(
                     appName: $0.name,

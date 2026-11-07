@@ -27,6 +27,7 @@ public struct TodayView: View {
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
     private let onOpenContacts: (@MainActor () -> Void)?
     private let onOpenWorkflows: (@MainActor () -> Void)?
+    private let onOpenSettings: (@MainActor () -> Void)?
     private let dockedApp: AppDockState?
     private let onDockToApp: (@MainActor (String, String) -> Bool)?
     private let onUndockApp: (@MainActor () -> Void)?
@@ -68,6 +69,7 @@ public struct TodayView: View {
         self.onOpenTray = nil
         self.onOpenContacts = nil
         self.onOpenWorkflows = nil
+        self.onOpenSettings = nil
         self.dockedApp = nil
         self.onDockToApp = nil
         self.onUndockApp = nil
@@ -90,6 +92,7 @@ public struct TodayView: View {
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         onOpenContacts: (@MainActor () -> Void)? = nil,
         onOpenWorkflows: (@MainActor () -> Void)? = nil,
+        onOpenSettings: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
         onDockToApp: (@MainActor (String, String) -> Bool)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
@@ -107,6 +110,7 @@ public struct TodayView: View {
         self.onOpenTray = onOpenTray
         self.onOpenContacts = onOpenContacts
         self.onOpenWorkflows = onOpenWorkflows
+        self.onOpenSettings = onOpenSettings
         self.dockedApp = dockedApp
         self.onDockToApp = onDockToApp
         self.onUndockApp = onUndockApp
@@ -139,6 +143,7 @@ public struct TodayView: View {
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         onOpenContacts: (@MainActor () -> Void)? = nil,
         onOpenWorkflows: (@MainActor () -> Void)? = nil,
+        onOpenSettings: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
         onDockToApp: (@MainActor (String, String) -> Bool)? = nil,
         onUndockApp: (@MainActor () -> Void)? = nil,
@@ -165,6 +170,7 @@ public struct TodayView: View {
         self.onOpenTray = onOpenTray
         self.onOpenContacts = onOpenContacts
         self.onOpenWorkflows = onOpenWorkflows
+        self.onOpenSettings = onOpenSettings
         self.dockedApp = dockedApp
         self.onDockToApp = onDockToApp
         self.onUndockApp = onUndockApp
@@ -1030,6 +1036,20 @@ public struct TodayView: View {
                 .fixedSize()
                 .help("Window docking, desktops, and mini-calendar corners")
                 .accessibilityLabel("Window options")
+            }
+
+            if let onOpenSettings {
+                Button {
+                    onOpenSettings()
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("Settings…")
+                .accessibilityLabel("Settings")
+                .accessibilityIdentifier("open-settings")
             }
         }
     }

@@ -40,7 +40,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 
 `./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`
 (hardened runtime). `scripts/package-dmg.sh` notarizes and staples the DMG when
-`NOTARY_PROFILE` is set; the 1.9.13 DMG is notarized. Known follow-ups: XCUITests +
+`NOTARY_PROFILE` is set; the 1.9.14 DMG is notarized. Known follow-ups: XCUITests +
 performance gates, live Markdown rendering and pasted images in the detail
 description.
 

@@ -6,7 +6,7 @@ TodayFlow scans your Mac for local AI software before asking you to download any
 
 ## 1. Open AI setup
 
-Use the **sparkles** icon in the Today header, **Settings → AI → AI setup & local models…**, or **TodayFlow → Set Up AI…**.
+Use the **gear** icon in the Today header, **Settings → AI → AI setup & local models…**, or **TodayFlow → Set Up AI…**. The **sparkles** icon also opens AI actions and setup.
 
 ## 2. Detected local servers
 
@@ -22,6 +22,8 @@ The setup window checks localhost ports for common OpenAI-compatible servers:
 | Jan | 1337 |
 
 If a server is running, its name, endpoint, and models appear under **Detected on this Mac**. Choose a model and click **Use**. No download is needed.
+
+The scan only checks the standard ports above. If your server uses a non-standard port, open **Settings → AI → Port** and enter it; TodayFlow updates the base URL. The scan cannot discover arbitrary ports, so configure those manually.
 
 ## 3. Or download the tiny model
 
@@ -41,7 +43,9 @@ On supported Macs, **Apple Intelligence** uses the built-in system model with **
 
 ## 5. Reconfigure later
 
-Open **Settings → AI** to change the provider, base URL, model, timeout, or feature toggles. **Fetch models** lists what the endpoint offers. The **sparkles** menu in the Today header also opens AI setup and settings.
+Open **Settings → AI** to change the provider, base URL, **port**, model, timeout, or feature toggles. **Fetch models** lists what the endpoint offers. The **gear** icon in the Today header opens Settings; the **sparkles** menu also opens AI setup and settings.
+
+**GPU Buddy:** its OpenAI-compatible proxy is on **8080** by default. A model server or another app may use 8000; that is not the proxy endpoint. Use the port shown by GPU Buddy's OpenAI API settings, or set it in TodayFlow → Settings → AI → Port.
 
 ## 6. Correct spelling and grammar
 
