@@ -681,6 +681,34 @@ func load_collectsTomorrowAndFutureTasksIntoUpcoming() async {
     #expect(f.vm.upcomingRows.map(\.title) == ["Tomorrow"])
 }
 
+@Test @MainActor
+func upcomingRows_areSortedChronologicallyByDueTime() async {
+    let f = Fixture()
+    let lateTomorrow = f.item(
+        "Tomorrow late",
+        startAt: testCalendar.date(byAdding: .day, value: 1, to: f.now),
+        endAt: testCalendar.date(byAdding: .day, value: 1, to: f.calendar.endOfBusiness(for: f.now)),
+        displayOrder: "a1"
+    )
+    let earlyTomorrow = f.item(
+        "Tomorrow early",
+        startAt: testCalendar.date(byAdding: .day, value: 1, to: f.now),
+        endAt: f.now.addingTimeInterval(25 * 60 * 60),
+        displayOrder: "a3"
+    )
+    let dayAfter = f.item(
+        "Day after",
+        startAt: testCalendar.date(byAdding: .day, value: 2, to: f.now),
+        endAt: testCalendar.date(byAdding: .day, value: 2, to: f.calendar.endOfBusiness(for: f.now)),
+        displayOrder: "a2"
+    )
+    for item in [lateTomorrow, earlyTomorrow, dayAfter] { await f.seed(item) }
+
+    await f.vm.load()
+
+    #expect(f.vm.upcomingRows.map(\.title) == ["Tomorrow early", "Tomorrow late", "Day after"])
+}
+
 // MARK: - Due soon (FR-13/FR-14 urgency)
 
 @Test @MainActor

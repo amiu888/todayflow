@@ -329,13 +329,12 @@ public final class TodayViewModel {
                     && $0.endAt > eob
                     && $0.endAt <= windowEnd
             }
-            // Manual display order, so future tasks can be planned up/down;
-            // the due date remains visible in the row.
+            // Chronological by due time; priority then manual order break ties
+            // within the same due time.
             .sorted {
-                if $0.displayOrder != $1.displayOrder {
-                    return FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder)
-                }
-                return $0.endAt < $1.endAt
+                if $0.endAt != $1.endAt { return $0.endAt < $1.endAt }
+                if $0.priority != $1.priority { return $0.priority < $1.priority }
+                return FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder)
             }
             .map { item in
                 UpcomingRow(

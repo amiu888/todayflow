@@ -1542,15 +1542,6 @@ public struct TodayView: View {
 
                 Divider()
 
-                Button("Move up") {
-                    Task { await model.moveUpcomingUp(row.id) }
-                }
-                Button("Move down") {
-                    Task { await model.moveUpcomingDown(row.id) }
-                }
-
-                Divider()
-
                 Button("Open") {
                     model.onOpenTask?(row.id)
                 }

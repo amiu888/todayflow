@@ -44,7 +44,7 @@ Build increments land in the order from `driver.md` §11. All eight are complete
       SSE streaming, prompt resources), smart capture, breakdown, plan, ask, Fetch models
 - [x] **8. TodayFlowSync** — `NoopSyncEngine` that leaves the outbox pending for v2
 
-Verification: `swift build` is warning-free, `swift test` passes **764 tests**, and
+Verification: `swift build` is warning-free, `swift test` passes **765 tests**, and
 the XCUITest suite has twenty-one cases against the real `.app` bundle. Local performance
 spot-checks: the Today panel appears in about 273 ms, 5,000 contacts load and search in
 about 0.21 s, and the 10,000-item Today query stays under the 500 ms NFR-04 bound. The app also makes a daily
@@ -107,7 +107,7 @@ visible at the bottom of the task detail window.
 Distribution status:
 
 - Developer ID signing, hardened runtime, and **notarization + stapling** are done for
-  the 1.9.19 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
+  the 1.9.20 DMG. Verify with `xcrun stapler validate` and `spctl -a -vvv -t install`.
 - Broader XCUITest coverage (drag/drop, trays, calendar, focus) and the NFR-01…05
   performance gates remain follow-ups.
 - Live Markdown rendering and pasted-image attachments inside the detail description.
