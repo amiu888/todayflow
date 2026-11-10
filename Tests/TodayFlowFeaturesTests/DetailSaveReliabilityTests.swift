@@ -171,3 +171,39 @@ func saveAndCloseClosesWhenNothingChangedAndRejectsAnEmptyTitle() async {
     #expect(closes == 1)
     #expect(model.lastError == "Title can't be empty.")
 }
+
+// MARK: - Attachments: rename, description, newest first
+
+@Test @MainActor
+func attachmentsAreListedNewestFirstAndCanBeRenamedAndDescribed() async {
+    let repository = ControlledRepository()
+    let item = WorkItem(title: "With files")
+    await repository.seed(item)
+    let attachments = InMemoryAttachmentRepository()
+    let older = Attachment(itemId: item.id, kind: .file, displayName: "old.pdf",
+                           createdAt: Date(timeIntervalSince1970: 1_000))
+    let newer = Attachment(itemId: item.id, kind: .url, displayName: "link",
+                           createdAt: Date(timeIntervalSince1970: 2_000))
+    await attachments.seed(older)
+    await attachments.seed(newer)
+    let model = DetailViewModel(
+        itemId: item.id,
+        repository: repository,
+        linkRepository: InMemoryLinkRepository(),
+        attachmentRepository: attachments
+    )
+    await model.load()
+    #expect(model.attachments.map(\.displayName) == ["link", "old.pdf"])
+
+    await model.renameAttachment(older.id, to: "  Signed contract  ")
+    await model.updateAttachmentNote(older.id, note: "Final version from legal")
+    #expect(model.lastError == nil)
+
+    let stored = await attachments.attachments(for: item.id).first { $0.id == older.id }
+    #expect(stored?.displayName == "Signed contract")
+    #expect(stored?.note == "Final version from legal")
+
+    await model.renameAttachment(older.id, to: "   ")
+    #expect(model.lastError == "An attachment name can't be empty.")
+    #expect(await attachments.attachments(for: item.id).first { $0.id == older.id }?.displayName == "Signed contract")
+}

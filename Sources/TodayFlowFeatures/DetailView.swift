@@ -43,6 +43,9 @@ public struct DetailView: View {
     @State private var showingNewProject = false
     @State private var newProjectName = ""
     @State private var isActivityExpanded = false
+    @State private var renamingAttachmentId: UUIDv7?
+    @State private var attachmentNameDraft = ""
+    @FocusState private var isRenamingFocused: Bool
 
     /// The two focusable text fields.
     private enum Field: Hashable {
@@ -1167,23 +1170,62 @@ public struct DetailView: View {
     @MainActor
     private var attachmentsSection: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap) {
-            Text("Attachments")
-                .font(.headline)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Attachments")
+                    .font(.headline)
+                Text("\(model.attachments.count) · newest first")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+            }
 
-            ForEach(model.attachments) { attachment in
+            ForEach(Array(model.attachments.enumerated()), id: \.element.id) { index, attachment in
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 8) {
+                        Text("\(index + 1).")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(DesignTokens.Palette.textSecondary)
+                            .frame(minWidth: 18, alignment: .trailing)
+                            .accessibilityHidden(true)
+
                         AttachmentIconView(attachment: attachment, size: 14)
 
-                        Text(attachment.displayName)
-                            .lineLimit(1)
-                            .contentShape(Rectangle())
-                            .onTapGesture(count: 2) {
-                                onOpenAttachment?(attachment)
-                            }
-                            .help(openTooltip(attachment))
+                        if renamingAttachmentId == attachment.id {
+                            TextField("Attachment name", text: $attachmentNameDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .focused($isRenamingFocused)
+                                .onSubmit { commitRename(attachment) }
+                                .onExitCommand { renamingAttachmentId = nil }
+                                .onChange(of: isRenamingFocused) { wasFocused, isFocused in
+                                    if wasFocused && !isFocused { commitRename(attachment) }
+                                }
+                                .accessibilityLabel("Attachment name")
+                        } else {
+                            Text(attachment.displayName)
+                                .lineLimit(1)
+                                .contentShape(Rectangle())
+                                .onTapGesture(count: 2) {
+                                    onOpenAttachment?(attachment)
+                                }
+                                .help(openTooltip(attachment))
+                        }
 
                         Spacer()
+
+                        Text(attachment.createdAt, format: .dateTime.month(.abbreviated).day().year().hour().minute())
+                            .font(.caption2)
+                            .foregroundStyle(DesignTokens.Palette.textSecondary)
+                            .help("Added \(attachment.createdAt.formatted(date: .complete, time: .shortened))")
+                            .accessibilityLabel("Added \(attachment.createdAt.formatted(date: .abbreviated, time: .shortened))")
+
+                        Button {
+                            startRename(attachment)
+                        } label: {
+                            Image(systemName: "pencil")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Rename attachment")
+                        .accessibilityLabel("Rename \(attachment.displayName)")
 
                         Button {
                             Task { await model.removeAttachment(attachment.id) }
@@ -1193,24 +1235,40 @@ public struct DetailView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Remove attachment")
-                        .disabled(model.isSaving)
+                        .accessibilityLabel("Remove \(attachment.displayName)")
                     }
 
                     AttachmentNoteField(attachment: attachment) { note in
                         Task { await model.updateAttachmentNote(attachment.id, note: note) }
                     }
-                    .padding(.leading, 22)
+                    .padding(.leading, 48)
                 }
                 .padding(.vertical, 4)
                 .contextMenu {
                     Button("Open") { onOpenAttachment?(attachment) }
                     Button("Open With…") { onOpenAttachmentWith?(attachment) }
+                    Button("Rename…") { startRename(attachment) }
                     Divider()
                     Button("Quick Look") { onQuickLookAttachment?(attachment) }
                     Button("Reveal in Finder") { onRevealAttachment?(attachment) }
                 }
             }
         }
+    }
+
+    @MainActor
+    private func startRename(_ attachment: Attachment) {
+        attachmentNameDraft = attachment.displayName
+        renamingAttachmentId = attachment.id
+        isRenamingFocused = true
+    }
+
+    @MainActor
+    private func commitRename(_ attachment: Attachment) {
+        guard renamingAttachmentId == attachment.id else { return }
+        let name = attachmentNameDraft
+        renamingAttachmentId = nil
+        Task { await model.renameAttachment(attachment.id, to: name) }
     }
 
     @MainActor
@@ -1514,16 +1572,18 @@ private struct AttachmentNoteField: View {
     }
 
     var body: some View {
-        TextField("Add a description for this attachment", text: $text)
+        TextField("Add a short description…", text: $text, axis: .vertical)
             .textFieldStyle(.plain)
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+            .font(.caption)
+            .lineLimit(1...3)
+            .foregroundStyle(DesignTokens.Palette.textSecondary)
+            .accessibilityLabel("Description for \(attachment.displayName)")
             .focused($focused)
             .onSubmit { onCommit(text) }
             .onChange(of: focused) { wasFocused, isFocused in
                 if wasFocused && !isFocused { onCommit(text) }
             }
-            .help("A note about this attached object")
+            .help("A short description of this attachment. Saved when you press Return or click away.")
     }
 }
 

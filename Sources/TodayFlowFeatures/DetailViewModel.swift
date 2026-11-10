@@ -276,7 +276,7 @@ public final class DetailViewModel {
         let (atts, kids, toLinks, fromLinks, allItems) =
             await (loadedAttachments, loadedChildren, linksTo, linksFrom, loadedAllItems)
 
-        attachments = atts
+        attachments = Self.newestFirst(atts)
         if let contactRepository {
             contacts = await contactRepository.contacts(forTask: item.id)
             allContacts = await contactRepository.contacts()
@@ -1117,7 +1117,9 @@ public final class DetailViewModel {
         else { return }
         var attachment = attachments[index]
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        attachment.note = trimmed.isEmpty ? nil : trimmed
+        let newNote: String? = trimmed.isEmpty ? nil : trimmed
+        guard newNote != attachment.note else { return }
+        attachment.note = newNote
         do {
             try await attachmentRepository.save(attachment)
             attachments[index] = attachment
@@ -1127,12 +1129,42 @@ public final class DetailViewModel {
         }
     }
 
+    /// Renames an attachment (its label in the list). The file itself is not
+    /// renamed. An empty name is ignored.
+    public func renameAttachment(_ id: UUIDv7, to name: String) async {
+        guard let index = attachments.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            lastError = "An attachment name can't be empty."
+            return
+        }
+        var attachment = attachments[index]
+        guard trimmed != attachment.displayName else { return }
+        attachment.displayName = trimmed
+        attachment.version += 1
+        do {
+            try await attachmentRepository.save(attachment)
+            attachments[index] = attachment
+            lastSavedAt = clock()
+        } catch {
+            lastError = "Couldn't rename the attachment: \(error.localizedDescription)"
+        }
+    }
+
+    /// Attachments are listed by the date they were added, newest first.
+    static func newestFirst(_ attachments: [Attachment]) -> [Attachment] {
+        attachments.sorted {
+            if $0.createdAt != $1.createdAt { return $0.createdAt > $1.createdAt }
+            return $0.id.uuid.uuidString > $1.id.uuid.uuidString
+        }
+    }
+
     /// Removes an attachment from the item.
     public func removeAttachment(_ id: UUIDv7) async {
         guard let item = item else { return }
         do {
             try await attachmentRepository.delete(id)
-            attachments = await attachmentRepository.attachments(for: item.id)
+            attachments = Self.newestFirst(await attachmentRepository.attachments(for: item.id))
         } catch {
             lastError = error.localizedDescription
         }
