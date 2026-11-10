@@ -156,6 +156,11 @@ public final class DetailViewModel {
 
     /// The host's "close the window" hook, called after a successful delete.
     @ObservationIgnored public var onClosed: (@MainActor () -> Void)?
+    /// Called after the Save button's save succeeded; the host closes the
+    /// window and shows a brief "Saved" confirmation.
+    @ObservationIgnored public var onSavedAndClosed: (@MainActor () -> Void)?
+    /// The last queued save, so saves never overlap or get dropped.
+    @ObservationIgnored private var saveChain: Task<Bool, Never>?
 
     // MARK: Dependencies
 
@@ -211,17 +216,35 @@ public final class DetailViewModel {
     public func load() async {
         isLoading = true
         defer { isLoading = false }
-        lastError = nil
+        // Keep a failed-save message visible until the user saves again.
+        if lastError?.hasPrefix(Self.saveFailurePrefix) != true { lastError = nil }
 
         guard let loaded = await repository.item(itemId) else {
             item = nil
             return
         }
 
+        // A reload (for example after an attachment drop) must not wipe
+        // text the user has typed but not saved yet: keep every field they
+        // changed and take the stored value for the rest.
+        let previous = item
+        let typed = edit
         item = loaded
         status = loaded.status
         isApplying = true
-        edit = DetailEdit(item: loaded)
+        var fresh = DetailEdit(item: loaded)
+        if let previous {
+            let base = DetailEdit(item: previous)
+            if typed.title != base.title { fresh.title = typed.title }
+            if typed.descriptionMd != base.descriptionMd { fresh.descriptionMd = typed.descriptionMd }
+            if typed.summary != base.summary { fresh.summary = typed.summary }
+            if typed.startAt != base.startAt { fresh.startAt = typed.startAt }
+            if typed.endAt != base.endAt { fresh.endAt = typed.endAt }
+            if typed.estimatedMinutes != base.estimatedMinutes {
+                fresh.estimatedMinutes = typed.estimatedMinutes
+            }
+        }
+        edit = fresh
         isApplying = false
 
         await reloadRelated()
@@ -480,26 +503,67 @@ public final class DetailViewModel {
         }
     }
 
-    public func commit() async {
-        guard let current = item, !isSaving else { return }
+    /// True when the editable fields differ from what is stored.
+    public var hasUnsavedChanges: Bool {
+        guard let current = item else { return false }
+        return Self.differs(edit, from: current)
+    }
+
+    private static func differs(_ edit: DetailEdit, from item: WorkItem) -> Bool {
+        edit.title.trimmingCharacters(in: .whitespacesAndNewlines) != item.title
+            || edit.descriptionMd != item.descriptionMd
+            || edit.summary != item.summary
+            || edit.startAt != item.startAt
+            || edit.endAt != item.endAt
+            || edit.estimatedMinutes != item.estimatedMinutes
+    }
+
+    /// Saves the editable fields. Saves run one after another, so a click on
+    /// Save while an autosave is in flight is never dropped. Returns `true`
+    /// only when the stored task matches what the user sees.
+    @discardableResult
+    public func commit() async -> Bool {
+        let previous = saveChain
+        let task = Task { @MainActor [weak self] () -> Bool in
+            _ = await previous?.value
+            guard let self else { return false }
+            return await self.performCommit()
+        }
+        saveChain = task
+        return await task.value
+    }
+
+    /// Save button: saves, then asks the host to close the window. Stays open
+    /// (with the error shown) when the save fails.
+    public func saveAndClose() async {
+        if await commit() {
+            onSavedAndClosed?()
+        }
+    }
+
+    public func dismissError() {
+        lastError = nil
+    }
+
+    private func performCommit() async -> Bool {
+        guard let current = item else {
+            lastError = "This task couldn't be found, so it can't be saved. It may have been deleted."
+            return false
+        }
 
         let trimmed = edit.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             lastError = "Title can't be empty."
-            return
+            return false
         }
 
-        let unchanged = trimmed == current.title
-            && edit.descriptionMd == current.descriptionMd
-            && edit.summary == current.summary
-            && edit.startAt == current.startAt
-            && edit.endAt == current.endAt
-            && edit.estimatedMinutes == current.estimatedMinutes
-        guard !unchanged else { return }
+        guard Self.differs(edit, from: current) else {
+            if lastError?.hasPrefix(Self.saveFailurePrefix) == true { lastError = nil }
+            return true
+        }
 
         isSaving = true
         defer { isSaving = false }
-        lastError = nil
 
         let now = clock()
         var updated = current
@@ -512,15 +576,59 @@ public final class DetailViewModel {
         updated = updated.touching(now)
         updated.deviceId = deviceId
 
-        do {
-            try await repository.save(updated)
-            item = updated
-            lastSavedAt = now
-            await reloadRelated()
-        } catch {
-            lastError = error.localizedDescription
+        // Other actions (priority, tags, …) save from `item`; point it at the
+        // edited copy now so they cannot write the old text over this save.
+        item = updated
+
+        // A busy database is the usual cause of a failed write; retry briefly.
+        var failure: (any Error)?
+        for attempt in 0..<3 {
+            do {
+                try await repository.save(updated)
+                failure = nil
+                break
+            } catch {
+                failure = error
+                Diagnostics.log("detail", "save attempt \(attempt + 1) failed: \(error)")
+                try? await Task.sleep(for: .milliseconds(150 * (attempt + 1)))
+            }
         }
+        if let failure {
+            if item == updated { item = current }
+            lastError = "\(Self.saveFailurePrefix) \(failure.localizedDescription) "
+                + "Your edits are still here. Try Save again."
+            return false
+        }
+
+        // Read the row back so "Saved" is never shown for a write that did not land.
+        guard let stored = await repository.item(itemId) else {
+            lastError = "\(Self.saveFailurePrefix) The task is no longer in the database. "
+                + "It may have been deleted."
+            return false
+        }
+        let verified = stored.title == updated.title
+            && stored.descriptionMd == updated.descriptionMd
+            && stored.summary == updated.summary
+            && abs(stored.startAt.timeIntervalSince(updated.startAt)) < 1
+            && abs(stored.endAt.timeIntervalSince(updated.endAt)) < 1
+            && stored.estimatedMinutes == updated.estimatedMinutes
+        guard verified else {
+            item = stored
+            lastError = "\(Self.saveFailurePrefix) The saved copy doesn't match your edits. "
+                + "Your edits are still here. Try Save again."
+            return false
+        }
+
+        item = stored
+        if lastError?.hasPrefix(Self.saveFailurePrefix) == true || lastError == "Title can't be empty." {
+            lastError = nil
+        }
+        lastSavedAt = now
+        await reloadRelated()
+        return true
     }
+
+    static let saveFailurePrefix = "Couldn't save your changes."
 
     // MARK: Actions
 

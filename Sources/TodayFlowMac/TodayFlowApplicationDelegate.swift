@@ -141,6 +141,16 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     /// 6.2: the status item is the app's home — closing every window keeps
     /// the app alive; quit comes from the status-item menu.
+    /// Saves open task windows before quitting so no typed text is lost.
+    public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let windows else { return .terminateNow }
+        Task { @MainActor in
+            let ok = await windows.saveAllOpenTasks()
+            sender.reply(toApplicationShouldTerminate: ok)
+        }
+        return .terminateLater
+    }
+
     public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }

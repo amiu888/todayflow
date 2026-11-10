@@ -14,6 +14,9 @@ import TodayFlowRecognition
 public final class WindowManager: NSObject, NSWindowDelegate {
     private let environment: AppEnvironment
     private var windows: [WindowKind: NSWindow] = [:]
+    /// Open task windows' models, so closing a window or quitting can save
+    /// edits that have not been written yet.
+    private var detailModels: [UUIDv7: DetailViewModel] = [:]
     private let capture: CaptureWindowController
     private let dropLoader = DroppedObjectLoader()
     private let attachmentActions = AttachmentActions()
@@ -431,7 +434,77 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// so this just drops the reference when the user closes the window.
     public func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        for (kind, open) in windows where open === window {
+            if case .detail(let id) = kind { detailModels[id] = nil }
+        }
         windows = windows.filter { $0.value !== window }
+    }
+
+    /// Closing a task window (red button or ⌘W) saves unsaved edits first.
+    /// If the save fails, the user chooses to keep editing or discard.
+    public func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard let id = detailId(for: sender), let model = detailModels[id] else { return true }
+        sender.makeFirstResponder(nil)
+        guard model.hasUnsavedChanges else { return true }
+        Task { @MainActor [weak self, weak sender] in
+            let saved = await model.commit()
+            guard let sender else { return }
+            if saved || self?.confirmDiscard(model.lastError, in: sender) == true {
+                sender.close()
+            }
+        }
+        return false
+    }
+
+    /// Saves every open task window. Returns `false` if any save failed and
+    /// the user chose to stay (used before quitting).
+    public func saveAllOpenTasks() async -> Bool {
+        for (id, model) in detailModels {
+            let window = windows[.detail(id)]
+            window?.makeFirstResponder(nil)
+            guard model.hasUnsavedChanges else { continue }
+            if await model.commit() { continue }
+            guard let window else { continue }
+            window.makeKeyAndOrderFront(nil)
+            if !confirmDiscard(model.lastError, in: window, discardTitle: "Quit Anyway") {
+                return false
+            }
+        }
+        return true
+    }
+
+    private func detailId(for window: NSWindow) -> UUIDv7? {
+        for (kind, open) in windows where open === window {
+            if case .detail(let id) = kind { return id }
+        }
+        return nil
+    }
+
+    private func registerDetail(_ model: DetailViewModel, id: UUIDv7) {
+        detailModels[id] = model
+        model.onSavedAndClosed = { [weak self] in
+            guard let self, let window = self.windows[.detail(id)] else { return }
+            let frame = window.frame
+            window.close()
+            self.windows[.detail(id)] = nil
+            SavedToast.show(centeredOn: frame)
+        }
+    }
+
+    /// Returns `true` when the user chooses to throw the unsaved edits away.
+    private func confirmDiscard(
+        _ error: String?,
+        in window: NSWindow,
+        discardTitle: String = "Close Without Saving"
+    ) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Your changes weren't saved"
+        alert.informativeText = (error ?? "The task couldn't be saved.")
+            + "\n\nKeep editing to try again, or discard your changes."
+        alert.addButton(withTitle: "Keep Editing")
+        alert.addButton(withTitle: discardTitle)
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     // MARK: Window construction
@@ -765,6 +838,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 onClosed: { [weak self] in self?.close(.detail(id)) }
             )
             let _ = attachAssistant(to: model)
+            let _ = registerDetail(model, id: id)
             let actions = attachmentActions
             DetailView(
                 model: model,

@@ -162,7 +162,7 @@ public struct DetailView: View {
         }
         .onChange(of: focusedField) { old, _ in
             // FR-22: inline edits commit on interaction — here, on focus loss.
-            if old == .description || old == .summary {
+            if old == .title || old == .description || old == .summary {
                 Task { await model.commit() }
             }
         }
@@ -228,20 +228,53 @@ public struct DetailView: View {
                         if !model.activity.isEmpty {
                             activitySection
                         }
-
-                        if let error = model.lastError {
-                            Text(error)
-                                .font(.callout)
-                                .foregroundStyle(.red)
-                        }
                     }
                     .padding(20)
                 }
 
+                // Pinned above the buttons (not at the bottom of the scroll)
+                // so a failed save is always visible.
+                if let error = model.lastError {
+                    errorBar(error)
+                }
                 Divider()
                 fixedActionBar
             }
         }
+    }
+
+    @MainActor
+    private func errorBar(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(DesignTokens.Palette.danger)
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(DesignTokens.Palette.textPrimary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            if message.hasPrefix(DetailViewModel.saveFailurePrefix) {
+                Button("Try Again") {
+                    Task { await model.commit() }
+                }
+                .controlSize(.small)
+            }
+            Button {
+                model.dismissError()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Dismiss")
+            .accessibilityLabel("Dismiss message")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(DesignTokens.Palette.danger.opacity(0.12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("task-error")
     }
 
     @MainActor
@@ -1403,15 +1436,25 @@ public struct DetailView: View {
             }
 
             Button {
-                Task { await model.commit() }
+                saveAndClose()
             } label: {
                 Label("Save", systemImage: "checkmark.circle")
             }
             .keyboardShortcut("s", modifiers: .command)
-            .help("Save changes now (⌘S)")
-            .disabled(model.isSaving)
+            .help("Save changes and close (⌘S). Changes also save automatically.")
+            .accessibilityIdentifier("task-save")
         }
-        .disabled(model.isSaving)
+    }
+
+    /// Ends text editing first so the last keystrokes reach the model, then
+    /// saves; the model closes the window only when the save is confirmed.
+    @MainActor
+    private func saveAndClose() {
+        focusedField = nil
+        #if canImport(AppKit)
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        #endif
+        Task { await model.saveAndClose() }
     }
 
     // MARK: Loading / missing
