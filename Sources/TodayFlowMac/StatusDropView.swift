@@ -46,7 +46,13 @@ final class StatusDropView: NSView {
     // MARK: - NSDraggingDestination
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        dragOperation(for: sender)
+        let operation = dragOperation(for: sender)
+        if operation.isEmpty {
+            // Record what was refused so unsupported sources can be added.
+            let types = sender.draggingPasteboard.types?.map(\.rawValue) ?? []
+            DropDiagnostics.log("menu-bar drop refused types=\(types)")
+        }
+        return operation
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {

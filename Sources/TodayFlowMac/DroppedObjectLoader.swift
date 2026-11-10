@@ -119,6 +119,12 @@ public struct DroppedObjectLoader {
             return DroppedObject(imageData: data, sourceApp: sourceApp, uti: type)
         }
 
+        // Jira board/backlog cards: the issue lives in the page's private
+        // drag data, often with no URL or text at all.
+        if let object = await loadWebCustomData(provider, sourceApp: sourceApp) {
+            return object
+        }
+
         // Jira's browser drag sometimes exposes only plain text or HTML.
         // Recover the issue URL so the Jira recognizer can title it.
         let plain = await loadText(provider)
@@ -157,6 +163,35 @@ public struct DroppedObjectLoader {
         }
 
         return nil
+    }
+
+    /// A Jira issue from Chrome/Safari custom drag data, or nil.
+    private func loadWebCustomData(
+        _ provider: NSItemProvider,
+        sourceApp: String?
+    ) async -> DroppedObject? {
+        for identifier in WebCustomData.pasteboardTypes
+        where provider.registeredTypeIdentifiers.contains(identifier) {
+            guard let data = await loadData(provider, type: UTType(importedAs: identifier)) else {
+                continue
+            }
+            if let object = Self.jiraObject(fromWebCustomData: data, sourceApp: sourceApp) {
+                return object
+            }
+            DropDiagnostics.log("drop: \(identifier) \(data.count) bytes, no Jira issue found")
+        }
+        return nil
+    }
+
+    /// Turns custom drag data into a Jira URL object whose text starts with
+    /// the card summary, so the recognizer titles the task.
+    nonisolated static func jiraObject(
+        fromWebCustomData data: Data,
+        sourceApp: String?
+    ) -> DroppedObject? {
+        guard let url = WebCustomData.jiraIssueURL(from: data) else { return nil }
+        let text = WebCustomData.cardSummary(from: data)
+        return DroppedObject(url: url, text: text, sourceApp: sourceApp, uti: .url)
     }
 
     /// HTML/RTF from a provider, converted to readable plain text.
@@ -391,7 +426,7 @@ public struct DroppedObjectLoader {
     public static let pasteboardTypes: [NSPasteboard.PasteboardType] = [
         .fileURL, .URL, .tiff, .png, .string, .html, .rtf,
         NSPasteboard.PasteboardType(UTType(importedAs: "public.vcard").identifier),
-    ]
+    ] + WebCustomData.pasteboardTypes.map { NSPasteboard.PasteboardType($0) }
 
     /// True when a drag contains something the app can turn into an object.
     public static func canRead(_ pasteboard: NSPasteboard) -> Bool {
@@ -449,6 +484,14 @@ public struct DroppedObjectLoader {
                     sourceApp: sourceApp,
                     uti: UTType(importedAs: "public.vcard")
                 )
+            }
+
+            for identifier in WebCustomData.pasteboardTypes {
+                if let data = item.data(forType: NSPasteboard.PasteboardType(identifier)),
+                   let object = jiraObject(fromWebCustomData: data, sourceApp: sourceApp)
+                {
+                    return object
+                }
             }
 
             // Rich text (Teams chat cards, Outlook/Mail messages) before the

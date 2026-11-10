@@ -231,3 +231,39 @@ struct DroppedObjectLoaderVCardTests {
         #expect(objects.first?.text?.contains("BEGIN:VCARD") == true)
     }
 }
+
+// MARK: - Jira cards dragged from Chrome (web custom data only)
+
+@Test @MainActor
+func jiraCardWithOnlyChromeCustomDataBecomesAJiraLink() throws {
+    func pickle(_ entries: [(String, String)]) -> Data {
+        var payload = Data()
+        func u32(_ v: UInt32) { withUnsafeBytes(of: v.littleEndian) { payload.append(contentsOf: $0) } }
+        func s16(_ s: String) {
+            let units = Array(s.utf16)
+            u32(UInt32(units.count))
+            for unit in units { withUnsafeBytes(of: unit.littleEndian) { payload.append(contentsOf: $0) } }
+            while payload.count % 4 != 0 { payload.append(0) }
+        }
+        u32(UInt32(entries.count))
+        for (type, value) in entries { s16(type); s16(value) }
+        var data = Data()
+        withUnsafeBytes(of: UInt32(payload.count).littleEndian) { data.append(contentsOf: $0) }
+        return data + payload
+    }
+    let json = #"{"issueKey":"ABC-42","summary":"Fix login","baseUrl":"https://acme.atlassian.net"}"#
+    let pasteboard = NSPasteboard.withUniqueName()
+    defer { pasteboard.releaseGlobally() }
+    pasteboard.clearContents()
+    let type = NSPasteboard.PasteboardType("org.chromium.web-custom-data")
+    pasteboard.declareTypes([type], owner: nil)
+    #expect(pasteboard.setData(pickle([("application/x-jira-card", json)]), forType: type))
+
+    #expect(DroppedObjectLoader.canRead(pasteboard))
+    let object = try #require(DroppedObjectLoader.objects(from: pasteboard).first)
+    #expect(object.url?.absoluteString == "https://acme.atlassian.net/browse/ABC-42")
+    #expect(object.text == "Fix login")
+
+    let recognized = JiraIssueRecognizer().recognize(object)
+    #expect(recognized.suggestedTitle == "ABC-42 · Fix login")
+}

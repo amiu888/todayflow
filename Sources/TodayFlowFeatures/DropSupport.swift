@@ -14,6 +14,16 @@ public enum CaptureDropTypes {
         .url,
         .image,
         .plainText,
-    ]
+        .html,
+        .rtf,
+    ] + webCustomData
+
+    /// Private web drag data. Jira board/backlog cards only carry this when
+    /// dragged out of Chrome or Safari, so without it the drop is refused.
+    public static let webCustomData: [UTType] = [
+        "org.chromium.web-custom-data",
+        "chromium/x-web-custom-data",
+        "com.apple.WebKit.custom-pasteboard-data",
+    ].map { UTType(importedAs: $0) }
 }
 #endif
