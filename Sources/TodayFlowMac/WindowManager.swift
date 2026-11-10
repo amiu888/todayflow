@@ -468,6 +468,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         if case .contacts = kind {
             window.contentMinSize = DesignTokens.Window.contactsMinimum
         }
+        if case .allTasks = kind {
+            window.contentMinSize = NSSize(width: 560, height: 420)
+        }
         if case .workflows = kind {
             window.contentMinSize = NSSize(width: 780, height: 540)
         }
@@ -685,6 +688,17 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             CompletedHistoryView(
                 repository: environment.workItems,
                 onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
+            )
+        case .allTasks:
+            AllTasksView(
+                model: AllTasksViewModel(
+                    repository: environment.workItems,
+                    attachmentRepository: environment.attachments,
+                    actionRepository: environment.actions,
+                    contactRepository: environment.contacts,
+                    calendar: environment.workCalendar.calendar,
+                    onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
+                )
             )
         case .settings:
             SettingsView(

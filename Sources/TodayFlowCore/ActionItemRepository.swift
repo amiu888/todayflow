@@ -4,10 +4,17 @@ import Foundation
 public protocol ActionItemRepository: Sendable {
     /// Live actions for one item, ordered for display.
     func actions(for itemId: UUIDv7) async -> [ActionItem]
+    /// Every live action, for the All Tasks search.
+    func allActions() async -> [ActionItem]
     /// Insert or update an action.
     func save(_ action: ActionItem) async throws
     /// Remove an action from the list.
     func delete(_ id: UUIDv7) async throws
+}
+
+public extension ActionItemRepository {
+    /// Default for simple test doubles; real adapters override this.
+    func allActions() async -> [ActionItem] { [] }
 }
 
 /// In-memory actions for tests and previews.
@@ -25,6 +32,10 @@ public actor InMemoryActionItemRepository: ActionItemRepository {
                 }
                 return $0.createdAt < $1.createdAt
             }
+    }
+
+    public func allActions() async -> [ActionItem] {
+        Array(items.values)
     }
 
     public func save(_ action: ActionItem) async throws {

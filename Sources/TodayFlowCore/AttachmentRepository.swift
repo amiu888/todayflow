@@ -5,9 +5,17 @@ public protocol AttachmentRepository: Sendable {
     /// Attachments belonging to `itemId`.
     func attachments(for itemId: UUIDv7) async -> [Attachment]
 
+    /// Every live attachment, for the All Tasks search.
+    func allAttachments() async -> [Attachment]
+
     /// Insert or update an attachment (upsert by `id`).
     func save(_ attachment: Attachment) async throws
 
     /// Hard-delete an attachment.
     func delete(_ id: UUIDv7) async throws
+}
+
+public extension AttachmentRepository {
+    /// Default for simple test doubles; real adapters override this.
+    func allAttachments() async -> [Attachment] { [] }
 }

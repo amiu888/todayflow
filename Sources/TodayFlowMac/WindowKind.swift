@@ -12,6 +12,7 @@ public enum WindowKind: Hashable, Sendable {
     case insights
     case upcoming
     case completed
+    case allTasks
     case settings
     case contacts
     case workflows
@@ -27,6 +28,7 @@ public enum WindowKind: Hashable, Sendable {
         case .insights: "Insights"
         case .upcoming: "Upcoming"
         case .completed: "Completed"
+        case .allTasks: "All Tasks"
         case .settings: "Settings"
         case .contacts: "Contacts"
         case .workflows: "Workflows"
@@ -44,6 +46,7 @@ public enum WindowKind: Hashable, Sendable {
         case .insights: CGSize(width: 540, height: 430)
         case .upcoming: DesignTokens.Window.upcoming
         case .completed: DesignTokens.Window.completed
+        case .allTasks: CGSize(width: 760, height: 620)
         case .settings: DesignTokens.Window.settings
         case .contacts: DesignTokens.Window.contacts
         case .workflows: CGSize(width: 920, height: 620)

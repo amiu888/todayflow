@@ -286,6 +286,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewMenu.addItem(item("Insights", #selector(showInsightsMenu), key: "6"))
         viewMenu.addItem(item("Upcoming", #selector(showUpcomingMenu), key: "2"))
         viewMenu.addItem(item("Completed", #selector(showCompletedMenu), key: "3"))
+        viewMenu.addItem(
+            item("All Tasks & Search", #selector(showAllTasksMenu), key: "f", modifiers: [.command, .shift])
+        )
         viewMenu.addItem(item("Hierarchy", #selector(showHierarchyMenu), key: "4"))
         viewMenu.addItem(item("Contacts", #selector(showContactsMenu), key: "8"))
         viewMenu.addItem(item("Workflows", #selector(showWorkflowsMenu), key: ""))
@@ -495,6 +498,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func showCompletedMenu() {
         windows?.show(.completed)
+    }
+
+    @objc private func showAllTasksMenu() {
+        windows?.show(.allTasks)
     }
 
     @objc private func showHierarchyMenu() {

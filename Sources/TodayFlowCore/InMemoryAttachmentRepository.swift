@@ -12,6 +12,10 @@ public actor InMemoryAttachmentRepository: AttachmentRepository {
         attachments.values.filter { $0.itemId == itemId }
     }
 
+    public func allAttachments() async -> [Attachment] {
+        Array(attachments.values)
+    }
+
     public func save(_ attachment: Attachment) async throws {
         attachments[attachment.id] = attachment
     }

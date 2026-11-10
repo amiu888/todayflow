@@ -34,6 +34,16 @@ public final class GRDBAttachmentRepository: AttachmentRepository, Sendable {
         return attachments ?? []
     }
 
+    public func allAttachments() async -> [Attachment] {
+        let attachments = try? await queue.read { db in
+            try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM attachment WHERE deleted_at IS NULL ORDER BY created_at"
+            ).map { AttachmentRecord(row: $0).model }
+        }
+        return attachments ?? []
+    }
+
     // MARK: - Mutations (throwing per the port contract)
 
     public func save(_ attachment: Attachment) async throws {

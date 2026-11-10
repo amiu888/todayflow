@@ -145,6 +145,7 @@ public final class StatusItemController: NSObject {
         menu.addItem(item("Insights", #selector(openInsights)))
         menu.addItem(item("Upcoming", #selector(openUpcoming)))
         menu.addItem(item("Completed", #selector(openCompleted)))
+        menu.addItem(item("All Tasks & Search", #selector(openAllTasks)))
         menu.addItem(item("Hierarchy", #selector(openHierarchy)))
         menu.addItem(item("Settings", #selector(openSettings)))
         menu.addItem(.separator())
@@ -189,6 +190,8 @@ public final class StatusItemController: NSObject {
     @objc private func openUpcoming() { windowManager.show(.upcoming) }
 
     @objc private func openCompleted() { windowManager.show(.completed) }
+
+    @objc private func openAllTasks() { windowManager.show(.allTasks) }
 
     @objc private func openHierarchy() { windowManager.show(.hierarchy) }
 

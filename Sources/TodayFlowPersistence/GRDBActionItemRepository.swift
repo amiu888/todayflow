@@ -25,6 +25,20 @@ public final class GRDBActionItemRepository: ActionItemRepository, Sendable {
         return actions ?? []
     }
 
+    public func allActions() async -> [ActionItem] {
+        let actions = try? await queue.read { db in
+            try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT * FROM action_item
+                    WHERE deleted_at IS NULL
+                    ORDER BY sort_order, created_at
+                    """
+            ).map { ActionItemRecord(row: $0).model }
+        }
+        return actions ?? []
+    }
+
     public func save(_ action: ActionItem) async throws {
         let updated = SqlTimestamp.encode(Date())
         try await queue.write { db in
