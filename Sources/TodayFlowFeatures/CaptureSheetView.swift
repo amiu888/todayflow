@@ -32,6 +32,10 @@ public struct CaptureSheetView: View {
     public let isSaving: Bool
     @Binding public var contactDrops: [CaptureContactDrop]
     public let contactGroups: [ContactGroup]
+    /// Creates a project with the given name and selects it.
+    public let onCreateProject: (@Sendable (String) -> Void)?
+    /// Handles objects dropped onto the open sheet; returns `false` to refuse.
+    public let onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)?
 
     public init(
         draft: Binding<CaptureDraft>,
@@ -43,8 +47,12 @@ public struct CaptureSheetView: View {
         onRemoveObject: @escaping @Sendable (Int) -> Void,
         motion: Motion = Motion(preference: .full),
         errorMessage: String? = nil,
-        isSaving: Bool = false
+        isSaving: Bool = false,
+        onCreateProject: (@Sendable (String) -> Void)? = nil,
+        onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil
     ) {
+        self.onCreateProject = onCreateProject
+        self.onDropProviders = onDropProviders
         self._draft = draft
         self.parents = parents
         self._contactDrops = contactDrops
@@ -62,6 +70,9 @@ public struct CaptureSheetView: View {
     @State private var tagText = ""
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isTagsFocused: Bool
+    @State private var isDropTargeted = false
+    @State private var showingNewProject = false
+    @State private var newProjectName = ""
 
     @MainActor
     public var body: some View {
@@ -124,6 +135,27 @@ public struct CaptureSheetView: View {
         .shadow(color: DesignTokens.Palette.shadow, radius: 28, y: 12)
         .overlay(alignment: .top) {
             WindowDragGrabber()
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(DesignTokens.Palette.accent, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                    .background(
+                        DesignTokens.Palette.accent.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+                    .overlay {
+                        Label("Drop to attach to this task", systemImage: "paperclip")
+                            .font(.callout.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                    .allowsHitTesting(false)
+            }
+        }
+        .onDrop(of: CaptureDropTypes.supported, isTargeted: $isDropTargeted) { providers in
+            onDropProviders?(providers) ?? false
         }
         .tint(DesignTokens.Palette.accent)
         .onAppear {
@@ -497,6 +529,34 @@ public struct CaptureSheetView: View {
         }
     }
 
+    @MainActor
+    private var newProjectPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("New project")
+                .font(.headline)
+            TextField("Project name", text: $newProjectName)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 220)
+                .onSubmit { createProject() }
+            HStack {
+                Spacer()
+                Button("Cancel") { showingNewProject = false }
+                    .keyboardShortcut(.cancelAction)
+                Button("Create") { createProject() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(newProjectName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(14)
+    }
+
+    private func createProject() {
+        let name = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        onCreateProject?(name)
+        showingNewProject = false
+    }
+
     private func groupName(for drop: CaptureContactDrop) -> String {
         guard let id = drop.groupId,
               let group = contactGroups.first(where: { $0.id == id })
@@ -542,6 +602,21 @@ public struct CaptureSheetView: View {
                 .labelsHidden()
                 .fixedSize()
                 .accessibilityLabel("Project")
+
+                if onCreateProject != nil {
+                    Button {
+                        newProjectName = ""
+                        showingNewProject = true
+                    } label: {
+                        Image(systemName: "folder.badge.plus")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Create a new project for this task")
+                    .accessibilityLabel("New project")
+                    .popover(isPresented: $showingNewProject, arrowEdge: .bottom) {
+                        newProjectPopover
+                    }
+                }
             }
 
             HStack(spacing: 6) {

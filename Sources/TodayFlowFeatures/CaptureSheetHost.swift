@@ -11,8 +11,14 @@ public struct CaptureSheetHost: View {
     @State private var model: CaptureViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(model: CaptureViewModel) {
+    private let onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)?
+
+    public init(
+        model: CaptureViewModel,
+        onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil
+    ) {
         _model = State(initialValue: model)
+        self.onDropProviders = onDropProviders
     }
 
     @MainActor
@@ -44,7 +50,13 @@ public struct CaptureSheetHost: View {
             },
             motion: Motion(preference: reduceMotion ? .reduced : .full),
             errorMessage: viewModel.lastError,
-            isSaving: viewModel.isSaving
+            isSaving: viewModel.isSaving,
+            onCreateProject: { name in
+                Task { @MainActor in
+                    await viewModel.createProject(named: name)
+                }
+            },
+            onDropProviders: onDropProviders
         )
         .task {
             await model.loadParents()

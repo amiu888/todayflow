@@ -152,8 +152,8 @@ func prepare_buildsDraftFromRecognizedObjects() {
 
     #expect(f.vm.draft.title == "Review contract")
     #expect(f.vm.draft.objects.count == 1)
-    // "Review contract" has no date expression, so the builder's defaults stand.
-    #expect(f.vm.draft.startAt == date(2026, 11, 3, hour: 9)) // Tue 09:00
+    // No date expression: the task starts when it is created (10:00).
+    #expect(f.vm.draft.startAt == testNow) // created Tue 10:00
     #expect(f.vm.draft.endAt == date(2026, 11, 3, hour: 17)) // Tue 17:00 EOB
     #expect(f.vm.lastError == nil)
     #expect(f.vm.savedItem == nil)
@@ -206,7 +206,7 @@ func save_createsItemAndAttachment() async {
     #expect(f.vm.savedItem != nil)
     guard let item = f.vm.savedItem else { return }
     #expect(item.title == "Review contract")
-    #expect(item.startAt == date(2026, 11, 3, hour: 9))
+    #expect(item.startAt == testNow)
     #expect(item.endAt == date(2026, 11, 3, hour: 17))
     #expect(saved.ids == [item.id])
     #expect(item.recurrence == nil)
@@ -967,4 +967,70 @@ func save_persistsRecurrence() async {
 
     #expect(f.vm.lastError == nil)
     #expect(f.vm.savedItem?.recurrence == .daily)
+}
+
+// MARK: - Start time, sheet drops, new project
+
+@Test @MainActor
+func emptyCapture_startsNow_andAfterHoursIsDueAtEndOfDay() async {
+    let evening = date(2026, 11, 3, hour: 19)
+    let model = CaptureViewModel(
+        repository: InMemoryWorkItemRepository(),
+        attachmentRepository: InMemoryAttachmentRepository(),
+        materializer: Materializer(
+            fileAccess: FakeFileAccess(),
+            attachmentsDirectory: URL(fileURLWithPath: "/tmp/todayflow-start-now")
+        ),
+        calendar: WorkCalendar(calendar: testCalendar),
+        clock: { evening }
+    )
+    model.prepare(dropped: [], recognized: [])
+    #expect(model.draft.startAt == evening)
+    #expect(model.draft.endAt > evening)
+    #expect(testCalendar.isDate(model.draft.endAt, inSameDayAs: evening))
+}
+
+@Test @MainActor
+func droppingOntoTheOpenSheet_addsObjectsAndKeepsTheTypedTitle() async {
+    let f = Fixture()
+    f.vm.prepare(dropped: [], recognized: [])
+    f.vm.draft.title = "My own title"
+
+    f.vm.addObjects(
+        dropped: [DroppedObject(text: "first note")],
+        recognized: [RecognizedObject(type: .text, displayName: "first note", suggestedTitle: "first note")]
+    )
+    f.vm.addObjects(
+        dropped: [DroppedObject(text: "second note")],
+        recognized: [RecognizedObject(type: .text, displayName: "second note")]
+    )
+
+    #expect(f.vm.draft.objects.map(\.displayName) == ["first note", "second note"])
+    #expect(f.vm.draft.title == "My own title")
+}
+
+@Test @MainActor
+func droppingOntoAnEmptySheet_fillsTheTitle() async {
+    let f = Fixture()
+    f.vm.prepare(dropped: [], recognized: [])
+    f.vm.addObjects(
+        dropped: [DroppedObject(text: "Quarterly report")],
+        recognized: [RecognizedObject(type: .text, displayName: "Quarterly report", suggestedTitle: "Quarterly report")]
+    )
+    #expect(f.vm.draft.title.isEmpty == false)
+}
+
+@Test @MainActor
+func createProjectFromTheSheet_selectsIt_andReusesAnExistingName() async {
+    let f = Fixture()
+    f.vm.prepare(dropped: [], recognized: [])
+    await f.vm.createProject(named: "  Website  ")
+
+    let projects = await f.repository.allItems().filter { $0.kind == .project }
+    #expect(projects.map(\.title) == ["Website"])
+    #expect(f.vm.draft.parentId == projects.first?.id)
+    #expect(f.vm.parents.map(\.title) == ["Website"])
+
+    await f.vm.createProject(named: "website")
+    #expect(await f.repository.allItems().filter { $0.kind == .project }.count == 1)
 }

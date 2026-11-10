@@ -146,8 +146,9 @@ public final class CaptureViewModel {
             draft.descriptionMd = ""
         }
 
-        // Explicit dates in the title/description still win, but a plain
-        // capture is due at today's end of business (not tomorrow's), so it
+        // Explicit dates in the title/description still win. A plain capture
+        // starts the moment it is created and is due at today's end of
+        // business (or end of day once business hours are over), so it
         // shows up on the Today plan immediately.
         let parser = ParseNaturalLanguageDates(
             calendar: calendar.calendar,
@@ -156,8 +157,11 @@ public final class CaptureViewModel {
         let hasExplicitDate = !parser.parse(draft.title, at: now).isEmpty
             || !parser.parse(draft.descriptionMd, at: now).isEmpty
         if !hasExplicitDate {
-            draft.startAt = calendar.startOfBusiness(for: now)
-            draft.endAt = calendar.endOfBusiness(for: now)
+            draft.startAt = now
+            let endOfBusiness = calendar.endOfBusiness(for: now)
+            draft.endAt = endOfBusiness > now
+                ? endOfBusiness
+                : calendar.endOfDay(for: now).addingTimeInterval(-60) // 23:59 today
         }
 
         self.droppedObjects = dropped
@@ -203,6 +207,60 @@ public final class CaptureViewModel {
             }
             return !emails.isDisjoint(with: Set(contact.canonicalEmails))
                 || !phones.isDisjoint(with: Set(contact.canonicalPhones))
+        }
+    }
+
+    /// Adds objects dropped onto the open sheet. Nothing the user typed is
+    /// replaced; an empty title is filled from the first new object.
+    public func addObjects(dropped: [DroppedObject], recognized: [RecognizedObject]) {
+        guard !recognized.isEmpty, dropped.count == recognized.count else { return }
+        let suggestion = CaptureDraftBuilder(calendar: calendar)
+            .build(objects: recognized, at: clock(), parentId: draft.parentId)
+        var updated = draft
+        updated.objects.append(contentsOf: recognized)
+        if updated.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updated.title = suggestion.title
+        }
+        if updated.descriptionMd.isEmpty {
+            updated.descriptionMd = suggestion.descriptionMd
+        }
+        draft = updated
+        droppedObjects.append(contentsOf: dropped)
+        contactDrops.append(
+            contentsOf: recognized.compactMap(\.contact).map { CaptureContactDrop(imported: $0) }
+        )
+        lastError = nil
+    }
+
+    /// Shown when a drop onto the sheet had nothing readable.
+    public func reportDropFailure() {
+        lastError = "Couldn't read that drop. Try dragging it from Finder, or copy it and press ⌘V."
+    }
+
+    /// Creates a project from the sheet and selects it for the new task.
+    public func createProject(named name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if let existing = parents.first(where: {
+            $0.title.compare(trimmed, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }) {
+            draft.parentId = existing.id
+            return
+        }
+        do {
+            let project = try await CreateTask(
+                repository: repository,
+                calendar: calendar,
+                deviceId: deviceId
+            ).execute(
+                CreateTask.Input(kind: .project, title: trimmed, startAt: clock())
+            )
+            parents.append(CaptureParentOption(id: project.id, title: project.title))
+            parents.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            draft.parentId = project.id
+            lastError = nil
+        } catch {
+            lastError = "Couldn't create the project: \(error.localizedDescription)"
         }
     }
 

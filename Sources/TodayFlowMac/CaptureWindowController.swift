@@ -54,7 +54,15 @@ public final class CaptureWindowController {
             return await ai.emailSummarizer()
         }
 
-        let host = NSHostingView(rootView: CaptureSheetHost(model: model))
+        let host = NSHostingView(
+            rootView: CaptureSheetHost(
+                model: model,
+                onDropProviders: { [weak self, weak model] providers in
+                    guard let self, let model else { return false }
+                    return self.handleSheetDrop(providers, into: model)
+                }
+            )
+        )
         let panel = panel ?? makePanel()
         panel.contentView = host
         panel.setContentSize(DesignTokens.Window.capture)
@@ -85,6 +93,32 @@ public final class CaptureWindowController {
             model.assistant = assistant
             await model.requestAISuggestion()
         }
+    }
+
+    /// Objects dropped onto the open sheet are added to the draft as
+    /// attachments; the title and anything typed so far are kept.
+    private func handleSheetDrop(_ providers: [NSItemProvider], into model: CaptureViewModel) -> Bool {
+        // Some apps withdraw the drag item after the callback returns, so
+        // snapshot the drag pasteboard synchronously as a fallback.
+        let pasteboardFallback = DroppedObjectLoader.objectsFromDragPasteboard()
+        guard !providers.isEmpty || !pasteboardFallback.isEmpty else { return false }
+        Task { @MainActor [weak self, weak model] in
+            guard let self, let model else { return }
+            let loaded = await DroppedObjectLoader().load(from: providers)
+            let objects = loaded.isEmpty ? pasteboardFallback : loaded
+            guard !objects.isEmpty else {
+                model.reportDropFailure()
+                return
+            }
+            let recognized = objects.map { self.environment.pipeline.recognize($0) }
+            model.addObjects(dropped: objects, recognized: recognized)
+            Diagnostics.log("capture", "sheet drop added=\(objects.count) total=\(model.draft.objects.count)")
+
+            let enriched = await Enricher(fetcher: URLSessionFetcher()).enrich(model.draft)
+            guard self.currentModel === model, self.isPresenting else { return }
+            model.applyEnrichment(enriched)
+        }
+        return true
     }
 
     /// Hides the panel, keeping it for the next presentation.
