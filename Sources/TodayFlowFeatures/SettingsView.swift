@@ -20,13 +20,18 @@ public struct SettingsView: View {
     @State private var showResetConfirmation = false
     @State private var showingNoteBrowser = false
 
+    /// Called after a successful save; the host closes the window.
+    private let onSaved: (@MainActor @Sendable () -> Void)?
+
     public init(
         model: SettingsViewModel,
         onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil,
         onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil,
         onObsidianSyncNow: (@MainActor @Sendable () -> Void)? = nil,
-        onObsidianOpenNote: (@MainActor @Sendable () -> Void)? = nil
+        onObsidianOpenNote: (@MainActor @Sendable () -> Void)? = nil,
+        onSaved: (@MainActor @Sendable () -> Void)? = nil
     ) {
+        self.onSaved = onSaved
         self.model = model
         self.onOpenAISetup = onOpenAISetup
         self.onWatchTutorial = onWatchTutorial
@@ -44,8 +49,10 @@ public struct SettingsView: View {
         onOpenAISetup: (@MainActor @Sendable () -> Void)? = nil,
         onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil,
         onObsidianSyncNow: (@MainActor @Sendable () -> Void)? = nil,
-        onObsidianOpenNote: (@MainActor @Sendable () -> Void)? = nil
+        onObsidianOpenNote: (@MainActor @Sendable () -> Void)? = nil,
+        onSaved: (@MainActor @Sendable () -> Void)? = nil
     ) {
+        self.onSaved = onSaved
         model = SettingsViewModel(
             repository: repository,
             keychain: keychain,
@@ -624,11 +631,16 @@ public struct SettingsView: View {
             Spacer(minLength: 12)
 
             Button("Save") {
-                Task { @MainActor in await model.save() }
+                Task { @MainActor in
+                    await model.save()
+                    // Close only when the save went through; an error stays
+                    // on screen with the window open.
+                    if model.lastError == nil, model.didSave { onSaved?() }
+                }
             }
             .keyboardShortcut("s", modifiers: .command)
             .buttonStyle(.borderedProminent)
-            .help("Save settings (⌘S)")
+            .help(onSaved == nil ? "Save settings (⌘S)" : "Save settings and close (⌘S)")
             .disabled(model.isLoading || model.isSaving)
         }
         .font(.caption)

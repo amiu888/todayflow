@@ -27,6 +27,8 @@ public struct TodayView: View {
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
     private let onOpenContacts: (@MainActor () -> Void)?
     private let onOpenAllTasks: (@MainActor () -> Void)?
+    /// ⌘V in the panel: starts a new task from the clipboard; see `PasteCatcher`.
+    private let onPaste: (@MainActor (Bool) -> Bool)?
     private let onOpenWorkflows: (@MainActor () -> Void)?
     private let onOpenSettings: (@MainActor () -> Void)?
     private let dockedApp: AppDockState?
@@ -53,8 +55,13 @@ public struct TodayView: View {
     @State private var localDockedName: String?
     @State private var isCompact = false
     @State private var panelHeight: CGFloat = DesignTokens.Window.panel.height
-    @State private var collapsedSections: Set<TodayPanelSection> = [.done]
+    /// Trays start folded to their name-and-count summary.
+    @State private var collapsedSections: Set<TodayPanelSection> = [.done, .trays]
     @State private var manuallyExpandedSections: Set<TodayPanelSection> = []
+    /// True while the tray filter (not the user) is what folded the tray strip.
+    @State private var traysCollapsedByFilter = false
+    @AppStorage("todayflow.calendarStripMode") private var stripModeRaw =
+        TodayViewModel.StripMode.week.rawValue
     @State private var showingNewProject = false
     @State private var newProjectName = ""
     @State private var newProjectTags = ""
@@ -70,6 +77,7 @@ public struct TodayView: View {
         self.onOpenTray = nil
         self.onOpenContacts = nil
         self.onOpenAllTasks = nil
+        self.onPaste = nil
         self.onOpenWorkflows = nil
         self.onOpenSettings = nil
         self.dockedApp = nil
@@ -94,6 +102,7 @@ public struct TodayView: View {
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         onOpenContacts: (@MainActor () -> Void)? = nil,
         onOpenAllTasks: (@MainActor () -> Void)? = nil,
+        onPaste: (@MainActor (Bool) -> Bool)? = nil,
         onOpenWorkflows: (@MainActor () -> Void)? = nil,
         onOpenSettings: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
@@ -113,6 +122,7 @@ public struct TodayView: View {
         self.onOpenTray = onOpenTray
         self.onOpenContacts = onOpenContacts
         self.onOpenAllTasks = onOpenAllTasks
+        self.onPaste = onPaste
         self.onOpenWorkflows = onOpenWorkflows
         self.onOpenSettings = onOpenSettings
         self.dockedApp = dockedApp
@@ -147,6 +157,7 @@ public struct TodayView: View {
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         onOpenContacts: (@MainActor () -> Void)? = nil,
         onOpenAllTasks: (@MainActor () -> Void)? = nil,
+        onPaste: (@MainActor (Bool) -> Bool)? = nil,
         onOpenWorkflows: (@MainActor () -> Void)? = nil,
         onOpenSettings: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
@@ -175,6 +186,7 @@ public struct TodayView: View {
         self.onOpenTray = onOpenTray
         self.onOpenContacts = onOpenContacts
         self.onOpenAllTasks = onOpenAllTasks
+        self.onPaste = onPaste
         self.onOpenWorkflows = onOpenWorkflows
         self.onOpenSettings = onOpenSettings
         self.dockedApp = dockedApp
@@ -259,11 +271,16 @@ public struct TodayView: View {
         .onDrop(of: CaptureDropTypes.supported, isTargeted: $isPanelDropTargeted) { providers in
             onDrop?(providers, nil) ?? false
         }
-        // FR-06: ⌘V behaves like a drop of the clipboard. The focused text
-        // field consumes its own paste first, so typing is never hijacked.
-        .onPasteCommand(of: CaptureDropTypes.supported) { providers in
-            guard !isSearching else { return }
-            _ = onDrop?(providers, nil)
+        // FR-06: ⌘V behaves like a drop of the clipboard. `.onPasteCommand`
+        // only fires when a non-text SwiftUI view has focus, which the panel
+        // rarely has, so a key monitor routes the paste instead. Text pasted
+        // while typing (search, quick add) still goes into the field.
+        .background {
+            if let onPaste {
+                PasteCatcher(onPaste: onPaste)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
         }
         .overlay { panelDropIndicator }
         #endif
@@ -343,6 +360,8 @@ public struct TodayView: View {
 
     @MainActor
     private func toggleSection(_ section: TodayPanelSection) {
+        // A manual toggle takes over from the tray filter's automatic fold.
+        if section == .trays { traysCollapsedByFilter = false }
         withAnimation(.easeInOut(duration: 0.18)) {
             if isCollapsed(section) {
                 collapsedSections.remove(section)
@@ -356,6 +375,77 @@ public struct TodayView: View {
 
     @MainActor
     private var filterBar: some View {
+        VStack(spacing: 2) {
+            filterChipsBar
+            if let tray = model.filteredTray {
+                trayFilterLabel(tray)
+            }
+        }
+        // A single-tray list already shows that tray's tasks, so the tray
+        // strip folds away; clearing the filter brings it back. The section
+        // header still expands it by hand while filtered.
+        .onChange(of: model.trayFilter) { old, new in
+            withAnimation(.easeInOut(duration: 0.18)) {
+                if old == nil, new != nil {
+                    guard !isCollapsed(.trays) else { return }
+                    manuallyExpandedSections.remove(.trays)
+                    collapsedSections.insert(.trays)
+                    traysCollapsedByFilter = true
+                } else if new == nil, traysCollapsedByFilter {
+                    collapsedSections.remove(.trays)
+                    traysCollapsedByFilter = false
+                }
+            }
+        }
+    }
+
+    /// Says which tray the list is narrowed to, with a one-click way back.
+    @MainActor
+    private func trayFilterLabel(_ tray: WorkTray) -> some View {
+        let color = Color(
+            hex: tray.colorHex ?? DesignTokens.TrayPalette.colorHex(at: tray.sortOrder)
+        )
+        let count = model.visibleRows.count
+        return HStack(spacing: 6) {
+            Image(systemName: DesignTokens.TrayPalette.iconName)
+                .font(.caption)
+                .foregroundStyle(color)
+            Text("Showing tray: \(tray.name)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DesignTokens.Palette.textPrimary)
+                .lineLimit(1)
+            Text(count == 1 ? "1 task" : "\(count) tasks")
+                .font(.caption2)
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+            Spacer(minLength: 4)
+            Button {
+                model.trayFilter = nil
+            } label: {
+                Label("Show all", systemImage: "xmark.circle.fill")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(DesignTokens.Palette.textSecondary)
+            .help("Show tasks from every tray and outside trays")
+            .accessibilityLabel("Show all tasks")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(color.opacity(0.16))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(color.opacity(0.55), lineWidth: 1)
+        )
+        .padding(.horizontal, 12)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("today-tray-filter-label")
+    }
+
+    @MainActor
+    private var filterChipsBar: some View {
         FilterChipsView(
             filter: model.filter,
             sort: model.sort,
@@ -395,6 +485,13 @@ public struct TodayView: View {
                     await model.setHideTrayTasks(hide)
                 }
             },
+            trays: model.trays.sorted { $0.sortOrder < $1.sortOrder },
+            trayFilter: model.trayFilter,
+            onTrayFilterChange: { trayId in
+                Task { @MainActor in
+                    model.trayFilter = trayId
+                }
+            },
             onSearch: {
                 Task { @MainActor in
                     isSearching = true
@@ -425,12 +522,33 @@ public struct TodayView: View {
     private var dayStatusCard: some View {
         VStack(spacing: 0) {
             if !isCollapsed(.week) {
-                if isCompact {
-                    verticalWeekStrip
-                } else {
-                    weekStrip
-                        .padding(.horizontal, 3)
-                        .padding(.vertical, 3)
+                calendarStripHeader
+
+                Group {
+                    if model.stripMode == .month {
+                        monthGrid
+                            .padding(.horizontal, 3)
+                            .padding(.bottom, 3)
+                    } else if isCompact {
+                        verticalWeekStrip
+                    } else {
+                        weekStrip
+                            .padding(.horizontal, 3)
+                            .padding(.bottom, 3)
+                    }
+                }
+                .id(model.stripTitle)
+                .transition(.opacity)
+                // Swipe sideways to page, the same as the arrows.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 28).onEnded { value in
+                        guard abs(value.translation.width) > abs(value.translation.height) * 1.5
+                        else { return }
+                        pageStrip(by: value.translation.width < 0 ? 1 : -1)
+                    }
+                )
+                .task {
+                    model.setStripMode(TodayViewModel.StripMode(rawValue: stripModeRaw) ?? .week)
                 }
 
                 Divider()
@@ -851,10 +969,18 @@ public struct TodayView: View {
             )
             .font(.system(size: 20, weight: .bold, design: .rounded))
             .foregroundStyle(DesignTokens.Palette.textPrimary)
+            // The title never wraps or truncates; when the header is tight
+            // the date beside it gives way instead.
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(2)
 
             Text(model.activeDay.formatted(.dateTime.month(.wide).day()))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(DesignTokens.Palette.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .truncationMode(.tail)
         }
     }
 
@@ -1199,52 +1325,173 @@ public struct TodayView: View {
     #endif
 
     @MainActor
+    private func pageStrip(by delta: Int) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+            model.shiftStrip(by: delta)
+        }
+    }
+
+    /// Previous / title / next, a way back to today, and the Week–Month switch.
+    @MainActor
+    private var calendarStripHeader: some View {
+        let unit = model.stripMode == .week ? "week" : "month"
+        return HStack(spacing: 2) {
+            stripArrow("chevron.left", label: "Previous \(unit)", delta: -1)
+
+            Text(model.stripTitle)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(DesignTokens.Palette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(minWidth: 0)
+                .contentTransition(.numericText())
+                .accessibilityIdentifier("calendar-strip-title")
+
+            stripArrow("chevron.right", label: "Next \(unit)", delta: 1)
+
+            Spacer(minLength: 4)
+
+            if model.stripOffset != 0 || !model.isViewingToday {
+                Button {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                        model.resetStrip()
+                    }
+                    Task { @MainActor in await model.goToToday() }
+                } label: {
+                    Text("Today")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule().fill(DesignTokens.Palette.accent.opacity(0.14))
+                        )
+                        .foregroundStyle(DesignTokens.Palette.accent)
+                }
+                .buttonStyle(.plain)
+                .help("Back to today")
+                .accessibilityIdentifier("calendar-strip-today")
+            }
+
+            Picker("Calendar range", selection: Binding(
+                get: { model.stripMode },
+                set: { mode in
+                    stripModeRaw = mode.rawValue
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                        model.setStripMode(mode)
+                    }
+                }
+            )) {
+                ForEach(TodayViewModel.StripMode.allCases, id: \.self) { mode in
+                    Text(isCompact ? String(mode.label.prefix(1)) : mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.mini)
+            .fixedSize()
+            .help("Show one week or the whole month")
+            .accessibilityIdentifier("calendar-strip-mode")
+        }
+        .padding(.leading, 4)
+        .padding(.trailing, 6)
+        .padding(.top, 5)
+        .padding(.bottom, 3)
+    }
+
+    @MainActor
+    private func stripArrow(_ symbol: String, label: String, delta: Int) -> some View {
+        Button {
+            pageStrip(by: delta)
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(DesignTokens.Palette.textSecondary)
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
+    }
+
+    /// One day in the week strip or month grid. The dot marks a day with
+    /// tasks; hovering lists the top three.
+    @MainActor
+    private func dayCell(_ day: TodayViewModel.WeekDay, showsWeekday: Bool) -> some View {
+        Button {
+            Task { @MainActor in await model.selectDay(day.date) }
+        } label: {
+            VStack(spacing: 1) {
+                if showsWeekday {
+                    Text(day.date.formatted(.dateTime.weekday(.narrow)))
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(
+                            day.isSelected ? Color.white.opacity(0.78) : .secondary
+                        )
+                }
+
+                Text(day.date.formatted(.dateTime.day()))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+
+                Circle()
+                    .fill(day.isSelected ? Color.white : DesignTokens.Palette.accent)
+                    .frame(width: 4, height: 4)
+                    .opacity(day.count > 0 ? 1 : 0)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, showsWeekday ? 4 : 3)
+            .background {
+                if day.isSelected {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(DesignTokens.Palette.gradient)
+                } else if day.isToday {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(DesignTokens.Palette.accent.opacity(0.10))
+                }
+            }
+            .foregroundStyle(
+                day.isSelected
+                    ? Color.white
+                    : (day.isToday
+                        ? DesignTokens.Palette.accent
+                        : DesignTokens.Palette.textPrimary)
+            )
+            .opacity(day.isInPeriod || day.isSelected ? 1 : 0.38)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(day.tooltip)
+        .accessibilityLabel(
+            "\(day.date.formatted(date: .complete, time: .omitted)), \(day.count) tasks"
+        )
+    }
+
+    @MainActor
     private var weekStrip: some View {
         HStack(spacing: 2) {
             ForEach(model.weekDays) { day in
-                Button {
-                    Task { @MainActor in await model.selectDay(day.date) }
-                } label: {
-                    VStack(spacing: 1) {
-                        Text(day.date.formatted(.dateTime.weekday(.narrow)))
-                            .font(.system(size: 8, weight: .bold, design: .rounded))
-                            .foregroundStyle(
-                                day.isSelected ? Color.white.opacity(0.78) : .secondary
-                            )
+                dayCell(day, showsWeekday: true)
+            }
+        }
+    }
 
-                        Text(day.date.formatted(.dateTime.day()))
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-
-                        Circle()
-                            .fill(day.isSelected ? Color.white : DesignTokens.Palette.accent)
-                            .frame(width: 3, height: 3)
-                            .opacity(day.count > 0 ? 1 : 0)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                    .background {
-                        if day.isSelected {
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(DesignTokens.Palette.gradient)
-                        } else if day.isToday {
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(DesignTokens.Palette.accent.opacity(0.10))
-                        }
-                    }
-                    .foregroundStyle(
-                        day.isSelected
-                            ? Color.white
-                            : (day.isToday
-                                ? DesignTokens.Palette.accent
-                                : DesignTokens.Palette.textPrimary)
-                    )
+    @MainActor
+    private var monthGrid: some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
+        return VStack(spacing: 2) {
+            HStack(spacing: 2) {
+                ForEach(model.weekDays.prefix(7)) { day in
+                    Text(day.date.formatted(.dateTime.weekday(.narrow)))
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
-                .help("\(day.count) task\(day.count == 1 ? "" : "s") due")
-                .accessibilityLabel(
-                    "\(day.date.formatted(date: .complete, time: .omitted)), \(day.count) tasks"
-                )
+            }
+            LazyVGrid(columns: columns, spacing: 2) {
+                ForEach(model.weekDays) { day in
+                    dayCell(day, showsWeekday: false)
+                }
             }
         }
     }
@@ -1302,7 +1549,7 @@ public struct TodayView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .help("\(day.count) task\(day.count == 1 ? "" : "s") due")
+                .help(day.tooltip)
                 .accessibilityLabel(
                     "\(day.date.formatted(date: .complete, time: .omitted)), \(day.count) tasks"
                 )

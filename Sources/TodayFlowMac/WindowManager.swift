@@ -202,6 +202,21 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         return true
     }
 
+    /// ⌘V in the Today panel: starts a new task from the clipboard's image,
+    /// file, or link, exactly like dropping it on the panel background.
+    public func handlePanelPaste(isEditingText: Bool) -> Bool {
+        let pasteboard = NSPasteboard.general
+        guard DroppedObjectLoader.pasteRoute(
+            types: pasteboard.types ?? [],
+            isEditingText: isEditingText
+        ) == .attach else { return false }
+        let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
+        DropDiagnostics.log("paste route=capture objects=\(objects.count)")
+        guard !objects.isEmpty else { return false }
+        showCapture(dropped: objects, splitIntoTasks: false)
+        return true
+    }
+
     /// Handles objects that were already converted (menu-bar drags and
     /// `application(_:open:)` file drops).
     public func receiveDrop(_ objects: [DroppedObject], splitIntoTasks: Bool = false) {
@@ -566,6 +581,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         if case .allTasks = kind {
             window.contentMinSize = NSSize(width: 560, height: 420)
         }
+        if case .history = kind {
+            window.contentMinSize = NSSize(width: 480, height: 380)
+        }
         if case .workflows = kind {
             window.contentMinSize = NSSize(width: 780, height: 540)
         }
@@ -632,6 +650,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             onOpenTray: { [weak self] id in self?.openTray(id) },
             onOpenContacts: { [weak self] in self?.show(.contacts) },
             onOpenAllTasks: { [weak self] in self?.show(.allTasks) },
+            onPaste: { [weak self] isEditingText in
+                self?.handlePanelPaste(isEditingText: isEditingText) ?? false
+            },
             onOpenWorkflows: { [weak self] in self?.show(.workflows) },
             onOpenSettings: { [weak self] in self?.show(.settings) },
             dockedApp: docking.dockedTarget.map {
@@ -797,6 +818,14 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                     onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
                 )
             )
+        case .history:
+            TaskHistoryView(
+                model: TaskHistoryViewModel(
+                    repository: environment.workItems,
+                    calendar: environment.workCalendar.calendar,
+                    onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
+                )
+            )
         case .settings:
             SettingsView(
                 repository: environment.settings,
@@ -810,6 +839,12 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 },
                 onObsidianOpenNote: { [weak self] in
                     self?.openObsidianSyncNote()
+                },
+                onSaved: { [weak self] in
+                    guard let self, let window = self.windows[.settings] else { return }
+                    let frame = window.frame
+                    self.close(.settings)
+                    SavedToast.show(centeredOn: frame)
                 }
             )
         case .workflows:

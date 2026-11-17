@@ -98,14 +98,23 @@ public final class CaptureViewModel {
         self.clock = clock
         self.onSaved = onSaved
         self.onCancel = onCancel
-        let now = clock()
-        self.draft = CaptureDraft(
-            title: "",
-            startAt: calendar.startOfBusiness(for: now),
-            // A capture belongs to today's plan: due at today's end of
-            // business, even when created after hours.
-            endAt: calendar.endOfBusiness(for: now)
-        )
+        let schedule = Self.defaultSchedule(at: clock(), calendar: calendar)
+        self.draft = CaptureDraft(title: "", startAt: schedule.start, endAt: schedule.end)
+    }
+
+    /// A new task starts today at the top of the current hour and is due at
+    /// today's end of business, or 23:59 once business hours are over, so it
+    /// lands on the Today plan. The due time is always after the start.
+    static func defaultSchedule(
+        at now: Date,
+        calendar: WorkCalendar
+    ) -> (start: Date, end: Date) {
+        let start = TaskSchedule.startOfHour(now, calendar: calendar.calendar)
+        let endOfBusiness = calendar.endOfBusiness(for: now)
+        let end = endOfBusiness > now
+            ? endOfBusiness
+            : calendar.endOfDay(for: now).addingTimeInterval(-60)
+        return (start, TaskSchedule.dueAfterStart(start: start, due: end))
     }
 
     // MARK: Actions
@@ -157,11 +166,9 @@ public final class CaptureViewModel {
         let hasExplicitDate = !parser.parse(draft.title, at: now).isEmpty
             || !parser.parse(draft.descriptionMd, at: now).isEmpty
         if !hasExplicitDate {
-            draft.startAt = now
-            let endOfBusiness = calendar.endOfBusiness(for: now)
-            draft.endAt = endOfBusiness > now
-                ? endOfBusiness
-                : calendar.endOfDay(for: now).addingTimeInterval(-60) // 23:59 today
+            let schedule = Self.defaultSchedule(at: now, calendar: calendar)
+            draft.startAt = schedule.start
+            draft.endAt = schedule.end
         }
 
         self.droppedObjects = dropped
@@ -378,7 +385,8 @@ public final class CaptureViewModel {
                             priority: draft.priority,
                             recurrence: draft.recurrence,
                             tags: draft.tags,
-                            placement: .top
+                            placement: .top,
+                            createdAt: now
                         )
                     )
                     try await saveAttachment(object, source: dropped, for: item.id, at: now)
@@ -410,7 +418,8 @@ public final class CaptureViewModel {
                         priority: draft.priority,
                         recurrence: draft.recurrence,
                         tags: draft.tags,
-                        placement: .top
+                        placement: .top,
+                        createdAt: now
                     )
                 )
                 savedItem = item
@@ -627,12 +636,8 @@ public final class CaptureViewModel {
 
     /// Discards the draft and closes the sheet.
     public func cancel() {
-        let now = clock()
-        draft = CaptureDraft(
-            title: "",
-            startAt: now,
-            endAt: calendar.endOfBusiness(for: now)
-        )
+        let schedule = Self.defaultSchedule(at: clock(), calendar: calendar)
+        draft = CaptureDraft(title: "", startAt: schedule.start, endAt: schedule.end)
         droppedObjects = []
         savedItem = nil
         lastError = nil

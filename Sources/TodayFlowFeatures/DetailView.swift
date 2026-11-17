@@ -719,14 +719,17 @@ public struct DetailView: View {
                 displayedComponents: [.date, .hourAndMinute]
             )
             .onChange(of: model.edit.startAt) {
+                // commit() moves a due time that the new start overtook.
                 Task { await model.commit() }
             }
 
             DatePicker(
                 "Due",
                 selection: $model.edit.endAt,
+                in: model.edit.startAt.addingTimeInterval(TaskSchedule.minimumDuration)...,
                 displayedComponents: [.date, .hourAndMinute]
             )
+            .help("Due must be after the start")
             .onChange(of: model.edit.endAt) {
                 Task { await model.commit() }
             }

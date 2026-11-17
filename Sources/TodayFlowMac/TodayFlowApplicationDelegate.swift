@@ -21,6 +21,9 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     public private(set) var notifications: NotificationController?
     /// The automatic end-of-day review (FR-43).
     public private(set) var endOfDayReview: EndOfDayReviewController?
+    /// The on-screen popup for tasks due in 12 hours, 5 hours and 1 hour.
+    public private(set) var dueNudges: DueNudgeController?
+    private weak var dueNudgesMenuItem: NSMenuItem?
     private weak var dockingMenuItem: NSMenuItem?
     private weak var allDesktopsMenuItem: NSMenuItem?
     /// AI planning and Q&A windows (driver.md §8).
@@ -111,6 +114,13 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
                 )
                 self.notifications = notifications
 
+                let dueNudges = DueNudgeController(
+                    repository: environment.workItems,
+                    settings: environment.settings,
+                    onOpen: { id in windowManager.show(.detail(id)) }
+                )
+                self.dueNudges = dueNudges
+
                 await summary.refresh()
                 windowManager.show(.panel)
                 // The optional AI choice comes first; the notification prompt
@@ -127,6 +137,15 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
                     await notifications.requestAuthorization()
                 }
                 summary.startPolling()
+                if ProcessInfo.processInfo.environment["TODAYFLOW_UI_TESTING"] != "1" {
+                    dueNudges.start()
+                }
+                // `-previewDueNudge 1|5|12` on the command line shows a sample.
+                if let stage = DueNudgeStage(
+                    rawValue: UserDefaults.standard.integer(forKey: "previewDueNudge")
+                ) {
+                    dueNudges.preview(stage)
+                }
             }
         } catch {
             NSLog("TodayFlow: could not open the database — \(error)")
@@ -299,6 +318,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewMenu.addItem(
             item("All Tasks & Search", #selector(showAllTasksMenu), key: "f", modifiers: [.command, .shift])
         )
+        viewMenu.addItem(item("Task History", #selector(showHistoryMenu), key: "9"))
         viewMenu.addItem(item("Hierarchy", #selector(showHierarchyMenu), key: "4"))
         viewMenu.addItem(item("Contacts", #selector(showContactsMenu), key: "8"))
         viewMenu.addItem(item("Workflows", #selector(showWorkflowsMenu), key: ""))
@@ -309,6 +329,19 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         docking.state = windows?.docking.isEnabled == true ? .on : .off
         dockingMenuItem = docking
         viewMenu.addItem(docking)
+
+        let nudgeItem = NSMenuItem(title: "Due-Soon Popups", action: nil, keyEquivalent: "")
+        let nudgeMenu = NSMenu(title: "Due-Soon Popups")
+        let nudgeToggle = item("Show When a Task Is Due Soon", #selector(toggleDueNudges), key: "")
+        nudgeToggle.state = DueNudgeController.isEnabled ? .on : .off
+        dueNudgesMenuItem = nudgeToggle
+        nudgeMenu.addItem(nudgeToggle)
+        nudgeMenu.addItem(.separator())
+        nudgeMenu.addItem(item("Preview: 12 Hours Left", #selector(previewNudge12), key: ""))
+        nudgeMenu.addItem(item("Preview: 5 Hours Left", #selector(previewNudge5), key: ""))
+        nudgeMenu.addItem(item("Preview: 1 Hour Left", #selector(previewNudge1), key: ""))
+        nudgeItem.submenu = nudgeMenu
+        viewMenu.addItem(nudgeItem)
 
         let desktops = item("Show Windows on All Desktops", #selector(toggleAllDesktops), key: "")
         desktops.state = windows?.showOnAllDesktops == true ? .on : .off
@@ -512,6 +545,19 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func showAllTasksMenu() {
         windows?.show(.allTasks)
+    }
+
+    @objc private func toggleDueNudges() {
+        DueNudgeController.isEnabled.toggle()
+        dueNudgesMenuItem?.state = DueNudgeController.isEnabled ? .on : .off
+    }
+
+    @objc private func previewNudge12() { dueNudges?.preview(.twelveHours) }
+    @objc private func previewNudge5() { dueNudges?.preview(.fiveHours) }
+    @objc private func previewNudge1() { dueNudges?.preview(.oneHour) }
+
+    @objc private func showHistoryMenu() {
+        windows?.show(.history)
     }
 
     @objc private func showHierarchyMenu() {

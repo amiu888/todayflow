@@ -557,6 +557,13 @@ public final class DetailViewModel {
             return false
         }
 
+        // A task is never due at or before its start. Only a date the user
+        // just changed is corrected; older stored dates are left alone.
+        if edit.startAt != current.startAt || edit.endAt != current.endAt {
+            let due = TaskSchedule.dueAfterStart(start: edit.startAt, due: edit.endAt)
+            if due != edit.endAt { edit.endAt = due }
+        }
+
         guard Self.differs(edit, from: current) else {
             if lastError?.hasPrefix(Self.saveFailurePrefix) == true { lastError = nil }
             return true

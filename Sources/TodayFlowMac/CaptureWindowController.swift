@@ -64,6 +64,10 @@ public final class CaptureWindowController {
                 onPaste: { [weak self, weak model] isEditingText in
                     guard let self, let model else { return false }
                     return self.handleSheetPaste(into: model, isEditingText: isEditingText)
+                },
+                onAddLink: { [weak self, weak model] url in
+                    guard let self, let model else { return }
+                    self.add([DroppedObject(url: url, uti: .url)], to: model, origin: "link")
                 }
             )
         )
@@ -135,16 +139,21 @@ public final class CaptureWindowController {
         ) == .attach else { return false }
         let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
         guard !objects.isEmpty else { return false }
+        add(objects, to: model, origin: "paste")
+        return true
+    }
+
+    /// Adds objects to the open sheet and fetches their titles/previews.
+    private func add(_ objects: [DroppedObject], to model: CaptureViewModel, origin: String) {
         let recognized = objects.map { environment.pipeline.recognize($0) }
         model.addObjects(dropped: objects, recognized: recognized)
-        Diagnostics.log("capture", "sheet paste added=\(objects.count) total=\(model.draft.objects.count)")
+        Diagnostics.log("capture", "sheet \(origin) added=\(objects.count) total=\(model.draft.objects.count)")
         Task { @MainActor [weak self, weak model] in
             guard let self, let model else { return }
             let enriched = await Enricher(fetcher: URLSessionFetcher()).enrich(model.draft)
             guard self.currentModel === model, self.isPresenting else { return }
             model.applyEnrichment(enriched)
         }
-        return true
     }
 
     /// Hides the panel, keeping it for the next presentation.

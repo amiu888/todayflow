@@ -29,6 +29,9 @@ public struct CreateTask: Sendable {
         public var color: String?
         public var tags: [String]
         public var placement: Placement
+        /// When the task was made. `nil` → `startAt`, which is the same moment
+        /// unless the start was rounded or picked by hand.
+        public var createdAt: Date?
 
         public init(
             kind: WorkItem.Kind = .task,
@@ -41,7 +44,8 @@ public struct CreateTask: Sendable {
             recurrence: Recurrence? = nil,
             color: String? = nil,
             tags: [String] = [],
-            placement: Placement = .bottom
+            placement: Placement = .bottom,
+            createdAt: Date? = nil
         ) {
             self.kind = kind
             self.title = title
@@ -54,6 +58,7 @@ public struct CreateTask: Sendable {
             self.color = color
             self.tags = tags
             self.placement = placement
+            self.createdAt = createdAt
         }
     }
 
@@ -92,7 +97,11 @@ public struct CreateTask: Sendable {
             }
         }
 
-        let endAt = input.endAt ?? calendar.defaultEndAt(createdAt: input.startAt)
+        let endAt = TaskSchedule.dueAfterStart(
+            start: input.startAt,
+            due: input.endAt ?? calendar.defaultEndAt(createdAt: input.startAt)
+        )
+        let createdAt = input.createdAt ?? input.startAt
         let siblings = await repository.children(of: input.parentId)
         let displayOrder: String
         switch input.placement {
@@ -114,8 +123,8 @@ public struct CreateTask: Sendable {
             displayOrder: displayOrder,
             color: input.color,
             tags: input.tags,
-            createdAt: input.startAt,
-            updatedAt: input.startAt,
+            createdAt: createdAt,
+            updatedAt: createdAt,
             deviceId: deviceId
         )
         try await repository.save(item)

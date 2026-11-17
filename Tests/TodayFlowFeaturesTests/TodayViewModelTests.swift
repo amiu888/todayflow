@@ -1189,3 +1189,93 @@ func trayFilter_hidesAndUnhidesTasksInTrays_andPersists() async {
     #expect(Set(f.vm.visibleRows.map(\.id)) == [inTray.id, loose.id])
     #expect(f.vm.hiddenTrayTaskCount == 0)
 }
+
+@Test @MainActor
+func trayFilter_showsOnlyTheSelectedTray() async {
+    let f = Fixture()
+    let first = f.item("In the first tray", displayOrder: "a1")
+    let second = f.item("In the second tray", displayOrder: "a2")
+    let loose = f.item("Not in a tray", displayOrder: "a3")
+    for item in [first, second, loose] { await f.seed(item) }
+    await f.vm.load()
+    let firstTray = f.vm.trays[0].id
+    await f.vm.addTray(name: "In an hour")
+    let secondTray = try! #require(f.vm.trays.last).id
+    await f.vm.addToTray(first.id, trayId: firstTray)
+    await f.vm.addToTray(second.id, trayId: secondTray)
+
+    f.vm.trayFilter = secondTray
+    #expect(f.vm.visibleRows.map(\.id) == [second.id])
+    #expect(f.vm.filteredTray?.name == "In an hour")
+
+    // The single-tray view wins over "hide tasks in trays".
+    await f.vm.setHideTrayTasks(true)
+    #expect(f.vm.visibleRows.map(\.id) == [second.id])
+
+    f.vm.trayFilter = nil
+    #expect(f.vm.visibleRows.map(\.id) == [loose.id])
+
+    // Deleting the filtered tray returns to all tasks.
+    await f.vm.setHideTrayTasks(false)
+    f.vm.trayFilter = secondTray
+    await f.vm.deleteTray(secondTray)
+    #expect(f.vm.trayFilter == nil)
+    #expect(f.vm.visibleRows.count == 3)
+}
+
+@MainActor
+@Test("The calendar strip pages by week and marks days that have tasks")
+func calendarStrip_pagesByWeek_andListsTopTasks() async {
+    let f = Fixture()
+    let nextWeek = testCalendar.date(byAdding: .day, value: 8, to: f.now)!
+    for (index, title) in ["Low one", "Urgent one", "Normal one", "Another"].enumerated() {
+        let task = f.item(
+            title,
+            priority: title == "Urgent one" ? .urgent : (title == "Low one" ? .low : .normal),
+            startAt: nextWeek,
+            endAt: f.calendar.endOfBusiness(for: nextWeek),
+            displayOrder: "a\(index)"
+        )
+        await f.seed(task)
+    }
+    await f.vm.load()
+
+    #expect(f.vm.stripTitle == "Nov 3 – 9")
+    #expect(f.vm.weekDays.allSatisfy { $0.count == 0 })
+    #expect(f.vm.weekDays[0].tooltip == "No tasks")
+
+    f.vm.shiftStrip(by: 1)
+    #expect(f.vm.stripTitle == "Nov 10 – 16")
+    #expect(f.vm.weekDays.count == 7)
+    let day = f.vm.weekDays[1] // Nov 11
+    #expect(day.count == 4)
+    #expect(day.topTitles == ["Urgent one", "Another", "Normal one"])
+    #expect(day.tooltip == "4 tasks\n• Urgent one\n• Another\n• Normal one\n+1 more")
+
+    f.vm.shiftStrip(by: -2)
+    #expect(f.vm.stripTitle == "Oct 27 – Nov 2")
+    f.vm.resetStrip()
+    #expect(f.vm.weekDays.first?.isToday == true)
+}
+
+@MainActor
+@Test("Month mode shows whole weeks and dims the neighbouring months")
+func calendarStrip_monthGrid() async {
+    let f = Fixture()
+    await f.vm.load()
+    f.vm.setStripMode(.month)
+
+    #expect(f.vm.stripTitle == "November 2026")
+    // November 2026 starts on a Sunday and has 30 days: five whole weeks.
+    #expect(f.vm.weekDays.count == 35)
+    #expect(f.vm.weekDays.filter(\.isInPeriod).count == 30)
+    #expect(f.vm.weekDays.filter(\.isToday).count == 1)
+
+    f.vm.shiftStrip(by: 1)
+    #expect(f.vm.stripTitle == "December 2026")
+    #expect(f.vm.weekDays.filter(\.isInPeriod).count == 31)
+
+    f.vm.setStripMode(.week)
+    #expect(f.vm.weekDays.count == 7)
+    #expect(f.vm.stripOffset == 0)
+}

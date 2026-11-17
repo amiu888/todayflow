@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (no-op).
-- `swift build` is warning-free; `swift test` passes **799 tests**; the XCUITest suite has 22 cases.
+- `swift build` is warning-free; `swift test` passes **818 tests**; the XCUITest suite has 22 cases.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
@@ -44,6 +44,13 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 performance gates, live Markdown rendering and inline images in the detail
 description. ⌘V in a task or New Task window attaches the clipboard (image, file,
 link); the Today list and All Tasks have a hide/show filter for tasks in trays.
+New tasks start at the top of the current hour and a due time is always after
+the start (`TaskSchedule`). The header calendar strip pages by week or month,
+with a dot and a top-3 hover list per day. Trays start folded to name + count
+chips. View ▸ Task History (⌘9) lists every task newest first with All / Due
+today / Past / Completed and a date range. `DueNudgeController` shows an animated
+popup as a task crosses 12 h, 5 h and 1 h before due (View ▸ Due-Soon Popups;
+`-previewDueNudge 1|5|12` on the command line shows a sample).
 
 ## Context rules (keep sessions small)
 - Never read or search inside: `.build/`, `DerivedData/`, `Pods/`, `*.sqlite`, `*.xcodeproj/project.pbxproj`.

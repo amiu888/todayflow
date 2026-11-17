@@ -13,12 +13,15 @@ public struct CaptureSheetHost: View {
 
     private let onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)?
     private let onPaste: (@MainActor (Bool) -> Bool)?
+    private let onAddLink: (@MainActor (URL) -> Void)?
 
     public init(
         model: CaptureViewModel,
         onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
-        onPaste: (@MainActor (Bool) -> Bool)? = nil
+        onPaste: (@MainActor (Bool) -> Bool)? = nil,
+        onAddLink: (@MainActor (URL) -> Void)? = nil
     ) {
+        self.onAddLink = onAddLink
         _model = State(initialValue: model)
         self.onDropProviders = onDropProviders
         self.onPaste = onPaste
@@ -60,7 +63,8 @@ public struct CaptureSheetHost: View {
                 }
             },
             onDropProviders: onDropProviders,
-            onPaste: onPaste
+            onPaste: onPaste,
+            onAddLink: onAddLink
         )
         .task {
             await model.loadParents()

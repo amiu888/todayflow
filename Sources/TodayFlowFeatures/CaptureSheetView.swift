@@ -38,6 +38,8 @@ public struct CaptureSheetView: View {
     public let onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)?
     /// Adds the clipboard to the draft; see `PasteCatcher`.
     public let onPaste: (@MainActor (Bool) -> Bool)?
+    /// Adds a typed link to the draft as an attachment.
+    public let onAddLink: (@MainActor (URL) -> Void)?
 
     public init(
         draft: Binding<CaptureDraft>,
@@ -52,8 +54,10 @@ public struct CaptureSheetView: View {
         isSaving: Bool = false,
         onCreateProject: (@Sendable (String) -> Void)? = nil,
         onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
-        onPaste: (@MainActor (Bool) -> Bool)? = nil
+        onPaste: (@MainActor (Bool) -> Bool)? = nil,
+        onAddLink: (@MainActor (URL) -> Void)? = nil
     ) {
+        self.onAddLink = onAddLink
         self.onCreateProject = onCreateProject
         self.onDropProviders = onDropProviders
         self.onPaste = onPaste
@@ -74,6 +78,9 @@ public struct CaptureSheetView: View {
     @State private var tagText = ""
     @FocusState private var isTitleFocused: Bool
     @FocusState private var isTagsFocused: Bool
+    @FocusState private var isLinkFocused: Bool
+    @State private var linkText = ""
+    @State private var linkError = false
     @State private var isDropTargeted = false
     @State private var showingNewProject = false
     @State private var newProjectName = ""
@@ -312,7 +319,71 @@ public struct CaptureSheetView: View {
             } else {
                 attachmentChips
             }
+
+            if onAddLink != nil {
+                linkField
+            }
         }
+    }
+
+    /// Type or paste a web address and press Return (or Add) to attach it.
+    @MainActor
+    private var linkField: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                Image(systemName: "link")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+
+                TextField("Add a link, e.g. example.com/page", text: $linkText)
+                    .textFieldStyle(.plain)
+                    .font(.caption)
+                    .focused($isLinkFocused)
+                    .onSubmit { addLink() }
+                    .onChange(of: linkText) { linkError = false }
+                    .accessibilityLabel("Link")
+                    .accessibilityIdentifier("capture-link-field")
+
+                Button("Add") { addLink() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(linkText.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .help("Attach this link to the task")
+                    .accessibilityIdentifier("capture-link-add")
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(DesignTokens.Palette.surface.opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(
+                        linkError ? DesignTokens.Palette.danger : DesignTokens.Palette.hairline,
+                        lineWidth: 1
+                    )
+            )
+
+            if linkError {
+                Text("That doesn’t look like a link. Try something like example.com/page.")
+                    .font(.caption2)
+                    .foregroundStyle(DesignTokens.Palette.danger)
+            }
+        }
+    }
+
+    @MainActor
+    private func addLink() {
+        guard !linkText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        guard let url = LinkInput.url(from: linkText) else {
+            linkError = true
+            return
+        }
+        onAddLink?(url)
+        linkText = ""
+        linkError = false
+        isLinkFocused = true
     }
 
     /// Selects the prefilled title so the first keystroke overwrites the
@@ -598,8 +669,14 @@ public struct CaptureSheetView: View {
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
                 dateColumn(
                     title: "Due",
-                    selection: $draft.endAt
+                    selection: $draft.endAt,
+                    notBefore: draft.startAt.addingTimeInterval(TaskSchedule.minimumDuration)
                 )
+            }
+            // A start moved past the due time takes the due time with it.
+            .onChange(of: draft.startAt) { _, start in
+                let due = TaskSchedule.dueAfterStart(start: start, due: draft.endAt)
+                if due != draft.endAt { draft.endAt = due }
             }
 
             HStack(spacing: 6) {
@@ -661,16 +738,17 @@ public struct CaptureSheetView: View {
     @MainActor
     private func dateColumn(
         title: String,
-        selection: Binding<Date>
+        selection: Binding<Date>,
+        notBefore: Date = .distantPast
     ) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(DesignTokens.Palette.textSecondary)
-            DatePicker("", selection: selection, displayedComponents: [.date])
+            DatePicker("", selection: selection, in: notBefore..., displayedComponents: [.date])
                 .labelsHidden()
                 .accessibilityLabel("\(title) date")
-            DatePicker("", selection: selection, displayedComponents: [.hourAndMinute])
+            DatePicker("", selection: selection, in: notBefore..., displayedComponents: [.hourAndMinute])
                 .labelsHidden()
                 .accessibilityLabel("\(title) time")
         }

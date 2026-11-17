@@ -103,7 +103,9 @@ public struct TrayStripView: View {
             }
             .padding(.horizontal, 12)
 
-            if !isCollapsed {
+            if isCollapsed {
+                traySummary
+            } else {
                 LazyVGrid(
                     columns: isCompact
                         ? [GridItem(.flexible(), spacing: 8)]
@@ -155,6 +157,93 @@ public struct TrayStripView: View {
                 customColorTray = nil
             }
         }
+    }
+
+    /// The folded strip: each tray as a name and a task count. Click one to
+    /// show only its tasks in the list; drop a task on it to file it there.
+    @MainActor
+    @ViewBuilder
+    private var traySummary: some View {
+        if !model.trayColumns.isEmpty {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 96), spacing: 6)],
+                alignment: .leading,
+                spacing: 6
+            ) {
+                ForEach(model.trayColumns) { column in
+                    traySummaryChip(column)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 2)
+            .transition(.opacity)
+        }
+    }
+
+    @MainActor
+    private func traySummaryChip(_ column: TodayViewModel.TrayColumn) -> some View {
+        let tint = trayColor(column.tray)
+        let isFiltered = model.trayFilter == column.tray.id
+        let isTarget = dropTargetID == column.tray.id
+        let count = column.items.count
+
+        return Button {
+            model.trayFilter = isFiltered ? nil : column.tray.id
+        } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 6, height: 6)
+
+                Text(column.tray.name)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Spacer(minLength: 2)
+
+                Text("\(count)")
+                    .font(.caption2.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(count > 0 ? tint : DesignTokens.Palette.textSecondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity)
+            .background(
+                Capsule().fill(tint.opacity(isFiltered || isTarget ? 0.24 : 0.10))
+            )
+            .overlay(
+                Capsule().strokeBorder(
+                    tint.opacity(isFiltered || isTarget ? 0.9 : 0.25),
+                    lineWidth: 1
+                )
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onDrop(
+            of: [.todayFlowWorkItem],
+            isTargeted: Binding(
+                get: { dropTargetID == column.tray.id },
+                set: { dropTargetID = $0 ? column.tray.id : nil }
+            )
+        ) { providers in
+            drop(providers, into: column.tray.id)
+        }
+        .contextMenu {
+            Button("Open tray window") { onOpenTray?(column.tray.id) }
+            Button(isFiltered ? "Show all tasks" : "Show only this tray") {
+                model.trayFilter = isFiltered ? nil : column.tray.id
+            }
+        }
+        .help(
+            "\(column.tray.name): \(count) task\(count == 1 ? "" : "s"). "
+                + (isFiltered ? "Click to show all tasks." : "Click to show only this tray.")
+        )
+        .accessibilityLabel("\(column.tray.name), \(count) tasks")
+        .accessibilityIdentifier("tray-summary-\(column.tray.name)")
     }
 
     @MainActor

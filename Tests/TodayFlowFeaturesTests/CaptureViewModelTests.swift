@@ -1034,3 +1034,36 @@ func createProjectFromTheSheet_selectsIt_andReusesAnExistingName() async {
     await f.vm.createProject(named: "website")
     #expect(await f.repository.allItems().filter { $0.kind == .project }.count == 1)
 }
+
+@MainActor
+@Test("A new task starts at the top of the current hour and is due after it")
+func newTask_startsAtTheCurrentHour_andIsDueLater() async {
+    let afternoon = date(2026, 11, 3, hour: 13, minute: 34)
+    let model = CaptureViewModel(
+        repository: InMemoryWorkItemRepository(),
+        attachmentRepository: InMemoryAttachmentRepository(),
+        materializer: Materializer(
+            fileAccess: FakeFileAccess(),
+            attachmentsDirectory: URL(fileURLWithPath: "/tmp/todayflow-start-hour")
+        ),
+        calendar: WorkCalendar(calendar: testCalendar),
+        clock: { afternoon }
+    )
+    #expect(model.draft.startAt == date(2026, 11, 3, hour: 13))
+    #expect(model.draft.endAt == date(2026, 11, 3, hour: 17))
+
+    // After hours the due time is 23:59 the same day, still after the start.
+    let night = date(2026, 11, 3, hour: 23, minute: 59, second: 30)
+    let late = CaptureViewModel(
+        repository: InMemoryWorkItemRepository(),
+        attachmentRepository: InMemoryAttachmentRepository(),
+        materializer: Materializer(
+            fileAccess: FakeFileAccess(),
+            attachmentsDirectory: URL(fileURLWithPath: "/tmp/todayflow-start-hour")
+        ),
+        calendar: WorkCalendar(calendar: testCalendar),
+        clock: { night }
+    )
+    #expect(late.draft.startAt == date(2026, 11, 3, hour: 23))
+    #expect(late.draft.endAt > late.draft.startAt)
+}

@@ -1,6 +1,7 @@
 #if canImport(AppKit)
 import AppKit
 import SwiftUI
+import TodayFlowCore
 
 /// Routes ⌘V in the hosting window to `onPaste`, so a copied image, file, or
 /// link can be attached to a task wherever the keyboard focus is.
@@ -70,19 +71,26 @@ public struct PasteCatcher: NSViewRepresentable {
         }
 
         private func handles(_ event: NSEvent) -> Bool {
-            guard let window,
-                  event.window === window,
-                  window.isKeyWindow,
+            guard PasteCatcher.isPasteShortcut(
+                characters: event.charactersIgnoringModifiers,
+                modifiers: event.modifierFlags
+            ) else { return false }
+            guard let window, let onPaste else { return false }
+            // Key events are delivered to the key window; some panels report
+            // no event window, so fall back to the key-window check.
+            let isOurs = event.window === window
+                || (event.window == nil && window.isKeyWindow)
+            guard isOurs,
                   // A sheet or alert on top owns the keyboard.
-                  window.attachedSheet == nil,
-                  PasteCatcher.isPasteShortcut(
-                      characters: event.charactersIgnoringModifiers,
-                      modifiers: event.modifierFlags
-                  ),
-                  let onPaste
+                  window.attachedSheet == nil
             else { return false }
             let isEditingText = window.firstResponder is NSTextView
-            return onPaste(isEditingText)
+            let handled = onPaste(isEditingText)
+            Diagnostics.log(
+                "paste",
+                "cmd-V window=\(window.title) editingText=\(isEditingText) handled=\(handled)"
+            )
+            return handled
         }
     }
 }

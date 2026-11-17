@@ -102,6 +102,12 @@ public final class TodayViewModel {
     /// When true, tasks that sit in a working tray are left out of the list.
     /// Off by default: putting a task in a tray never removes it from the list.
     public private(set) var hideTrayTasks = false
+    /// When set, the list shows only the tasks in this tray. `nil` = all tasks.
+    public var trayFilter: UUIDv7?
+    /// The tray the list is narrowed to, for the "Showing tray" label.
+    public var filteredTray: WorkTray? {
+        trayFilter.flatMap { id in trays.first { $0.id == id } }
+    }
     public var searchText: String = ""
     /// FR-15 "by project": `nil` means all projects.
     public var projectFilter: UUIDv7?
@@ -189,12 +195,148 @@ public final class TodayViewModel {
 
     public struct WeekDay: Identifiable, Hashable, Sendable {
         public let date: Date
+        /// Open tasks that start or are due on this day.
         public let count: Int
         public let isToday: Bool
         public let isSelected: Bool
+        /// The day's three most important task titles, for the hover tip.
+        public var topTitles: [String] = []
+        /// False for the leading/trailing days of a month grid that belong
+        /// to the neighbouring month.
+        public var isInPeriod: Bool = true
         public var id: Date { date }
+
+        /// The hover text: the count, then up to three task titles.
+        public var tooltip: String {
+            guard count > 0 else { return "No tasks" }
+            var lines = ["\(count) task\(count == 1 ? "" : "s")"]
+            lines += topTitles.map { "• \($0)" }
+            if count > topTitles.count { lines.append("+\(count - topTitles.count) more") }
+            return lines.joined(separator: "\n")
+        }
     }
+
+    /// What the calendar strip in the header shows.
+    public enum StripMode: String, CaseIterable, Sendable {
+        case week
+        case month
+
+        public var label: String {
+            switch self {
+            case .week: "Week"
+            case .month: "Month"
+            }
+        }
+    }
+
+    /// The days in the calendar strip: seven for a week, a whole grid of
+    /// weeks for a month.
     public private(set) var weekDays: [WeekDay] = []
+    public private(set) var stripMode: StripMode = .week
+    /// Weeks (or months) the strip is paged away from the current one.
+    public private(set) var stripOffset = 0
+
+    /// "Nov 17 – 23" for a week, "November 2026" for a month.
+    public var stripTitle: String {
+        let cal = calendar.calendar
+        // Format in the model's calendar, not the machine's time zone.
+        var style = Date.FormatStyle.dateTime
+        style.calendar = cal
+        style.timeZone = cal.timeZone
+        switch stripMode {
+        case .week:
+            guard let first = weekDays.first?.date, let last = weekDays.last?.date
+            else { return "" }
+            let start = first.formatted(style.month(.abbreviated).day())
+            let sameMonth = cal.isDate(first, equalTo: last, toGranularity: .month)
+            let end = sameMonth
+                ? last.formatted(style.day())
+                : last.formatted(style.month(.abbreviated).day())
+            return "\(start) – \(end)"
+        case .month:
+            return stripAnchor.formatted(style.month(.wide).year())
+        }
+    }
+
+    public func setStripMode(_ mode: StripMode) {
+        guard mode != stripMode else { return }
+        stripMode = mode
+        stripOffset = 0
+        rebuildStripDays()
+    }
+
+    /// Pages the strip one week or month back (-1) or forward (+1).
+    public func shiftStrip(by delta: Int) {
+        stripOffset += delta
+        rebuildStripDays()
+    }
+
+    /// Returns the strip to the current week or month.
+    public func resetStrip() {
+        guard stripOffset != 0 else { return }
+        stripOffset = 0
+        rebuildStripDays()
+    }
+
+    /// The first day of the visible week, or of the visible month.
+    private var stripAnchor: Date {
+        let cal = calendar.calendar
+        let today = cal.startOfDay(for: clock())
+        switch stripMode {
+        case .week:
+            return cal.date(byAdding: .day, value: 7 * stripOffset, to: today) ?? today
+        case .month:
+            let monthStart = cal.dateInterval(of: .month, for: today)?.start ?? today
+            return cal.date(byAdding: .month, value: stripOffset, to: monthStart) ?? monthStart
+        }
+    }
+
+    private func rebuildStripDays() {
+        let cal = calendar.calendar
+        let today = cal.startOfDay(for: clock())
+        let anchor = stripAnchor
+
+        var dates: [Date] = []
+        var period: DateInterval?
+        switch stripMode {
+        case .week:
+            dates = (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: anchor) }
+        case .month:
+            period = cal.dateInterval(of: .month, for: anchor)
+            // Whole weeks: start on the calendar's first weekday.
+            let lead = (cal.component(.weekday, from: anchor) - cal.firstWeekday + 7) % 7
+            let gridStart = cal.date(byAdding: .day, value: -lead, to: anchor) ?? anchor
+            let daysInMonth = cal.range(of: .day, in: .month, for: anchor)?.count ?? 30
+            let cells = Int((Double(lead + daysInMonth) / 7).rounded(.up)) * 7
+            dates = (0..<cells).compactMap { cal.date(byAdding: .day, value: $0, to: gridStart) }
+        }
+
+        // Bucket open tasks by the day they start and the day they are due.
+        var byDay: [Date: [WorkItem]] = [:]
+        for item in allItemsById.values
+        where !item.isDeleted && item.kind == .task && !item.status.isTerminal {
+            let startDay = cal.startOfDay(for: item.startAt)
+            let dueDay = cal.startOfDay(for: item.endAt)
+            byDay[startDay, default: []].append(item)
+            if dueDay != startDay { byDay[dueDay, default: []].append(item) }
+        }
+
+        weekDays = dates.map { date in
+            let items = (byDay[date] ?? []).sorted {
+                if $0.priority != $1.priority { return $0.priority < $1.priority }
+                if $0.endAt != $1.endAt { return $0.endAt < $1.endAt }
+                return $0.title < $1.title
+            }
+            return WeekDay(
+                date: date,
+                count: items.count,
+                isToday: cal.isDate(date, inSameDayAs: today),
+                isSelected: cal.isDate(date, inSameDayAs: activeDay),
+                topTitles: items.prefix(3).map(\.title),
+                isInPeriod: period.map { date >= $0.start && date < $0.end } ?? true
+            )
+        }
+    }
 
     /// True when the panel is showing the actual current day (drives which
     /// header and section affordances are shown).
@@ -308,23 +450,7 @@ public final class TodayViewModel {
                 return $0.title < $1.title
             }
 
-        let today = calendar.calendar.startOfDay(for: now)
-        self.weekDays = (0..<7).compactMap { offset -> WeekDay? in
-            guard let date = calendar.calendar.date(byAdding: .day, value: offset, to: today)
-            else { return nil }
-            let count = allItems.filter {
-                !$0.isDeleted
-                    && $0.kind == .task
-                    && !$0.status.isTerminal
-                    && calendar.calendar.isDate($0.endAt, inSameDayAs: date)
-            }.count
-            return WeekDay(
-                date: date,
-                count: count,
-                isToday: calendar.calendar.isDate(date, inSameDayAs: today),
-                isSelected: calendar.calendar.isDate(date, inSameDayAs: activeDay)
-            )
-        }
+        rebuildStripDays()
 
         let eob = calendar.endOfBusiness(for: day)
         let windowEnd = calendar.calendar.date(byAdding: .day, value: 7, to: eob) ?? eob
@@ -599,6 +725,7 @@ public final class TodayViewModel {
     }
 
     public func deleteTray(_ id: UUIDv7) async {
+        if trayFilter == id { trayFilter = nil }
         trays.removeAll { $0.id == id }
         trays = renumbered(trays.sorted { $0.sortOrder < $1.sortOrder })
         await persistTrays()
@@ -868,7 +995,10 @@ public final class TodayViewModel {
         {
             return false
         }
-        if hideTrayTasks, !row.trays.isEmpty {
+        if let trayFilter {
+            // A single-tray view; it overrides the hide toggle.
+            if !row.trays.contains(where: { $0.id == trayFilter }) { return false }
+        } else if hideTrayTasks, !row.trays.isEmpty {
             return false
         }
         switch filter {
@@ -934,16 +1064,6 @@ public final class TodayViewModel {
             return rows.sorted {
                 if $0.dueAt != $1.dueAt { return $0.dueAt < $1.dueAt }
                 return $0.priority < $1.priority
-            }
-        case .tray:
-            return rows.sorted {
-                let left = $0.trays.first?.name ?? "~ No tray"
-                let right = $1.trays.first?.name ?? "~ No tray"
-                if left != right {
-                    return left.localizedStandardCompare(right) == .orderedAscending
-                }
-                if $0.priority != $1.priority { return $0.priority < $1.priority }
-                return $0.dueAt < $1.dueAt
             }
         }
     }
@@ -1078,7 +1198,7 @@ public final class TodayViewModel {
 
     /// Open tasks on the list that the tray filter is currently hiding.
     public var hiddenTrayTaskCount: Int {
-        guard hideTrayTasks else { return 0 }
+        guard hideTrayTasks, trayFilter == nil else { return 0 }
         return openRows.filter { !$0.trays.isEmpty }.count
     }
 

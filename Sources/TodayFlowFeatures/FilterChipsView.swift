@@ -18,6 +18,9 @@ public struct FilterChipsView: View {
     public let hideTrayTasks: Bool
     public let hiddenTrayTaskCount: Int
     public let onHideTrayTasksChange: (@Sendable (Bool) -> Void)?
+    public let trays: [WorkTray]
+    public let trayFilter: UUIDv7?
+    public let onTrayFilterChange: (@Sendable (UUIDv7?) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -36,6 +39,9 @@ public struct FilterChipsView: View {
         hideTrayTasks: Bool = false,
         hiddenTrayTaskCount: Int = 0,
         onHideTrayTasksChange: (@Sendable (Bool) -> Void)? = nil,
+        trays: [WorkTray] = [],
+        trayFilter: UUIDv7? = nil,
+        onTrayFilterChange: (@Sendable (UUIDv7?) -> Void)? = nil,
         onSearch: @escaping @Sendable () -> Void
     ) {
         self.filter = filter
@@ -52,6 +58,9 @@ public struct FilterChipsView: View {
         self.hideTrayTasks = hideTrayTasks
         self.hiddenTrayTaskCount = hiddenTrayTaskCount
         self.onHideTrayTasksChange = onHideTrayTasksChange
+        self.trays = trays
+        self.trayFilter = trayFilter
+        self.onTrayFilterChange = onTrayFilterChange
         self.onSearch = onSearch
     }
 
@@ -162,11 +171,40 @@ public struct FilterChipsView: View {
                     }
                 }
             }
+            if let onTrayFilterChange, !trays.isEmpty {
+                Divider()
+                Section("Show only tray") {
+                    Button {
+                        onTrayFilterChange(nil)
+                    } label: {
+                        HStack {
+                            Text("All tasks")
+                            Spacer()
+                            if trayFilter == nil {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                    ForEach(trays) { tray in
+                        Button {
+                            onTrayFilterChange(tray.id)
+                        } label: {
+                            HStack {
+                                Text(tray.name)
+                                Spacer()
+                                if tray.id == trayFilter {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         } label: {
             Image(systemName: "arrow.up.arrow.down")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(
-                    sort == .manual
+                    sort == .manual && trayFilter == nil
                         ? DesignTokens.Palette.textSecondary
                         : DesignTokens.Palette.accent
                 )
