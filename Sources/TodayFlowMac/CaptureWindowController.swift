@@ -60,6 +60,10 @@ public final class CaptureWindowController {
                 onDropProviders: { [weak self, weak model] providers in
                     guard let self, let model else { return false }
                     return self.handleSheetDrop(providers, into: model)
+                },
+                onPaste: { [weak self, weak model] isEditingText in
+                    guard let self, let model else { return false }
+                    return self.handleSheetPaste(into: model, isEditingText: isEditingText)
                 }
             )
         )
@@ -114,6 +118,28 @@ public final class CaptureWindowController {
             model.addObjects(dropped: objects, recognized: recognized)
             Diagnostics.log("capture", "sheet drop added=\(objects.count) total=\(model.draft.objects.count)")
 
+            let enriched = await Enricher(fetcher: URLSessionFetcher()).enrich(model.draft)
+            guard self.currentModel === model, self.isPresenting else { return }
+            model.applyEnrichment(enriched)
+        }
+        return true
+    }
+
+    /// ⌘V in the New Task window: a copied image, file, or link is added to
+    /// the draft as an attachment; plain text still pastes into the field.
+    private func handleSheetPaste(into model: CaptureViewModel, isEditingText: Bool) -> Bool {
+        let pasteboard = NSPasteboard.general
+        guard DroppedObjectLoader.pasteRoute(
+            types: pasteboard.types ?? [],
+            isEditingText: isEditingText
+        ) == .attach else { return false }
+        let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
+        guard !objects.isEmpty else { return false }
+        let recognized = objects.map { environment.pipeline.recognize($0) }
+        model.addObjects(dropped: objects, recognized: recognized)
+        Diagnostics.log("capture", "sheet paste added=\(objects.count) total=\(model.draft.objects.count)")
+        Task { @MainActor [weak self, weak model] in
+            guard let self, let model else { return }
             let enriched = await Enricher(fetcher: URLSessionFetcher()).enrich(model.draft)
             guard self.currentModel === model, self.isPresenting else { return }
             model.applyEnrichment(enriched)

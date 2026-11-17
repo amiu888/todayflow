@@ -42,11 +42,25 @@ public final class AllTasksViewModel {
     public var dateFilter: AllTasksDateFilter = .anyTime { didSet { refresh() } }
     public var customFrom: Date { didSet { refresh() } }
     public var customTo: Date { didSet { refresh() } }
+    /// When true, tasks that sit in a working tray are left out of the results.
+    /// Off by default: a task dropped into a tray stays in the results.
+    public var hideTrayTasks = false {
+        didSet {
+            guard hideTrayTasks != oldValue else { return }
+            refresh()
+            persistHideTrayTasks()
+        }
+    }
+    /// The working tray each task sits in, if any (a task has at most one).
+    public private(set) var trayByItem: [UUIDv7: WorkTray] = [:]
 
     public private(set) var groups: [TaskSearchGroup] = []
     public private(set) var allTags: [String] = []
     public private(set) var isLoading = false
     public private(set) var hasLoaded = false
+
+    /// Matching tasks the tray filter is currently hiding.
+    public private(set) var hiddenTrayTaskCount = 0
 
     /// Distinct tasks shown (a task under two tags counts once).
     public var resultCount: Int {
@@ -58,6 +72,8 @@ public final class AllTasksViewModel {
     @ObservationIgnored private let attachmentRepository: any AttachmentRepository
     @ObservationIgnored private let actionRepository: (any ActionItemRepository)?
     @ObservationIgnored private let contactRepository: (any ContactRepository)?
+    @ObservationIgnored private let settingRepository: (any SettingRepository)?
+    @ObservationIgnored private var preferencesLoaded = false
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let clock: @Sendable () -> Date
     @ObservationIgnored public var onOpenDetail: (@MainActor (UUIDv7) -> Void)?
@@ -67,6 +83,7 @@ public final class AllTasksViewModel {
         attachmentRepository: any AttachmentRepository,
         actionRepository: (any ActionItemRepository)? = nil,
         contactRepository: (any ContactRepository)? = nil,
+        settingRepository: (any SettingRepository)? = nil,
         calendar: Calendar = .current,
         clock: @escaping @Sendable () -> Date = { .now },
         onOpenDetail: (@MainActor (UUIDv7) -> Void)? = nil
@@ -75,6 +92,7 @@ public final class AllTasksViewModel {
         self.attachmentRepository = attachmentRepository
         self.actionRepository = actionRepository
         self.contactRepository = contactRepository
+        self.settingRepository = settingRepository
         self.calendar = calendar
         self.clock = clock
         self.onOpenDetail = onOpenDetail
@@ -103,6 +121,14 @@ public final class AllTasksViewModel {
             }
         }
 
+        await loadTrays()
+        if !preferencesLoaded, let settingRepository {
+            preferencesLoaded = true
+            let hide = await settingRepository
+                .value(for: SettingKeys.allTasksHideTrayTasks) == "true"
+            if hide != hideTrayTasks { hideTrayTasks = hide }
+        }
+
         let attachmentsByItem = Dictionary(grouping: attachments, by: \.itemId)
         let actionsByItem = Dictionary(grouping: actions, by: \.itemId)
         records = items.map { item in
@@ -122,6 +148,38 @@ public final class AllTasksViewModel {
         refresh()
     }
 
+    /// Re-reads tray membership (the Today list owns and persists the trays).
+    public func reloadTrays() async {
+        await loadTrays()
+        refresh()
+    }
+
+    private func loadTrays() async {
+        guard let settingRepository,
+              let raw = await settingRepository.value(for: SettingKeys.workTrays),
+              let data = raw.data(using: .utf8),
+              let trays = try? JSONDecoder().decode([WorkTray].self, from: data)
+        else {
+            trayByItem = [:]
+            return
+        }
+        var map: [UUIDv7: WorkTray] = [:]
+        for tray in trays.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+            for itemId in tray.itemIds where map[itemId] == nil {
+                map[itemId] = tray
+            }
+        }
+        trayByItem = map
+    }
+
+    private func persistHideTrayTasks() {
+        guard preferencesLoaded, let settingRepository else { return }
+        let value = hideTrayTasks ? "true" : "false"
+        Task {
+            try? await settingRepository.set(value, for: SettingKeys.allTasksHideTrayTasks)
+        }
+    }
+
     public func toggleTag(_ tag: String) {
         if let existing = selectedTags.first(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
             selectedTags.remove(existing)
@@ -139,11 +197,13 @@ public final class AllTasksViewModel {
         selectedTags = []
         scope = .all
         dateFilter = .anyTime
+        hideTrayTasks = false
     }
 
     public var hasFilters: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
             || !selectedTags.isEmpty || scope != .all || dateFilter != .anyTime
+            || hideTrayTasks
     }
 
     /// The date range for the current preset, or `nil` for "Any time".
@@ -187,7 +247,19 @@ public final class AllTasksViewModel {
             dateRange: dateRange(),
             scope: scope
         )
-        groups = TaskSearch.run(records, query: query, sort: sort)
+        var matched = TaskSearch.run(records, query: query, sort: sort)
+        if hideTrayTasks {
+            let before = Set(matched.flatMap { $0.results.map(\.id) }).count
+            for index in matched.indices {
+                matched[index].results.removeAll { trayByItem[$0.id] != nil }
+            }
+            // An emptied tag group would leave a header with nothing under it.
+            if sort == .tag { matched.removeAll { $0.results.isEmpty } }
+            hiddenTrayTaskCount = before - Set(matched.flatMap { $0.results.map(\.id) }).count
+        } else {
+            hiddenTrayTaskCount = 0
+        }
+        groups = matched
     }
 }
 
@@ -225,6 +297,9 @@ public struct AllTasksView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.captureSaved)) { _ in
             Task { await model.load() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.traysChanged)) { _ in
+            Task { await model.reloadTrays() }
         }
     }
 
@@ -286,6 +361,18 @@ public struct AllTasksView: View {
                     DatePicker("To", selection: $model.customTo, displayedComponents: .date)
                         .labelsHidden()
                 }
+
+                Toggle(isOn: $model.hideTrayTasks) {
+                    Label("Hide in trays", systemImage: "tray")
+                }
+                .toggleStyle(.button)
+                .fixedSize()
+                .help(
+                    model.hideTrayTasks
+                        ? "Showing only tasks outside trays (\(model.hiddenTrayTaskCount) hidden). Click to show tasks in trays."
+                        : "Hide tasks that are in a working tray"
+                )
+                .accessibilityIdentifier("all-tasks-tray-filter")
 
                 Spacer(minLength: 0)
 
@@ -428,17 +515,20 @@ public struct AllTasksView: View {
         ForEach(results) { result in
             AllTasksRow(
                 result: result,
+                tray: model.trayByItem[result.id],
+                onOpen: { model.onOpenDetail?(result.id) },
                 colorScheme: colorScheme,
                 isSelectedTag: { model.isSelected($0) },
                 onTagTap: { model.toggleTag($0) }
             )
-            .onTapGesture { model.onOpenDetail?(result.id) }
         }
     }
 }
 
 private struct AllTasksRow: View {
     let result: TaskSearchResult
+    let tray: WorkTray?
+    let onOpen: @MainActor () -> Void
     let colorScheme: ColorScheme
     let isSelectedTag: (String) -> Bool
     let onTagTap: (String) -> Void
@@ -458,8 +548,36 @@ private struct AllTasksRow: View {
                     .strikethrough(item.status.isTerminal)
                     .foregroundStyle(item.status.isTerminal ? DesignTokens.Palette.textSecondary : DesignTokens.Palette.textPrimary)
                     .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    #if canImport(AppKit)
+                    // Drag the title onto a working tray; the task stays in
+                    // these results and gains the tray badge below.
+                    .overlay {
+                        TaskDragSource(
+                            itemId: item.id,
+                            title: item.title,
+                            tooltip: "Open “\(item.title)”, or drag it to a tray",
+                            onClick: onOpen
+                        )
+                    }
+                    #endif
 
                 HStack(spacing: 6) {
+                    if let tray {
+                        let color = Color(
+                            hex: tray.colorHex
+                                ?? DesignTokens.TrayPalette.colorHex(at: tray.sortOrder)
+                        )
+                        Label(tray.name, systemImage: "tray.fill")
+                            .font(.caption2.weight(.semibold))
+                            .lineLimit(1)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(color.opacity(0.18)))
+                            .foregroundStyle(color)
+                            .help("In tray “\(tray.name)”")
+                            .accessibilityLabel("In tray \(tray.name)")
+                    }
                     ForEach(item.tags, id: \.self) { tag in
                         Button("#\(tag)") { onTagTap(tag) }
                             .buttonStyle(.plain)
@@ -494,6 +612,7 @@ private struct AllTasksRow: View {
                 .fill(DesignTokens.Palette.surface.opacity(0.7))
         )
         .contentShape(Rectangle())
+        .onTapGesture { onOpen() }
         .help("Open \(item.title)")
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)

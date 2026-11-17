@@ -12,13 +12,16 @@ public struct CaptureSheetHost: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)?
+    private let onPaste: (@MainActor (Bool) -> Bool)?
 
     public init(
         model: CaptureViewModel,
-        onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil
+        onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
+        onPaste: (@MainActor (Bool) -> Bool)? = nil
     ) {
         _model = State(initialValue: model)
         self.onDropProviders = onDropProviders
+        self.onPaste = onPaste
     }
 
     @MainActor
@@ -56,7 +59,8 @@ public struct CaptureSheetHost: View {
                     await viewModel.createProject(named: name)
                 }
             },
-            onDropProviders: onDropProviders
+            onDropProviders: onDropProviders,
+            onPaste: onPaste
         )
         .task {
             await model.loadParents()

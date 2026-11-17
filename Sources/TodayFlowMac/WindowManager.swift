@@ -184,6 +184,24 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         return true
     }
 
+    /// ⌘V (or the Paste button) in a task window: attaches the clipboard's
+    /// images, files, links, or text to that task. Returns false when the key
+    /// should fall through to the focused text field, or nothing is attachable.
+    public func handlePaste(onto itemId: UUIDv7, isEditingText: Bool) -> Bool {
+        let pasteboard = NSPasteboard.general
+        guard DroppedObjectLoader.pasteRoute(
+            types: pasteboard.types ?? [],
+            isEditingText: isEditingText
+        ) == .attach else { return false }
+        let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
+        DropDiagnostics.log("paste route=attach item=\(itemId) objects=\(objects.count)")
+        guard !objects.isEmpty else { return false }
+        Task { @MainActor [weak self] in
+            await self?.attach(objects, to: itemId, origin: "paste")
+        }
+        return true
+    }
+
     /// Handles objects that were already converted (menu-bar drags and
     /// `application(_:open:)` file drops).
     public func receiveDrop(_ objects: [DroppedObject], splitIntoTasks: Bool = false) {
@@ -287,7 +305,11 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     }
 
     /// Adds the dropped objects to an existing task (FR-04).
-    private func attach(_ objects: [DroppedObject], to itemId: UUIDv7) async {
+    private func attach(
+        _ objects: [DroppedObject],
+        to itemId: UUIDv7,
+        origin: String = "drop"
+    ) async {
         guard await environment.workItems.item(itemId) != nil else { return }
         let recognized = objects.map { environment.pipeline.recognize($0) }
         let importer = TaskAttachmentImporter(
@@ -295,7 +317,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             materializer: environment.materializer
         )
         do {
-            try await importer.add(recognized, from: objects, to: itemId)
+            try await importer.add(recognized, from: objects, to: itemId, origin: origin)
             NotificationCenter.default.post(name: TodayFlowEvents.attachmentsChanged, object: nil)
 
             // A drop on a row attaches to that task instead of creating one;
@@ -609,6 +631,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             onShowMiniCalendar: { [weak self] in self?.collapseToMiniCalendar() },
             onOpenTray: { [weak self] id in self?.openTray(id) },
             onOpenContacts: { [weak self] in self?.show(.contacts) },
+            onOpenAllTasks: { [weak self] in self?.show(.allTasks) },
             onOpenWorkflows: { [weak self] in self?.show(.workflows) },
             onOpenSettings: { [weak self] in self?.show(.settings) },
             dockedApp: docking.dockedTarget.map {
@@ -769,6 +792,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                     attachmentRepository: environment.attachments,
                     actionRepository: environment.actions,
                     contactRepository: environment.contacts,
+                    settingRepository: environment.settings,
                     calendar: environment.workCalendar.calendar,
                     onOpenDetail: { [weak self] id in self?.show(.detail(id)) }
                 )
@@ -849,6 +873,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 onRevealAttachment: { actions.reveal($0) },
                 onDropAttachment: { [weak self] providers in
                     self?.handleDrop(providers, onto: id) ?? false
+                },
+                onPasteAttachment: { [weak self] isEditingText in
+                    self?.handlePaste(onto: id, isEditingText: isEditingText) ?? false
                 },
                 onOpenInObsidian: { [weak self] item in
                     self?.openObsidianNote(for: item)

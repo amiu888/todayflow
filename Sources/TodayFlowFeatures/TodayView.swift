@@ -26,6 +26,7 @@ public struct TodayView: View {
     private let onShowMiniCalendar: (@MainActor () -> Void)?
     private let onOpenTray: (@MainActor (UUIDv7) -> Void)?
     private let onOpenContacts: (@MainActor () -> Void)?
+    private let onOpenAllTasks: (@MainActor () -> Void)?
     private let onOpenWorkflows: (@MainActor () -> Void)?
     private let onOpenSettings: (@MainActor () -> Void)?
     private let dockedApp: AppDockState?
@@ -68,6 +69,7 @@ public struct TodayView: View {
         self.onShowMiniCalendar = nil
         self.onOpenTray = nil
         self.onOpenContacts = nil
+        self.onOpenAllTasks = nil
         self.onOpenWorkflows = nil
         self.onOpenSettings = nil
         self.dockedApp = nil
@@ -91,6 +93,7 @@ public struct TodayView: View {
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         onOpenContacts: (@MainActor () -> Void)? = nil,
+        onOpenAllTasks: (@MainActor () -> Void)? = nil,
         onOpenWorkflows: (@MainActor () -> Void)? = nil,
         onOpenSettings: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
@@ -109,6 +112,7 @@ public struct TodayView: View {
         self.onShowMiniCalendar = onShowMiniCalendar
         self.onOpenTray = onOpenTray
         self.onOpenContacts = onOpenContacts
+        self.onOpenAllTasks = onOpenAllTasks
         self.onOpenWorkflows = onOpenWorkflows
         self.onOpenSettings = onOpenSettings
         self.dockedApp = dockedApp
@@ -142,6 +146,7 @@ public struct TodayView: View {
         onShowMiniCalendar: (@MainActor () -> Void)? = nil,
         onOpenTray: (@MainActor (UUIDv7) -> Void)? = nil,
         onOpenContacts: (@MainActor () -> Void)? = nil,
+        onOpenAllTasks: (@MainActor () -> Void)? = nil,
         onOpenWorkflows: (@MainActor () -> Void)? = nil,
         onOpenSettings: (@MainActor () -> Void)? = nil,
         dockedApp: AppDockState? = nil,
@@ -169,6 +174,7 @@ public struct TodayView: View {
         self.onShowMiniCalendar = onShowMiniCalendar
         self.onOpenTray = onOpenTray
         self.onOpenContacts = onOpenContacts
+        self.onOpenAllTasks = onOpenAllTasks
         self.onOpenWorkflows = onOpenWorkflows
         self.onOpenSettings = onOpenSettings
         self.dockedApp = dockedApp
@@ -380,6 +386,13 @@ public struct TodayView: View {
             onTagChange: { tag in
                 Task { @MainActor in
                     model.tagFilter = tag
+                }
+            },
+            hideTrayTasks: model.hideTrayTasks,
+            hiddenTrayTaskCount: model.hiddenTrayTaskCount,
+            onHideTrayTasksChange: { hide in
+                Task { @MainActor in
+                    await model.setHideTrayTasks(hide)
                 }
             },
             onSearch: {
@@ -961,6 +974,20 @@ public struct TodayView: View {
             .help("Create a project")
             .accessibilityLabel("New project")
             .accessibilityIdentifier("new-project")
+
+            if let onOpenAllTasks {
+                Button {
+                    onOpenAllTasks()
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("All tasks: past tasks, history, and search (⇧⌘F)")
+                .accessibilityLabel("All tasks and history")
+                .accessibilityIdentifier("open-all-tasks")
+            }
 
             if let onOpenContacts {
                 Button {

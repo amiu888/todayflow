@@ -15,6 +15,9 @@ public struct FilterChipsView: View {
     public let tags: [String]
     public let tagFilter: String?
     public let onTagChange: (@Sendable (String?) -> Void)?
+    public let hideTrayTasks: Bool
+    public let hiddenTrayTaskCount: Int
+    public let onHideTrayTasksChange: (@Sendable (Bool) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -30,6 +33,9 @@ public struct FilterChipsView: View {
         tags: [String] = [],
         tagFilter: String? = nil,
         onTagChange: (@Sendable (String?) -> Void)? = nil,
+        hideTrayTasks: Bool = false,
+        hiddenTrayTaskCount: Int = 0,
+        onHideTrayTasksChange: (@Sendable (Bool) -> Void)? = nil,
         onSearch: @escaping @Sendable () -> Void
     ) {
         self.filter = filter
@@ -43,6 +49,9 @@ public struct FilterChipsView: View {
         self.tags = tags
         self.tagFilter = tagFilter
         self.onTagChange = onTagChange
+        self.hideTrayTasks = hideTrayTasks
+        self.hiddenTrayTaskCount = hiddenTrayTaskCount
+        self.onHideTrayTasksChange = onHideTrayTasksChange
         self.onSearch = onSearch
     }
 
@@ -53,6 +62,7 @@ public struct FilterChipsView: View {
                 Spacer(minLength: 4)
                 projectMenuIfAny
                 tagMenuIfAny
+                trayToggleIfAny
                 sortMenu
                 searchButton
             }
@@ -60,6 +70,7 @@ public struct FilterChipsView: View {
                 filterChips
                 projectMenuIfAny
                 tagMenuIfAny
+                trayToggleIfAny
                 sortMenu
                 searchButton
             }
@@ -79,6 +90,44 @@ public struct FilterChipsView: View {
     private var projectMenuIfAny: some View {
         if !projects.isEmpty {
             projectMenu
+        }
+    }
+
+    /// Shows or hides tasks that sit in a working tray. Accent = hiding.
+    @ViewBuilder
+    private var trayToggleIfAny: some View {
+        if let onHideTrayTasksChange {
+            let help = hideTrayTasks
+                ? (hiddenTrayTaskCount > 0
+                    ? "Show tasks in trays (\(hiddenTrayTaskCount) hidden)"
+                    : "Show tasks in trays")
+                : "Hide tasks in trays"
+            Button {
+                onHideTrayTasksChange(!hideTrayTasks)
+            } label: {
+                Image(systemName: hideTrayTasks ? "tray.fill" : "tray")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(
+                        hideTrayTasks
+                            ? DesignTokens.Palette.accent
+                            : DesignTokens.Palette.textSecondary
+                    )
+                    .overlay {
+                        if hideTrayTasks {
+                            // A slash, like eye.slash: tray tasks are hidden.
+                            Capsule()
+                                .fill(DesignTokens.Palette.accent)
+                                .frame(width: 18, height: 1.6)
+                                .rotationEffect(.degrees(-45))
+                        }
+                    }
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .help(help)
+            .accessibilityLabel("Tasks in trays")
+            .accessibilityValue(hideTrayTasks ? "Hidden" : "Shown")
+            .accessibilityIdentifier("today-tray-filter")
         }
     }
 

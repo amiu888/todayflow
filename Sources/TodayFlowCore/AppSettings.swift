@@ -13,6 +13,10 @@ public enum SettingKeys {
     public static let todaySort = "today_sort"
     /// The working-tray strip, encoded as `[WorkTray]` JSON.
     public static let workTrays = "work_trays"
+    /// "true" when the Today list hides tasks that sit in a working tray.
+    public static let todayHideTrayTasks = "today_hide_tray_tasks"
+    /// "true" when the All Tasks window hides tasks that sit in a working tray.
+    public static let allTasksHideTrayTasks = "all_tasks_hide_tray_tasks"
     /// The tray automation rules, encoded as `[TrayWorkflowRule]` JSON.
     public static let workflowRules = "workflow_rules"
     /// Optional Obsidian vault and sync note, encoded as `ObsidianSettings`.

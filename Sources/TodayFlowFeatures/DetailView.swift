@@ -23,6 +23,9 @@ public struct DetailView: View {
     private let onOpenInObsidian: (@MainActor (WorkItem) -> Void)?
     #if canImport(AppKit)
     private let onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)?
+    /// Attaches the clipboard to this task. The argument is true when a text
+    /// field has focus; the result is true when the paste was handled.
+    private let onPasteAttachment: (@MainActor (Bool) -> Bool)?
     #endif
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -44,6 +47,7 @@ public struct DetailView: View {
     @State private var newProjectName = ""
     @State private var isActivityExpanded = false
     @State private var renamingAttachmentId: UUIDv7?
+    @State private var pasteHint: String?
     @State private var attachmentNameDraft = ""
     @FocusState private var isRenamingFocused: Bool
 
@@ -66,6 +70,7 @@ public struct DetailView: View {
         onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
+        onPasteAttachment: (@MainActor (Bool) -> Bool)? = nil,
         onOpenInObsidian: (@MainActor (WorkItem) -> Void)? = nil
     ) {
         self.model = model
@@ -77,6 +82,7 @@ public struct DetailView: View {
         self.onOpenInObsidian = onOpenInObsidian
         #if canImport(AppKit)
         self.onDropAttachment = onDropAttachment
+        self.onPasteAttachment = onPasteAttachment
         #endif
     }
 
@@ -95,6 +101,7 @@ public struct DetailView: View {
         onQuickLookAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onRevealAttachment: (@MainActor (Attachment) -> Void)? = nil,
         onDropAttachment: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
+        onPasteAttachment: (@MainActor (Bool) -> Bool)? = nil,
         onOpenInObsidian: (@MainActor (WorkItem) -> Void)? = nil
     ) {
         self.model = DetailViewModel(
@@ -112,6 +119,7 @@ public struct DetailView: View {
         self.onOpenInObsidian = onOpenInObsidian
         #if canImport(AppKit)
         self.onDropAttachment = onDropAttachment
+        self.onPasteAttachment = onPasteAttachment
         #endif
     }
 
@@ -140,6 +148,15 @@ public struct DetailView: View {
             isTargeted: $isAttachmentDropTargeted
         ) { providers in
             onDropAttachment?(providers) ?? false
+        }
+        // ⌘V with an image, file, or link on the clipboard attaches it here,
+        // whichever field has focus; plain text still pastes into the field.
+        .background {
+            if let onPasteAttachment {
+                PasteCatcher(onPaste: onPasteAttachment)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
         }
         #endif
         .tint(DesignTokens.Palette.accent)
@@ -222,7 +239,7 @@ public struct DetailView: View {
                         if model.canAddChild || !model.children.isEmpty {
                             childrenSection
                         }
-                        if !model.attachments.isEmpty {
+                        if !model.attachments.isEmpty || onPasteAttachment != nil {
                             attachmentsSection
                         }
 
@@ -1173,9 +1190,40 @@ public struct DetailView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Attachments")
                     .font(.headline)
-                Text("\(model.attachments.count) · newest first")
+                if !model.attachments.isEmpty {
+                    Text("\(model.attachments.count) · newest first")
+                        .font(.caption)
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                }
+
+                Spacer()
+
+                if let onPasteAttachment {
+                    Button {
+                        if !onPasteAttachment(false) {
+                            pasteHint = "Nothing on the clipboard to attach."
+                        } else {
+                            pasteHint = nil
+                        }
+                    } label: {
+                        Label("Paste", systemImage: "doc.on.clipboard")
+                    }
+                    .controlSize(.small)
+                    .help("Attach the image, file, link, or text on the clipboard (⌘V)")
+                    .accessibilityLabel("Paste from clipboard as attachment")
+                    .accessibilityIdentifier("detail-paste-attachment")
+                }
+            }
+
+            if let pasteHint {
+                Text(pasteHint)
                     .font(.caption)
                     .foregroundStyle(DesignTokens.Palette.textSecondary)
+            } else if model.attachments.isEmpty {
+                Text("Copy an image, file, or link, then press ⌘V here. You can also drop them on this window.")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             ForEach(Array(model.attachments.enumerated()), id: \.element.id) { index, attachment in

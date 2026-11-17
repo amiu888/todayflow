@@ -36,6 +36,8 @@ public struct CaptureSheetView: View {
     public let onCreateProject: (@Sendable (String) -> Void)?
     /// Handles objects dropped onto the open sheet; returns `false` to refuse.
     public let onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)?
+    /// Adds the clipboard to the draft; see `PasteCatcher`.
+    public let onPaste: (@MainActor (Bool) -> Bool)?
 
     public init(
         draft: Binding<CaptureDraft>,
@@ -49,10 +51,12 @@ public struct CaptureSheetView: View {
         errorMessage: String? = nil,
         isSaving: Bool = false,
         onCreateProject: (@Sendable (String) -> Void)? = nil,
-        onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil
+        onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
+        onPaste: (@MainActor (Bool) -> Bool)? = nil
     ) {
         self.onCreateProject = onCreateProject
         self.onDropProviders = onDropProviders
+        self.onPaste = onPaste
         self._draft = draft
         self.parents = parents
         self._contactDrops = contactDrops
@@ -157,6 +161,15 @@ public struct CaptureSheetView: View {
         .onDrop(of: CaptureDropTypes.supported, isTargeted: $isDropTargeted) { providers in
             onDropProviders?(providers) ?? false
         }
+        #if canImport(AppKit)
+        .background {
+            if let onPaste {
+                PasteCatcher(onPaste: onPaste)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
+        }
+        #endif
         .tint(DesignTokens.Palette.accent)
         .onAppear {
             tagText = draft.tags.joined(separator: ", ")

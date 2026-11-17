@@ -99,6 +99,9 @@ public final class TodayViewModel {
 
     public var filter: TodayFilter = .all
     public var sort: TodaySort = .manual
+    /// When true, tasks that sit in a working tray are left out of the list.
+    /// Off by default: putting a task in a tray never removes it from the list.
+    public private(set) var hideTrayTasks = false
     public var searchText: String = ""
     /// FR-15 "by project": `nil` means all projects.
     public var projectFilter: UUIDv7?
@@ -272,6 +275,10 @@ public final class TodayViewModel {
            let raw = await settingRepository.value(for: SettingKeys.todaySort),
            let saved = TodaySort(rawValue: raw) {
             sort = saved
+        }
+        if let settingRepository {
+            hideTrayTasks = await settingRepository
+                .value(for: SettingKeys.todayHideTrayTasks) == "true"
         }
 
         if !traysLoaded {
@@ -728,6 +735,7 @@ public final class TodayViewModel {
               let raw = String(data: data, encoding: .utf8)
         else { return }
         try? await settingRepository.set(raw, for: SettingKeys.workTrays)
+        NotificationCenter.default.post(name: TodayFlowEvents.traysChanged, object: nil)
     }
 
     // MARK: Derived rows
@@ -858,6 +866,9 @@ public final class TodayViewModel {
         if let tagFilter,
            !belongsToTag(row.id, tag: tagFilter)
         {
+            return false
+        }
+        if hideTrayTasks, !row.trays.isEmpty {
             return false
         }
         switch filter {
@@ -1051,6 +1062,24 @@ public final class TodayViewModel {
         if let settingRepository {
             try? await settingRepository.set(new.rawValue, for: SettingKeys.todaySort)
         }
+    }
+
+    /// Shows or hides tasks that are in a working tray; the choice is persisted.
+    public func setHideTrayTasks(_ hide: Bool) async {
+        guard hide != hideTrayTasks else { return }
+        hideTrayTasks = hide
+        if let settingRepository {
+            try? await settingRepository.set(
+                hide ? "true" : "false",
+                for: SettingKeys.todayHideTrayTasks
+            )
+        }
+    }
+
+    /// Open tasks on the list that the tray filter is currently hiding.
+    public var hiddenTrayTaskCount: Int {
+        guard hideTrayTasks else { return 0 }
+        return openRows.filter { !$0.trays.isEmpty }.count
     }
 
     /// Selects a row; tapping the selected row again clears the selection.

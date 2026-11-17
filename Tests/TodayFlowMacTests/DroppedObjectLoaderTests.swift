@@ -119,6 +119,75 @@ struct DroppedObjectLoaderTests {
         #expect(DroppedObjectLoader.canRead(pasteboard))
     }
 
+    // MARK: Clipboard paste into a task
+
+    private func pngData() throws -> Data {
+        let image = NSImage(size: NSSize(width: 4, height: 4))
+        image.lockFocus()
+        NSColor.red.setFill()
+        NSRect(x: 0, y: 0, width: 4, height: 4).fill()
+        image.unlockFocus()
+        let tiff = try #require(image.tiffRepresentation)
+        let rep = try #require(NSBitmapImageRep(data: tiff))
+        return try #require(rep.representation(using: .png, properties: [:]))
+    }
+
+    @Test func clipboardImage_becomesAnImageObject() throws {
+        let pasteboard = NSPasteboard(
+            name: NSPasteboard.Name("TodayFlowTests-\(UUID().uuidString)")
+        )
+        pasteboard.clearContents()
+        pasteboard.setData(try pngData(), forType: .png)
+
+        let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
+        #expect(objects.count == 1)
+        #expect(objects.first?.imageData != nil)
+        #expect(DroppedObjectLoader.pasteRoute(
+            types: pasteboard.types ?? [], isEditingText: true
+        ) == .attach)
+    }
+
+    @Test func clipboardImageWithLink_prefersTheImage() throws {
+        let pasteboard = NSPasteboard(
+            name: NSPasteboard.Name("TodayFlowTests-\(UUID().uuidString)")
+        )
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setString("https://example.com/cat.png", forType: .URL)
+        item.setData(try pngData(), forType: .png)
+        #expect(pasteboard.writeObjects([item]))
+
+        #expect(DroppedObjectLoader.objectsFromClipboard(pasteboard).first?.imageData != nil)
+        // A drag keeps its existing behavior: the link wins.
+        #expect(DroppedObjectLoader.objects(from: pasteboard).first?.url != nil)
+    }
+
+    @Test func pasteRoute_keepsTextPastesInTheFocusedField() {
+        // Plain text while typing: the field gets it.
+        #expect(DroppedObjectLoader.pasteRoute(
+            types: [.string], isEditingText: true
+        ) == .passThrough)
+        // Spreadsheet cells carry text and a picture: still a text paste.
+        #expect(DroppedObjectLoader.pasteRoute(
+            types: [.string, .tiff], isEditingText: true
+        ) == .passThrough)
+        // A copied Finder file attaches even while typing.
+        #expect(DroppedObjectLoader.pasteRoute(
+            types: [.fileURL, .string], isEditingText: true
+        ) == .attach)
+        // With no field focused, text and links attach too.
+        #expect(DroppedObjectLoader.pasteRoute(
+            types: [.string], isEditingText: false
+        ) == .attach)
+        #expect(DroppedObjectLoader.pasteRoute(
+            types: [.URL, .string], isEditingText: false
+        ) == .attach)
+        // Nothing usable.
+        #expect(DroppedObjectLoader.pasteRoute(
+            types: [], isEditingText: false
+        ) == .passThrough)
+    }
+
     @Test func pasteboardText_readsText() {
         let pasteboard = NSPasteboard(
             name: NSPasteboard.Name("TodayFlowTests-\(UUID().uuidString)")

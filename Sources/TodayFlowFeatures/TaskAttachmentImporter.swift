@@ -38,7 +38,8 @@ public struct TaskAttachmentImporter: Sendable {
     public func add(
         _ recognized: [RecognizedObject],
         from sources: [DroppedObject],
-        to itemId: UUIDv7
+        to itemId: UUIDv7,
+        origin: String = "drop"
     ) async throws -> [Attachment] {
         guard recognized.count == sources.count else {
             throw ImportError.mismatchedObjectCount
@@ -58,7 +59,7 @@ public struct TaskAttachmentImporter: Sendable {
 
             var attachment = object.attachment(for: itemId, at: now)
             attachment.deviceId = deviceId
-            attachment.metadata["origin"] = "drop"
+            attachment.metadata["origin"] = origin
             if let sourceApp = source.sourceApp {
                 attachment.sourceApp = sourceApp
             }
@@ -82,6 +83,8 @@ public enum TodayFlowEvents {
     public static let itemsChanged = Notification.Name("TodayFlow.itemsChanged")
     /// A capture finished; `userInfo["message"]` is shown as a confirmation.
     public static let captureSaved = Notification.Name("TodayFlow.captureSaved")
+    /// Tray membership, names, or order changed (the Today list persists trays).
+    public static let traysChanged = Notification.Name("TodayFlow.traysChanged")
     /// A task reminder was set or cleared; reschedule notifications.
     public static let remindersChanged = Notification.Name("TodayFlow.remindersChanged")
 }

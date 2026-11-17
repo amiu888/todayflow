@@ -441,9 +441,56 @@ public struct DroppedObjectLoader {
         objects(from: NSPasteboard(name: .drag))
     }
 
+    /// What ⌘V should do with the clipboard while a task window is open.
+    public enum PasteRoute: Equatable, Sendable {
+        /// Attach the clipboard's objects to the task.
+        case attach
+        /// Leave the key alone: the focused text field pastes text as usual.
+        case passThrough
+    }
+
+    /// Decides whether ⌘V attaches the clipboard or types into a text field.
+    ///
+    /// Copied files and bare images (screenshots, "Copy Image") always attach.
+    /// While the user is typing, anything that carries text stays a text paste,
+    /// including spreadsheet cells, which also put a picture on the clipboard.
+    public static func pasteRoute(
+        types: [NSPasteboard.PasteboardType],
+        isEditingText: Bool
+    ) -> PasteRoute {
+        let hasFile = types.contains(.fileURL)
+        let hasImage = types.contains(.tiff) || types.contains(.png)
+        let hasText = types.contains(.string)
+        if hasFile { return .attach }
+        if isEditingText {
+            return hasImage && !hasText ? .attach : .passThrough
+        }
+        let attachable = types.contains(where: pasteboardTypes.contains)
+        return attachable ? .attach : .passThrough
+    }
+
+    /// The clipboard's objects for a paste into a task. Image bytes win over a
+    /// link on the same item, so "Copy Image" in a browser attaches the picture.
+    public static func objectsFromClipboard(
+        _ pasteboard: NSPasteboard = .general
+    ) -> [DroppedObject] {
+        objects(from: pasteboard, preferImages: true).map { object in
+            // The clipboard does not say which app copied; the frontmost-app
+            // guess used for drags would name TodayFlow itself here.
+            var object = object
+            if object.sourceApp == Bundle.main.bundleIdentifier {
+                object.sourceApp = nil
+            }
+            return object
+        }
+    }
+
     /// Converts every pasteboard item, preserving the order the user selected
     /// or dragged. Files win over images and text within one item.
-    public static func objects(from pasteboard: NSPasteboard) -> [DroppedObject] {
+    public static func objects(
+        from pasteboard: NSPasteboard,
+        preferImages: Bool = false
+    ) -> [DroppedObject] {
         guard let items = pasteboard.pasteboardItems else { return [] }
         let sourceApp = sourceAppHint(
             from: (pasteboard.types ?? []).map(\.rawValue)
@@ -454,6 +501,11 @@ public struct DroppedObjectLoader {
                url.isFileURL
             {
                 return object(forFileURL: url, sourceApp: sourceApp)
+            }
+            if preferImages,
+               let data = item.data(forType: .tiff) ?? item.data(forType: .png)
+            {
+                return DroppedObject(imageData: data, sourceApp: sourceApp, uti: .image)
             }
             if let string = item.string(forType: .URL),
                let url = URL(string: string)

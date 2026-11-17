@@ -1137,3 +1137,55 @@ func disabledWorkflowDoesNotMoveTasks() async throws {
     #expect(f.vm.tray(id: source.id)?.itemIds == [task.id])
     #expect(f.vm.tray(id: target.id)?.itemIds.isEmpty == true)
 }
+
+// MARK: - Tray filter (tasks stay in the list; hiding is opt-in)
+
+@Test @MainActor
+func trayDrop_keepsTheTaskInTheList() async {
+    let f = Fixture()
+    let task = f.item("Stays put", displayOrder: "a1")
+    await f.seed(task)
+    await f.vm.load()
+    let tray = f.vm.trays[0].id
+
+    await f.vm.applyDrop([WorkItemDragPayload(itemId: task.id)], to: tray)
+    await f.vm.load()
+
+    #expect(f.vm.hideTrayTasks == false)
+    #expect(f.vm.visibleRows.map(\.id) == [task.id])
+    #expect(f.vm.visibleRows.first?.trays.map(\.id) == [tray])
+    #expect(f.vm.trayItems(trayId: tray).map(\.id) == [task.id])
+}
+
+@Test @MainActor
+func trayFilter_hidesAndUnhidesTasksInTrays_andPersists() async {
+    let f = Fixture()
+    let inTray = f.item("In a tray", displayOrder: "a1")
+    let loose = f.item("Not in a tray", displayOrder: "a2")
+    await f.seed(inTray)
+    await f.seed(loose)
+    await f.vm.load()
+    await f.vm.addToTray(inTray.id, trayId: f.vm.trays[0].id)
+
+    await f.vm.setHideTrayTasks(true)
+    #expect(f.vm.visibleRows.map(\.id) == [loose.id])
+    #expect(f.vm.hiddenTrayTaskCount == 1)
+    // The tray itself still shows the task.
+    #expect(f.vm.trayItems(trayId: f.vm.trays[0].id).map(\.id) == [inTray.id])
+
+    let fresh = TodayViewModel(
+        repository: f.repository,
+        linkRepository: f.linkRepository,
+        attachmentRepository: f.attachmentRepository,
+        settingRepository: f.settingRepository,
+        calendar: f.calendar,
+        clock: { f.now }
+    )
+    await fresh.load()
+    #expect(fresh.hideTrayTasks)
+    #expect(fresh.visibleRows.map(\.id) == [loose.id])
+
+    await f.vm.setHideTrayTasks(false)
+    #expect(Set(f.vm.visibleRows.map(\.id)) == [inTray.id, loose.id])
+    #expect(f.vm.hiddenTrayTaskCount == 0)
+}
