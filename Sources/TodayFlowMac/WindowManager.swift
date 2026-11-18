@@ -189,11 +189,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// should fall through to the focused text field, or nothing is attachable.
     public func handlePaste(onto itemId: UUIDv7, isEditingText: Bool) -> Bool {
         let pasteboard = NSPasteboard.general
+        let types = pasteboard.types ?? []
+        if types.isEmpty, !isEditingText {
+            return ClipboardAccess.explainIfBlocked(pasteboard)
+        }
         guard DroppedObjectLoader.pasteRoute(
-            types: pasteboard.types ?? [],
+            types: types,
             isEditingText: isEditingText
         ) == .attach else { return false }
         let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
+        if objects.isEmpty { return ClipboardAccess.explainIfBlocked(pasteboard) }
         DropDiagnostics.log("paste route=attach item=\(itemId) objects=\(objects.count)")
         guard !objects.isEmpty else { return false }
         Task { @MainActor [weak self] in
@@ -206,11 +211,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     /// file, or link, exactly like dropping it on the panel background.
     public func handlePanelPaste(isEditingText: Bool) -> Bool {
         let pasteboard = NSPasteboard.general
+        let types = pasteboard.types ?? []
+        if types.isEmpty, !isEditingText {
+            return ClipboardAccess.explainIfBlocked(pasteboard)
+        }
         guard DroppedObjectLoader.pasteRoute(
-            types: pasteboard.types ?? [],
+            types: types,
             isEditingText: isEditingText
         ) == .attach else { return false }
         let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
+        if objects.isEmpty { return ClipboardAccess.explainIfBlocked(pasteboard) }
         DropDiagnostics.log("paste route=capture objects=\(objects.count)")
         guard !objects.isEmpty else { return false }
         showCapture(dropped: objects, splitIntoTasks: false)

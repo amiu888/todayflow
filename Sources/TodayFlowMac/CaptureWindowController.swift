@@ -133,11 +133,16 @@ public final class CaptureWindowController {
     /// the draft as an attachment; plain text still pastes into the field.
     private func handleSheetPaste(into model: CaptureViewModel, isEditingText: Bool) -> Bool {
         let pasteboard = NSPasteboard.general
+        let types = pasteboard.types ?? []
+        if types.isEmpty, !isEditingText {
+            return ClipboardAccess.explainIfBlocked(pasteboard)
+        }
         guard DroppedObjectLoader.pasteRoute(
-            types: pasteboard.types ?? [],
+            types: types,
             isEditingText: isEditingText
         ) == .attach else { return false }
         let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
+        if objects.isEmpty { return ClipboardAccess.explainIfBlocked(pasteboard) }
         guard !objects.isEmpty else { return false }
         add(objects, to: model, origin: "paste")
         return true
