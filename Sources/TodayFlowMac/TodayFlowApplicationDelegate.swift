@@ -445,6 +445,19 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         windows?.captureClipboard()
     }
 
+    /// Last stop for Edit ▸ Paste (⌘V) when no window, field, or paste
+    /// catcher took it — e.g. a tray, History, or Calendar window is in
+    /// front. A copied screenshot, file, or link starts a new task instead of
+    /// the system beep.
+    @objc func paste(_ sender: Any?) {
+        let handled = windows?.handlePanelPaste(isEditingText: false) ?? false
+        Diagnostics.log(
+            "paste",
+            "fallback window=\(NSApp.keyWindow?.title ?? "none") handled=\(handled)"
+        )
+        if !handled { NSSound.beep() }
+    }
+
     @objc private func minimizeMenu() {
         windows?.minimizePanel()
     }
