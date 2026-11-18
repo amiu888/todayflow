@@ -40,7 +40,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 
 `./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`
 (hardened runtime). `scripts/package-dmg.sh` notarizes and staples the DMG when
-`NOTARY_PROFILE` is set; the 1.9.23 DMG is notarized. Known follow-ups: XCUITests +
+`NOTARY_PROFILE` is set; the 1.9.24 DMG is notarized. Known follow-ups: XCUITests +
 performance gates, live Markdown rendering and inline images in the detail
 description. ⌘V in a task or New Task window attaches the clipboard (image, file,
 link); the Today list and All Tasks have a hide/show filter for tasks in trays.
