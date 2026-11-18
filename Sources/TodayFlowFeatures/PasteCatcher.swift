@@ -86,9 +86,12 @@ public struct PasteCatcher: NSViewRepresentable {
             else { return false }
             let isEditingText = window.firstResponder is NSTextView
             let handled = onPaste(isEditingText)
+            // Type names only (no contents) so a failed paste can be diagnosed.
+            let types = (NSPasteboard.general.types ?? []).map(\.rawValue)
+                .filter { !$0.hasPrefix("dyn.") }.prefix(8).joined(separator: ",")
             Diagnostics.log(
                 "paste",
-                "cmd-V window=\(window.title) editingText=\(isEditingText) handled=\(handled)"
+                "cmd-V window=\(window.title) editingText=\(isEditingText) handled=\(handled) types=[\(types)]"
             )
             return handled
         }
