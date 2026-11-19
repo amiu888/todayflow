@@ -16,11 +16,8 @@ public struct CaptureDraftBuilder: Sendable {
         at now: Date = .now,
         parentId: UUIDv7? = nil
     ) -> CaptureDraft {
-        let title = objects.lazy
-            .compactMap { $0.suggestedTitle?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty }
-            ?? objects.first?.displayName
-            ?? "New task"
+        // Ticket and change numbers go first; email subjects lose RE:/FW:.
+        let title = SmartTitle.inferredTitle(for: objects) ?? "New task"
 
         // Pasted text becomes the description (driver.md §7: "Full text in
         // description") — but only when the single object is text, so we never

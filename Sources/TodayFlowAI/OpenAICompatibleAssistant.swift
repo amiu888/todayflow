@@ -37,11 +37,20 @@ public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, EmailSumma
     // MARK: - AIAssistant
 
     public func suggestTask(from objects: [RecognizedObject]) async throws -> TaskSuggestion {
+        try await suggestTask(from: objects, examples: [])
+    }
+
+    public func suggestTask(from objects: [RecognizedObject], examples: [TitleExample]) async throws -> TaskSuggestion {
         let context = PromptContext.objects(
             objects,
             includeText: configuration.sendAttachmentText
         )
-        let prompt = prompts.render(PromptLibrary.suggest, ["objects": context])
+        let reference = SmartTitle.reference(for: objects)
+        let prompt = prompts.render(PromptLibrary.suggest, [
+            "objects": context,
+            "reference": PromptContext.reference(reference),
+            "examples": PromptContext.examples(examples),
+        ])
         let data = try await completeJSONData(
             feature: "suggest",
             messages: Self.messages(prompt),
@@ -50,7 +59,8 @@ public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, EmailSumma
         )
 
         let dto: TaskSuggestionDTO = try decode(TaskSuggestionDTO.self, from: data)
-        let title = dto.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The number stays in front even when the model drops it.
+        let title = SmartTitle.withReference(dto.title, reference)
         guard !title.isEmpty else {
             throw AIError.malformedResponse("The suggestion had no title.")
         }

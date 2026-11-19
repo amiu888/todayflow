@@ -441,3 +441,24 @@ struct OpenAICompatibleAssistantTests {
         _ = try await assistant.summarize(EmailDigest(subject: " ", body: " "))
     }
 }
+
+struct SmartSuggestTests {
+    @Test func suggest_sendsTheNumberAndPastCorrections_andKeepsTheNumberInFront() async throws {
+        let payload = #"{"title":"Patch the VPN gateways","summary":"Ops asks for approval before Friday.","priority":"P2","actions":[]}"#
+        let (assistant, transport, _, _) = assistant(responses: [.init(status: 200, body: chatResponse(payload))])
+        let email = RecognizedObject(
+            type: .email, displayName: "Approve patch", suggestedTitle: "RE: Approve CHG0045678 patch window"
+        )
+        let examples = [TitleExample(
+            kindKey: "email|change", objectName: "Approve CHG0011111",
+            suggestedTitle: "Approve change", finalTitle: "CHG0011111: Approve DB failover", finalDescription: "Needed by Ops."
+        )]
+        let suggestion = try await assistant.suggestTask(from: [email], examples: examples)
+        #expect(suggestion.title == "CHG0045678: Patch the VPN gateways")
+        #expect(suggestion.summary == "Ops asks for approval before Friday.")
+
+        let sent = String(decoding: try #require(await transport.requests.first?.httpBody), as: UTF8.self)
+        #expect(sent.contains("Ticket or change number: CHG0045678"))
+        #expect(sent.contains("the user changed it to: CHG0011111: Approve DB failover"))
+    }
+}

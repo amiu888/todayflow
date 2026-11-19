@@ -74,6 +74,22 @@ public final class AIEnvironment: AIModelCatalog {
         return makeAssistant(settings)
     }
 
+    /// Suggests a title and description for a drop: Apple Intelligence on
+    /// the device when it is the chosen provider, otherwise the endpoint.
+    public func taskSuggester() async -> (any TaskSuggesting)? {
+        let settings = await loadSettings()
+        guard settings.enabled, settings.enabledFeatures.contains(AIFeatures.suggest) else { return nil }
+        if settings.provider == .apple {
+            #if canImport(FoundationModels)
+            if #available(macOS 26.0, *), AppleTaskSuggester.isAvailable {
+                return AppleTaskSuggester()
+            }
+            #endif
+            return nil
+        }
+        return makeAssistant(settings)
+    }
+
     /// An assistant regardless of feature toggles, for Settings' model list.
     public func assistantForConfiguration() async -> OpenAICompatibleAssistant? {
         let settings = await loadSettings()

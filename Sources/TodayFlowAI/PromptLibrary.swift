@@ -5,7 +5,7 @@ import TodayFlowCore
 /// "prompt templates are versioned files in the package, not string literals in
 /// views"). Bump the filename version when the output contract changes.
 struct PromptLibrary: Sendable {
-    static let suggest = "suggest_v1"
+    static let suggest = "suggest_v2"
     static let breakDown = "break_down_v1"
     static let planDay = "plan_day_v1"
     static let ask = "ask_v1"
@@ -77,6 +77,34 @@ enum PromptContext {
             return lines.joined(separator: "\n")
         }
         .joined(separator: "\n")
+    }
+
+    /// The ticket/change number line for the suggest prompt.
+    static func reference(_ reference: TicketReference?) -> String {
+        guard let reference else { return "" }
+        return "\nTicket or change number: \(reference.id) (\(reference.kind.rawValue)). Start the title with it.\n"
+    }
+
+    /// How the user titled this kind of drop before: their saved title wins
+    /// over what was suggested.
+    static func examples(_ examples: [TitleExample]) -> String {
+        guard !examples.isEmpty else { return "" }
+        var lines = ["", "How this user titles and describes this kind of drop (follow their style):"]
+        for example in examples {
+            lines.append("- object: \(String(example.objectName.prefix(120)))")
+            if example.corrected && example.suggestedTitle != example.finalTitle {
+                lines.append("  suggested title: \(example.suggestedTitle)")
+                lines.append("  the user changed it to: \(example.finalTitle)")
+            } else {
+                lines.append("  title: \(example.finalTitle)")
+            }
+            let description = example.finalDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !description.isEmpty {
+                lines.append("  description: \(String(description.prefix(240)))")
+            }
+        }
+        lines.append("")
+        return lines.joined(separator: "\n")
     }
 
     static func email(_ email: EmailDigest) -> String {

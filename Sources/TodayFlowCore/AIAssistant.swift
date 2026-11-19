@@ -66,12 +66,19 @@ public struct DayPlan: Codable, Hashable, Sendable {
     }
 }
 
+/// Anything that can suggest a task for a drop: the OpenAI-compatible
+/// assistant or Apple Intelligence on the device.
+public protocol TaskSuggesting: Sendable {
+    /// `examples` are how the user titled this kind of drop before.
+    func suggestTask(from objects: [RecognizedObject], examples: [TitleExample]) async throws -> TaskSuggestion
+}
+
 /// Port for the optional AI features (driver.md §8).
 ///
 /// Implementations live in TodayFlowAI and talk to any OpenAI-compatible
 /// endpoint. The protocol is in Core so the UI depends only on the port; AI is
 /// off by default and every method may throw when the endpoint is unreachable.
-public protocol AIAssistant: Sendable {
+public protocol AIAssistant: TaskSuggesting {
     /// Smart title, summary, priority, and suggested actions for a drop.
     func suggestTask(from objects: [RecognizedObject]) async throws -> TaskSuggestion
 
@@ -120,5 +127,12 @@ public protocol AIModelCatalog: Sendable {
 public extension AIModelCatalog {
     func listModels(for settings: AIEndpointSettings) async throws -> [String] {
         try await listModels()
+    }
+}
+
+extension AIAssistant {
+    /// Assistants without example support ignore them.
+    public func suggestTask(from objects: [RecognizedObject], examples: [TitleExample]) async throws -> TaskSuggestion {
+        try await suggestTask(from: objects)
     }
 }

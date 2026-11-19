@@ -95,7 +95,7 @@ public final class CaptureWindowController {
             // runs after the panel is already usable, and a failure simply
             // leaves the recognized title in place (driver.md §8).
             guard let ai = self.environment.ai,
-                  let assistant = await ai.assistant(for: AIFeatures.suggest)
+                  let assistant = await ai.taskSuggester()
             else { return }
             guard self.currentModel === model, self.isPresenting else { return }
             model.assistant = assistant
@@ -168,8 +168,11 @@ public final class CaptureWindowController {
 
     // MARK: - Construction
 
+    /// How the user titled past drops; shared by every capture.
+    private lazy var titleExamples = TitleExampleStore(settings: environment.settings)
+
     private func makeModel() -> CaptureViewModel {
-        CaptureViewModel(
+        let model = CaptureViewModel(
             repository: environment.workItems,
             attachmentRepository: environment.attachments,
             contactRepository: environment.contacts,
@@ -182,6 +185,8 @@ public final class CaptureWindowController {
             },
             onCancel: { [weak self] in self?.dismiss() }
         )
+        model.titleExamples = titleExamples
+        return model
     }
 
     private func makePanel() -> PanelWindow {

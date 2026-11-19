@@ -28,7 +28,13 @@ public final class CaptureViewModel {
 
     /// Optional AI client; set by the host only when AI and the "suggest"
     /// feature are enabled (driver.md §8). Capture works without it.
-    @ObservationIgnored public var assistant: (any AIAssistant)?
+    @ObservationIgnored public var assistant: (any TaskSuggesting)?
+    /// How the user titled each kind of drop before; teaches the suggester.
+    @ObservationIgnored public var titleExamples: TitleExampleStore?
+    /// What was suggested for this drop (AI or the plain rules), to learn
+    /// from the user's edits when they save.
+    @ObservationIgnored private(set) var suggestedTitle: String?
+    @ObservationIgnored private(set) var suggestedDescription: String?
     /// Optional email summarizer. When nil (AI off, no provider, or the
     /// feature disabled) the task is saved without a summary.
     @ObservationIgnored public var emailSummarizer: (any EmailSummarizer)?
@@ -296,15 +302,12 @@ public final class CaptureViewModel {
             draft.objects[index] = enriched.objects[index]
         }
 
-        for index in previous.indices {
-            let inferred = previous[index].suggestedTitle ?? previous[index].displayName
-            let titleIsInferred = draft.title.isEmpty || draft.title == inferred
-            guard titleIsInferred,
-                  let suggestion = enriched.objects[index].suggestedTitle,
-                  !suggestion.isEmpty
-            else { continue }
-            draft.title = suggestion
-            break
+        let titleIsInferred = draft.title.isEmpty
+            || draft.title == SmartTitle.inferredTitle(for: previous)
+            || previous.contains { draft.title == ($0.suggestedTitle ?? $0.displayName) }
+        let enrichedHasTitle = enriched.objects.contains { !($0.suggestedTitle ?? "").isEmpty }
+        if titleIsInferred, enrichedHasTitle, let title = SmartTitle.inferredTitle(for: draft.objects), !title.isEmpty {
+            draft.title = title
         }
     }
 
@@ -313,19 +316,34 @@ public final class CaptureViewModel {
     /// capture, and the user can always save the draft as-is.
     public func requestAISuggestion() async {
         guard let assistant, !draft.objects.isEmpty else { return }
-        guard let suggestion = try? await assistant.suggestTask(from: draft.objects) else {
+        let examples = await titleExamples?.examples(for: SmartTitle.kindKey(for: draft.objects)) ?? []
+        guard let suggestion = try? await assistant.suggestTask(from: draft.objects, examples: examples) else {
             return
         }
         applySuggestion(suggestion)
     }
 
+    /// Records the saved title/description next to what was suggested, so
+    /// the next drop of the same kind is titled the way the user likes.
+    private func learnFromSave(title: String, description: String) async {
+        guard let titleExamples, !draft.objects.isEmpty else { return }
+        let suggested = suggestedTitle ?? SmartTitle.inferredTitle(for: draft.objects) ?? ""
+        guard !suggested.isEmpty, !title.isEmpty else { return }
+        let object = draft.objects[0]
+        await titleExamples.record(TitleExample(
+            kindKey: SmartTitle.kindKey(for: draft.objects),
+            objectName: object.suggestedTitle ?? object.displayName,
+            suggestedTitle: suggested,
+            finalTitle: title,
+            suggestedDescription: suggestedDescription ?? "",
+            finalDescription: description
+        ))
+    }
+
     /// Applies a suggestion without overwriting fields the user already
     /// edited. The summary goes into the description only when it is empty.
     public func applySuggestion(_ suggestion: TaskSuggestion) {
-        let inferred = draft.objects
-            .compactMap { $0.suggestedTitle?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty }
-            ?? draft.objects.first?.displayName
+        let inferred = SmartTitle.inferredTitle(for: draft.objects)
         let titleIsInferred = draft.title.isEmpty || draft.title == inferred
 
         isApplyingSuggestion = true
@@ -333,6 +351,7 @@ public final class CaptureViewModel {
 
         if titleIsInferred, !suggestion.title.isEmpty {
             draft.title = suggestion.title
+            suggestedTitle = suggestion.title
         }
         if draft.descriptionMd.isEmpty {
             var parts: [String] = []
@@ -341,6 +360,7 @@ public final class CaptureViewModel {
                 parts.append(suggestion.actions.map { "- [ ] \($0)" }.joined(separator: "\n"))
             }
             draft.descriptionMd = parts.joined(separator: "\n\n")
+            suggestedDescription = draft.descriptionMd
         }
         if draft.priority == .default {
             draft.priority = suggestion.priority
@@ -371,9 +391,7 @@ public final class CaptureViewModel {
                 // FR-01 ⌥-drop: one task per object, each with its own
                 // attachment. The sheet's shared dates/priority still apply.
                 for (dropped, object) in zip(droppedObjects, draft.objects) {
-                    let suggested = object.suggestedTitle?
-                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    let title = suggested.isEmpty ? object.displayName : suggested
+                    let title = SmartTitle.inferredTitle(for: [object]) ?? object.displayName
                     let item = try await create.execute(
                         CreateTask.Input(
                             kind: .task,
@@ -446,6 +464,7 @@ public final class CaptureViewModel {
             }
 
             Diagnostics.log("capture", "save ok item=\(item.id) title=“\(item.title)”")
+            await learnFromSave(title: draft.title, description: draft.descriptionMd)
             onSaved?(item.id)
         } catch {
             Diagnostics.log("capture", "save FAILED: \(error)")
