@@ -93,7 +93,36 @@ struct AppDockGeometryTests {
         )
         #expect(top.minY == target.maxY + 8)
         #expect(bottom.maxY == target.minY - 8)
-        #expect(top.midX == target.midX)
+        // Edges line up with the app window, never centered on it.
+        #expect(top.minX == target.minX)
+        #expect(bottom.minX == target.minX)
+    }
+
+    /// Chrome 112 pt from the screen's left edge: no room on the left, so the
+    /// panel goes to the right edge instead of sliding over the window.
+    @Test func noRoomOnTheChosenSide_usesTheOppositeEdge() {
+        let screen = CGRect(x: 0, y: 73, width: 1920, height: 977)
+        let chrome = CGRect(x: 112, y: 74, width: 1214, height: 960)
+        let result = AppDockGeometry.dockedFrame(
+            panelSize: CGSize(width: 360, height: 668), target: chrome, edge: .left, screen: screen
+        )
+        #expect(result.minX == chrome.maxX + 8)
+        #expect(result.maxY == chrome.maxY)
+        #expect(!result.intersects(chrome))
+    }
+
+    @Test func noRoomOnEitherSide_alignsInsideTheChosenEdge() {
+        let full = CGRect(x: 0, y: 0, width: 1920, height: 1600)
+        let left = AppDockGeometry.dockedFrame(panelSize: panel, target: full, edge: .left, screen: screen)
+        #expect(left.minX == full.minX)
+        #expect(left.maxY == full.maxY)
+        let right = AppDockGeometry.dockedFrame(panelSize: panel, target: full, edge: .right, screen: screen)
+        #expect(right.maxX == full.maxX)
+        let top = AppDockGeometry.dockedFrame(panelSize: panel, target: full, edge: .top, screen: screen)
+        #expect(top.maxY == full.maxY)
+        #expect(top.minX == full.minX)
+        let bottom = AppDockGeometry.dockedFrame(panelSize: panel, target: full, edge: .bottom, screen: screen)
+        #expect(bottom.minY == full.minY)
     }
 
     @Test func clampsToTheScreen() {
@@ -104,7 +133,7 @@ struct AppDockGeometryTests {
             edge: .left,
             screen: screen
         )
-        #expect(result.minX == screen.minX)
+        #expect(result.minX == edgeTarget.maxX + 8)
         #expect(result.minY >= screen.minY)
     }
 }

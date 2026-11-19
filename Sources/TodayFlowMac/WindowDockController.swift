@@ -95,7 +95,11 @@ public struct DockTarget: Codable, Equatable, Sendable {
 
 /// Pure application-docking geometry, testable without windows.
 public enum AppDockGeometry {
-    /// The panel frame attached to one edge of `target`, clamped to the screen.
+    /// The panel frame attached to one edge of `target`, with the panel's
+    /// edges lined up with the window's (top edges for left/right, left edges
+    /// for top/bottom). When the chosen side has no room on screen, the
+    /// opposite side is used; when neither has room, the panel sits just
+    /// inside the chosen edge. Finally clamped to the screen.
     public static func dockedFrame(
         panelSize: CGSize,
         target: CGRect,
@@ -103,16 +107,26 @@ public enum AppDockGeometry {
         screen: CGRect,
         gap: CGFloat = 8
     ) -> CGRect {
+        let w = panelSize.width, h = panelSize.height
+        let leftX = target.minX - w - gap, rightX = target.maxX + gap
+        let aboveY = target.maxY + gap, belowY = target.minY - h - gap
+        let leftFits = leftX >= screen.minX, rightFits = rightX + w <= screen.maxX
+        let aboveFits = aboveY + h <= screen.maxY, belowFits = belowY >= screen.minY
+
         var origin: CGPoint
         switch edge {
         case .left:
-            origin = CGPoint(x: target.minX - panelSize.width - gap, y: target.maxY - panelSize.height)
+            let x = leftFits ? leftX : rightFits ? rightX : target.minX
+            origin = CGPoint(x: x, y: target.maxY - h)
         case .right:
-            origin = CGPoint(x: target.maxX + gap, y: target.maxY - panelSize.height)
+            let x = rightFits ? rightX : leftFits ? leftX : target.maxX - w
+            origin = CGPoint(x: x, y: target.maxY - h)
         case .top:
-            origin = CGPoint(x: target.midX - panelSize.width / 2, y: target.maxY + gap)
+            let y = aboveFits ? aboveY : belowFits ? belowY : target.maxY - h
+            origin = CGPoint(x: target.minX, y: y)
         case .bottom:
-            origin = CGPoint(x: target.midX - panelSize.width / 2, y: target.minY - panelSize.height - gap)
+            let y = belowFits ? belowY : aboveFits ? aboveY : target.minY
+            origin = CGPoint(x: target.minX, y: y)
         }
 
         origin.x = min(max(origin.x, screen.minX), screen.maxX - panelSize.width)
@@ -406,8 +420,10 @@ public final class WindowDockController {
                   layer == 0,
                   let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
                   let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary),
-                  rect.width > 180,
-                  rect.height > 120
+                  // Skip popups and bubbles (Chrome's are ~710×218), which
+                  // sit above the real window in the list.
+                  rect.width > 320,
+                  rect.height > 260
             else { continue }
             return CGRect(
                 x: rect.minX,
