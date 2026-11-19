@@ -259,3 +259,41 @@ struct WindowOpeningLayoutTests {
         ) == nil)
     }
 }
+
+#if canImport(AppKit)
+struct PanelPlacementTests {
+    private let main = CGRect(x: 0, y: 73, width: 1920, height: 977)
+    private let size = CGSize(width: 360, height: 668)
+
+    @Test func firstOpen_goesToTheTopLeftCorner() {
+        let frame = PanelPlacement.frame(saved: nil, size: size, screens: [main], main: main)
+        #expect(frame.minX == main.minX)
+        #expect(frame.maxY == main.maxY)
+        #expect(frame.size == size)
+    }
+
+    @Test func reopen_restoresWhereItWasLeft_includingItsSize() {
+        let saved = CGRect(x: 1200, y: 200, width: 420, height: 700)
+        #expect(PanelPlacement.frame(saved: saved, size: size, screens: [main], main: main) == saved)
+    }
+
+    @Test func aFrameOnAMissingDisplay_comesBackToTheCorner() {
+        let gone = CGRect(x: 3000, y: 200, width: 360, height: 668)
+        let frame = PanelPlacement.frame(saved: gone, size: size, screens: [main], main: main)
+        #expect(frame.minX == main.minX && frame.maxY == main.maxY)
+    }
+
+    @Test func aFrameHalfOffScreen_isPulledBackOnScreen() {
+        let half = CGRect(x: 1800, y: 900, width: 360, height: 668)
+        let frame = PanelPlacement.frame(saved: half, size: size, screens: [main], main: main)
+        #expect(main.contains(frame))
+        #expect(frame.size == half.size)
+    }
+
+    @Test func secondDisplay_isKept() {
+        let second = CGRect(x: 1920, y: 0, width: 2560, height: 1415)
+        let saved = CGRect(x: 2100, y: 300, width: 360, height: 668)
+        #expect(PanelPlacement.frame(saved: saved, size: size, screens: [main, second], main: main) == saved)
+    }
+}
+#endif

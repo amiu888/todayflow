@@ -102,6 +102,11 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         self.sync?.onStatusChange = { [weak self] status in self?.syncBadges.server = status }
         self.syncBadges.onOpenServer = { [weak self] in self?.showSettings(tab: "Sync") }
         self.syncBadges.onOpenObsidian = { [weak self] in self?.showSettings(tab: "Obsidian") }
+        self.syncBadges.onSyncServerNow = { [weak self] in
+            guard let sync = self?.sync else { return }
+            Task { @MainActor in await sync.syncNow() }
+        }
+        self.syncBadges.onSyncObsidianNow = { [weak self] in self?.syncObsidianNow() }
         self.obsidian.start()
         if let sync = self.sync {
             Task { @MainActor in await sync.start() }
@@ -487,7 +492,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     private func place(_ window: NSWindow, for kind: WindowKind) {
         switch kind {
         case .panel, .slimBar:
-            window.center()
+            let saved = UserDefaults.standard.string(forKey: Self.frameKey(kind)).map(NSRectFromString)
+            let screens = NSScreen.screens.map(\.visibleFrame)
+            let main = NSScreen.main?.visibleFrame ?? screens.first ?? window.frame
+            window.setFrame(
+                PanelPlacement.frame(
+                    saved: saved, size: window.frame.size, screens: screens, main: main,
+                    minimum: window.frameRect(forContentRect: NSRect(origin: .zero, size: window.contentMinSize)).size
+                ),
+                display: false
+            )
             return
         default:
             break
@@ -537,10 +551,30 @@ public final class WindowManager: NSObject, NSWindowDelegate {
 
     // MARK: NSWindowDelegate
 
+    /// Where the panel or slim bar was last left; restored when it opens.
+    private static func frameKey(_ kind: WindowKind) -> String {
+        kind == .slimBar ? "todayflow.frame.slimBar" : "todayflow.frame.panel"
+    }
+
+    private func rememberFrame(of window: NSWindow) {
+        for kind in [WindowKind.panel, .slimBar] where windows[kind] === window {
+            UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: Self.frameKey(kind))
+        }
+    }
+
+    public func windowDidMove(_ notification: Notification) {
+        if let window = notification.object as? NSWindow { rememberFrame(of: window) }
+    }
+
+    public func windowDidResize(_ notification: Notification) {
+        if let window = notification.object as? NSWindow { rememberFrame(of: window) }
+    }
+
     /// The dictionary is the window's owner (`isReleasedWhenClosed` is false),
     /// so this just drops the reference when the user closes the window.
     public func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        rememberFrame(of: window)
         for (kind, open) in windows where open === window {
             if case .detail(let id) = kind { detailModels[id] = nil }
         }

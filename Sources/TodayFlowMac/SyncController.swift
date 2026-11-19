@@ -37,7 +37,12 @@ public final class SyncController: SyncPanelBackend {
         } else {
             state = .synced
         }
-        return SyncBadgeStatus(state: state, lastSyncAt: snapshot.lastSyncAt)
+        var details = ["Server: \(snapshot.serverAddress)", "This Mac: \(snapshot.deviceName)"]
+        if snapshot.pendingCount > 0 { details.append("Changes waiting to send: \(snapshot.pendingCount)") }
+        if let checked = snapshot.lastCheckedAt {
+            details.append("Last checked \(checked.formatted(date: .omitted, time: .standard))")
+        }
+        return SyncBadgeStatus(state: state, lastSyncAt: snapshot.lastSyncAt, details: details, log: snapshot.log)
     }
 
     struct Config: Codable, Equatable {
@@ -105,6 +110,8 @@ public final class SyncController: SyncPanelBackend {
             next.lastSyncAt = config.lastSyncAt
         }
         next.isSyncing = snapshot.isSyncing
+        next.log = snapshot.log
+        next.lastCheckedAt = snapshot.lastCheckedAt
         next.lastError = snapshot.lastError
         next.lastResult = snapshot.lastResult
         next.pendingCount = (try? await store.pendingCount()) ?? 0
@@ -215,6 +222,8 @@ public final class SyncController: SyncPanelBackend {
         )
         do {
             let report = try await runner.run()
+            snapshot.lastCheckedAt = .now
+            record(report)
             config.lastSyncAt = .now
             try? await save(config)
             snapshot.lastError = nil
@@ -235,10 +244,52 @@ public final class SyncController: SyncPanelBackend {
             try? await save(config)
             stopLoop()
             snapshot.lastError = SyncError.signedOut.errorDescription
+            recordError(SyncError.signedOut.errorDescription ?? "Signed out")
         } catch {
             snapshot.lastError = Self.message(for: error)
+            recordError(Self.message(for: error))
         }
         await refresh()
+    }
+
+    // MARK: - Log
+
+    /// Adds a round that moved something to the log and the log file.
+    private func record(_ report: SyncRunner.Report) {
+        let activity = report.historyEntries
+        guard report.received + report.sent + report.filesUploaded + report.filesDownloaded + report.filesRemoved > 0
+        else { return }
+        var parts: [String] = []
+        if report.sent > 0 { parts.append("sent \(report.sent)") }
+        if report.received > 0 { parts.append("received \(report.received)") }
+        if report.filesUploaded > 0 { parts.append("\(report.filesUploaded) file(s) up") }
+        if report.filesDownloaded > 0 { parts.append("\(report.filesDownloaded) file(s) down") }
+        if report.filesRemoved > 0 { parts.append("\(report.filesRemoved) old download(s) removed") }
+        let summary = parts.joined(separator: ", ").capitalizedFirst
+        var details = report.events.map { event -> String in
+            switch event.kind {
+            case .sent: return "Sent \(event.text)"
+            case .received: return "Received \(event.text)"
+            case .fileUploaded: return "Uploaded \(event.text)"
+            case .fileDownloaded: return "Downloaded \(event.text)"
+            }
+        }
+        if report.unlisted > 0 { details.append("…and \(report.unlisted) more") }
+        if activity > 0 { details.append("\(activity) history entr\(activity == 1 ? "y" : "ies") (who changed what, when)") }
+        append(SyncLogEntry(time: .now, summary: summary, details: details))
+        Diagnostics.log("sync", summary + (details.isEmpty ? "" : ": " + details.joined(separator: "; ")))
+    }
+
+    /// Logs an error once until it changes or a round succeeds.
+    private func recordError(_ message: String) {
+        if let last = snapshot.log.first, last.isError, last.summary == message { return }
+        append(SyncLogEntry(time: .now, summary: message, isError: true))
+        Diagnostics.log("sync", "error: \(message)")
+    }
+
+    private func append(_ entry: SyncLogEntry) {
+        snapshot.log.insert(entry, at: 0)
+        if snapshot.log.count > 150 { snapshot.log.removeLast(snapshot.log.count - 150) }
     }
 
     /// Views that do not observe the database reload on these.
@@ -294,4 +345,8 @@ public final class SyncController: SyncPanelBackend {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
+}
+
+private extension String {
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }

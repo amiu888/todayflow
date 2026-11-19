@@ -173,16 +173,21 @@ public final class SyncStore: Sendable {
     /// and win on the server). Returns how many rows changed.
     @discardableResult
     public func apply(_ changes: [SyncChange], cursor: Int64? = nil) async throws -> Int {
+        try await applyChanges(changes, cursor: cursor).count
+    }
+
+    /// Like `apply`, returning the changes that actually changed a row.
+    public func applyChanges(_ changes: [SyncChange], cursor: Int64? = nil) async throws -> [SyncChange] {
         try await queue.writeWithoutTransaction { db in
             // Rows can arrive before their parents; references are restored by
             // later changes, so foreign keys are not enforced while applying.
             try db.execute(sql: "PRAGMA foreign_keys = OFF")
             defer { try? db.execute(sql: "PRAGMA foreign_keys = ON") }
-            var applied = 0
+            var applied: [SyncChange] = []
             try db.inTransaction {
                 try db.execute(sql: "UPDATE sync_flag SET applying = 1")
                 for change in changes where try Self.apply(change, db) {
-                    applied += 1
+                    applied.append(change)
                 }
                 if let cursor {
                     try db.execute(

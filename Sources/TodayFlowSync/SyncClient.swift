@@ -270,6 +270,71 @@ public struct SyncClient: SyncTransport {
     }
 }
 
+/// One line of the sync log.
+public struct SyncEvent: Sendable, Equatable {
+    public enum Kind: String, Sendable {
+        case sent, received, fileUploaded, fileDownloaded
+    }
+    public var kind: Kind
+    /// "task “Plan trip”", "deleted task", "contact “Ana Silva”"…
+    public var text: String
+
+    public init(kind: Kind, text: String) {
+        self.kind = kind
+        self.text = text
+    }
+
+    /// A readable name for a changed row.
+    static func describe(_ change: SyncChange) -> String? {
+        let noun: String
+        switch change.entity {
+        case "work_item": noun = "task"
+        case "contact": noun = "contact"
+        case "contact_group": noun = "contact group"
+        case "action_item": noun = "checklist item"
+        case "attachment": noun = "attachment"
+        case "item_link": noun = "task link"
+        case "reminder": noun = "reminder"
+        case "contact_group_member", "task_contact": noun = "contact link"
+        default: return nil // activity history: counted, not listed
+        }
+        if change.op == "delete" { return "deleted \(noun)" }
+        func text(_ key: String) -> String? {
+            if case .string(let value)? = change.data?[key], !value.isEmpty { return value }
+            return nil
+        }
+        var name = text("title") ?? text("display_name") ?? text("text") ?? text("name")
+        if change.entity == "contact" {
+            let full = [text("first_name"), text("last_name")].compactMap { $0 }.joined(separator: " ")
+            name = full.isEmpty ? text("company") : full
+        }
+        if change.entity == "work_item", case .string(let status)? = change.data?["status"], status == "done" {
+            return name.map { "completed task “\(Self.short($0))”" } ?? "completed task"
+        }
+        if case .string? = change.data?["deleted_at"] {
+            return name.map { "deleted \(noun) “\(Self.short($0))”" } ?? "deleted \(noun)"
+        }
+        return name.map { "\(noun) “\(Self.short($0))”" } ?? noun
+    }
+
+    static func short(_ text: String) -> String {
+        text.count > 60 ? String(text.prefix(57)) + "…" : text
+    }
+}
+
+extension SyncRunner.Report {
+    mutating func note(_ changes: [SyncChange], _ kind: SyncEvent.Kind) {
+        for change in changes {
+            guard let text = SyncEvent.describe(change) else { historyEntries += 1; continue }
+            if events.count < 200 {
+                events.append(SyncEvent(kind: kind, text: text))
+            } else {
+                unlisted += 1
+            }
+        }
+    }
+}
+
 /// One sync round: pull everything new, then push everything pending.
 public struct SyncRunner: Sendable {
     public let store: SyncStore
@@ -303,6 +368,12 @@ public struct SyncRunner: Sendable {
         public var fileErrors = 0
         /// Downloaded copies deleted because their attachment is gone.
         public var filesRemoved = 0
+        /// What moved, for the sync log (activity rows are counted, not listed).
+        public var events: [SyncEvent] = []
+        /// Activity-history rows moved (not listed one by one).
+        public var historyEntries = 0
+        /// Rows beyond the 200 listed in `events`.
+        public var unlisted = 0
 
         public init() {}
     }
@@ -313,7 +384,9 @@ public struct SyncRunner: Sendable {
         var cursor = try await store.cursor()
         while true {
             let page = try await client.pull(since: cursor, limit: 500)
-            report.received += try await store.apply(page.changes, cursor: page.next)
+            let applied = try await store.applyChanges(page.changes, cursor: page.next)
+            report.received += applied.count
+            report.note(applied, .received)
             cursor = page.next
             if !page.more { break }
         }
@@ -342,7 +415,12 @@ public struct SyncRunner: Sendable {
                 }
             }
             try await store.markPushed(accepted)
-            if !newer.isEmpty { report.received += try await store.apply(newer) }
+            report.note(accepted, .sent)
+            if !newer.isEmpty {
+                let applied = try await store.applyChanges(newer)
+                report.received += applied.count
+                report.note(applied, .received)
+            }
             report.sent += accepted.count
             if pending.count < 200 { break }
         }
@@ -357,7 +435,10 @@ public struct SyncRunner: Sendable {
         for file in try await store.attachmentsWithBlob()
         where !(useOriginalPaths ? file.hasLocalBytes : file.hasOwnCopy) && (file.blobSize ?? 0) <= Self.autoDownloadBytes {
             do {
-                if try await download(file, into: directory) != nil { report.filesDownloaded += 1 }
+                if try await download(file, into: directory) != nil {
+                    report.filesDownloaded += 1
+                    report.events.append(SyncEvent(kind: .fileDownloaded, text: file.displayName))
+                }
             } catch let error as SyncError where Self.stopsRound(error) {
                 throw error
             } catch {
@@ -428,6 +509,7 @@ public struct SyncRunner: Sendable {
                 }
                 try await store.setBlob(attachmentId: file.id, sha256: sha, size: size)
                 report.filesUploaded += 1
+                report.events.append(SyncEvent(kind: .fileUploaded, text: file.displayName))
             } catch let error as SyncError where Self.stopsRound(error) {
                 throw error
             } catch let error as CocoaError where error.code == .fileReadNoPermission {

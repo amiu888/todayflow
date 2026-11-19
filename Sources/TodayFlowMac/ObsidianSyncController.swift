@@ -189,9 +189,13 @@ public final class ObsidianSyncController {
             return
         }
         defer {
+            let place = config.mode == .remote
+                ? "Obsidian on \(config.sanitizedRemoteHost):\(config.remotePort)"
+                : "Vault: \(config.resolvedVaultName)"
             report(SyncBadgeStatus(
                 state: lastError.map { .failed($0) } ?? .synced,
-                lastSyncAt: lastSyncAt
+                lastSyncAt: lastSyncAt,
+                details: [place, "Note: \(config.normalizedNotePath)"]
             ))
         }
 

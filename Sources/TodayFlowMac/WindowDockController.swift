@@ -505,3 +505,44 @@ public final class WindowDockController {
     }
 }
 #endif
+
+#if canImport(AppKit)
+/// Where the Today panel (and slim bar) opens: where it was last left, or
+/// the top-left corner of the main screen the first time.
+public enum PanelPlacement {
+    /// - Parameters:
+    ///   - saved: the frame saved when the window last moved or resized.
+    ///   - size: the window's default size, used the first time.
+    ///   - screens: every screen's visible frame.
+    ///   - main: the main screen's visible frame.
+    ///   - minimum: the smallest allowed size.
+    public static func frame(
+        saved: CGRect?,
+        size: CGSize,
+        screens: [CGRect],
+        main: CGRect,
+        minimum: CGSize = .zero
+    ) -> CGRect {
+        if let saved, saved.width > 0, saved.height > 0,
+           let screen = screens.max(by: { $0.intersection(saved).area < $1.intersection(saved).area }),
+           // At least a 100-point-square corner must still be on a screen
+           // (a disconnected display moves the window back into view).
+           screen.intersection(saved).width >= 100, screen.intersection(saved).height >= 100
+        {
+            var frame = saved
+            frame.size.width = max(minimum.width, min(frame.width, screen.width))
+            frame.size.height = max(minimum.height, min(frame.height, screen.height))
+            frame.origin.x = min(max(frame.minX, screen.minX), screen.maxX - frame.width)
+            frame.origin.y = min(max(frame.minY, screen.minY), screen.maxY - frame.height)
+            return frame
+        }
+        let width = min(size.width, main.width)
+        let height = min(size.height, main.height)
+        return CGRect(x: main.minX, y: main.maxY - height, width: width, height: height)
+    }
+}
+
+private extension CGRect {
+    var area: CGFloat { isNull ? 0 : width * height }
+}
+#endif

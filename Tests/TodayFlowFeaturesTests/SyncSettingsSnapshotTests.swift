@@ -52,6 +52,11 @@ struct SyncSettingsSnapshotTests {
         paired.snapshot.lastSyncAt = Date().addingTimeInterval(-40)
         paired.snapshot.pendingCount = 0
         paired.snapshot.lastResult = "Received 12, sent 3"
+        paired.snapshot.log = [
+            SyncLogEntry(time: Date().addingTimeInterval(-20), summary: "Sent 2", details: ["Sent task “Plan trip to Lisbon”", "Sent completed task “Call Ana”", "2 history entries (who changed what, when)"]),
+            SyncLogEntry(time: Date().addingTimeInterval(-300), summary: "Received 1, 1 file(s) down", details: ["Received attachment “Pasted image”", "Downloaded Pasted image"]),
+            SyncLogEntry(time: Date().addingTimeInterval(-900), summary: "Can't reach the server: The request timed out.", isError: true),
+        ]
         let failing = FakeSyncBackend()
         failing.snapshot = paired.snapshot
         failing.snapshot.lastError = "Can't reach the server: The request timed out."
@@ -60,11 +65,11 @@ struct SyncSettingsSnapshotTests {
             for scheme in [ColorScheme.light, .dark] {
                 let view = Form { SyncSettingsSection(backend: backend) }
                     .formStyle(.grouped)
-                    .frame(width: 600, height: 420)
+                    .frame(width: 600, height: 640)
                     .environment(\.colorScheme, scheme)
                 let host = NSHostingView(rootView: view)
                 host.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
-                host.frame = NSRect(x: 0, y: 0, width: 600, height: 420)
+                host.frame = NSRect(x: 0, y: 0, width: 600, height: 640)
                 let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
                 window.contentView = host
                 host.layoutSubtreeIfNeeded()
@@ -86,9 +91,10 @@ struct SyncSettingsSnapshotTests {
 @MainActor
 struct SyncBadgeSnapshotTests {
     @Test func helpText_explainsTheState() {
-        let text = SyncBadge.helpText(name: "Server", status: .init(state: .waiting(3)))
-        #expect(text.contains("3 changes waiting"))
-        #expect(SyncBadge.helpText(name: "Obsidian", status: .init(state: .failed("Vault missing"))).contains("Vault missing"))
+        let waiting = SyncBadge.helpText(target: .server, status: .init(state: .waiting(3)))
+        #expect(waiting.contains("3 changes on this Mac haven't reached the server"))
+        #expect(SyncBadge.helpText(target: .server, status: .init(state: .synced)).hasPrefix("Green: everything on this Mac is on the server"))
+        #expect(SyncBadge.helpText(target: .obsidian, status: .init(state: .failed("Vault missing"))).contains("Vault missing"))
     }
 
     @Test func writeImages() async throws {

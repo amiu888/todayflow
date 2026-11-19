@@ -1,6 +1,24 @@
 import SwiftUI
 import TodayFlowCore
 
+/// One entry of the sync log: a round that moved something, or an error.
+public struct SyncLogEntry: Equatable, Sendable, Identifiable {
+    public var id = UUID()
+    public var time: Date
+    /// "Sent 2, received 1" or the error.
+    public var summary: String
+    /// "Sent task “Plan trip”", "Downloaded Pasted image.png"…
+    public var details: [String]
+    public var isError: Bool
+
+    public init(time: Date, summary: String, details: [String] = [], isError: Bool = false) {
+        self.time = time
+        self.summary = summary
+        self.details = details
+        self.isError = isError
+    }
+}
+
 /// What the Sync tab shows.
 public struct SyncSnapshot: Equatable, Sendable {
     public var isPaired = false
@@ -15,6 +33,10 @@ public struct SyncSnapshot: Equatable, Sendable {
     public var lastResult: String?
     /// Attachment files this Mac can't upload, as "name: reason".
     public var skippedFiles: [String] = []
+    /// Newest first; rounds that moved nothing are not listed.
+    public var log: [SyncLogEntry] = []
+    /// When the server was last checked, even if nothing moved.
+    public var lastCheckedAt: Date?
 
     public init() {}
 }
@@ -128,12 +150,34 @@ struct SyncSettingsSection: View {
                     .font(.caption)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Text("Changes waiting to send counts edits on this Mac that haven't gone to the server yet. It goes up for a moment after an edit and back to 0 within 10 seconds, once the change is sent.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button("Unpair This Mac…", role: .destructive) { confirmUnpair = true }
                 Spacer()
                 Button("Sync Now") { Task { await backend.syncNow() } }
                     .disabled(!state.isEnabled || state.isSyncing)
             }
+        }
+
+        Section {
+            if state.log.isEmpty {
+                Text("Nothing synced yet. Each round that sends or receives something is listed here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(state.log.prefix(30)) { entry in
+                    SyncLogRow(entry: entry)
+                }
+            }
+        } header: {
+            Text("Activity")
+        } footer: {
+            Text("Also written to ~/Library/Logs/TodayFlow/app.log. The server is checked every 10 seconds; rounds where nothing changed aren't listed.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .confirmationDialog(
             "Unpair this Mac from the server?",
@@ -153,6 +197,44 @@ struct SyncSettingsSection: View {
             pairError = error
         } else {
             code = ""
+        }
+    }
+}
+
+/// One sync round in the Activity list; click to see what moved.
+struct SyncLogRow: View {
+    let entry: SyncLogEntry
+    @State private var expanded = false
+
+    var body: some View {
+        if entry.details.isEmpty {
+            label
+        } else {
+            DisclosureGroup(isExpanded: $expanded) {
+                ForEach(Array(entry.details.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } label: {
+                label
+            }
+        }
+    }
+
+    private var label: some View {
+        HStack(spacing: 8) {
+            Text(entry.time, format: .dateTime.hour().minute().second())
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            if entry.isError {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red).font(.caption)
+            }
+            Text(entry.summary)
+                .font(.caption)
+                .foregroundStyle(entry.isError ? .red : .primary)
+                .lineLimit(2)
         }
     }
 }
