@@ -423,10 +423,36 @@ public struct DroppedObjectLoader {
 
     /// The pasteboard types the app accepts. `NSPasteboard.PasteboardType` is
     /// string-backed, so this list can be registered with a view directly.
+    /// Image flavors a clipboard item can carry. Screenshot tools differ:
+    /// macOS puts PNG, others only JPEG (plus legacy TIFF flavors).
+    public static let imagePasteboardTypes: [NSPasteboard.PasteboardType] = [
+        .png, .tiff,
+        NSPasteboard.PasteboardType(UTType.jpeg.identifier),
+        NSPasteboard.PasteboardType(UTType.heic.identifier),
+        NSPasteboard.PasteboardType(UTType.gif.identifier),
+    ]
+
+    /// The item's image as PNG bytes (pasted images are stored as `.png`).
+    static func pngImageData(from item: NSPasteboardItem) -> Data? {
+        if let png = item.data(forType: .png) { return png }
+        for type in imagePasteboardTypes.dropFirst() {
+            guard let data = item.data(forType: type) else { continue }
+            if let rep = NSBitmapImageRep(data: data)
+                ?? NSImage(data: data)?.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)),
+               let png = rep.representation(using: .png, properties: [:])
+            {
+                return png
+            }
+            return data
+        }
+        return nil
+    }
+
     public static let pasteboardTypes: [NSPasteboard.PasteboardType] = [
-        .fileURL, .URL, .tiff, .png, .string, .html, .rtf,
+        .fileURL, .URL, .string, .html, .rtf,
         NSPasteboard.PasteboardType(UTType(importedAs: "public.vcard").identifier),
-    ] + WebCustomData.pasteboardTypes.map { NSPasteboard.PasteboardType($0) }
+    ] + imagePasteboardTypes
+        + WebCustomData.pasteboardTypes.map { NSPasteboard.PasteboardType($0) }
 
     /// True when a drag contains something the app can turn into an object.
     public static func canRead(_ pasteboard: NSPasteboard) -> Bool {
@@ -459,7 +485,7 @@ public struct DroppedObjectLoader {
         isEditingText: Bool
     ) -> PasteRoute {
         let hasFile = types.contains(.fileURL)
-        let hasImage = types.contains(.tiff) || types.contains(.png)
+        let hasImage = types.contains(where: imagePasteboardTypes.contains)
         let hasText = types.contains(.string)
         if hasFile { return .attach }
         if isEditingText {
@@ -502,9 +528,7 @@ public struct DroppedObjectLoader {
             {
                 return object(forFileURL: url, sourceApp: sourceApp)
             }
-            if preferImages,
-               let data = item.data(forType: .tiff) ?? item.data(forType: .png)
-            {
+            if preferImages, let data = pngImageData(from: item) {
                 return DroppedObject(imageData: data, sourceApp: sourceApp, uti: .image)
             }
             if let string = item.string(forType: .URL),
@@ -521,7 +545,7 @@ public struct DroppedObjectLoader {
                 }
                 return object
             }
-            if let data = item.data(forType: .tiff) ?? item.data(forType: .png) {
+            if let data = pngImageData(from: item) {
                 return DroppedObject(imageData: data, sourceApp: sourceApp, uti: .image)
             }
             let vcardPasteboardType = NSPasteboard.PasteboardType(

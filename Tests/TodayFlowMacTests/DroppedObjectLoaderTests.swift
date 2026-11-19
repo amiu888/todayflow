@@ -147,6 +147,27 @@ struct DroppedObjectLoaderTests {
         ) == .attach)
     }
 
+    /// Some screenshot tools put only a JPEG on the clipboard
+    /// (public.jpeg + legacy TIFF flavors). It must attach, saved as PNG.
+    @Test func clipboardJPEG_attachesAsPNG() throws {
+        let pasteboard = NSPasteboard(
+            name: NSPasteboard.Name("TodayFlowTests-\(UUID().uuidString)")
+        )
+        pasteboard.clearContents()
+        let rep = try #require(NSBitmapImageRep(data: try pngData()))
+        let jpeg = try #require(rep.representation(using: .jpeg, properties: [:]))
+        let jpegType = NSPasteboard.PasteboardType(UTType.jpeg.identifier)
+        pasteboard.setData(jpeg, forType: jpegType)
+
+        #expect(DroppedObjectLoader.pasteRoute(
+            types: [jpegType], isEditingText: true
+        ) == .attach)
+        let objects = DroppedObjectLoader.objectsFromClipboard(pasteboard)
+        #expect(objects.count == 1)
+        let data = try #require(objects.first?.imageData)
+        #expect(Array(data.prefix(4)) == [0x89, 0x50, 0x4E, 0x47])
+    }
+
     @Test func clipboardImageWithLink_prefersTheImage() throws {
         let pasteboard = NSPasteboard(
             name: NSPasteboard.Name("TodayFlowTests-\(UUID().uuidString)")
