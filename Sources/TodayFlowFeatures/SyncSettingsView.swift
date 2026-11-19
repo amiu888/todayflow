@@ -23,6 +23,8 @@ public struct SyncLogEntry: Equatable, Sendable, Identifiable {
 public struct SyncSnapshot: Equatable, Sendable {
     public var isPaired = false
     public var serverAddress = ""
+    /// The server user this Mac syncs as.
+    public var userName: String?
     public var deviceName = ""
     public var isEnabled = false
     public var isSyncing = false
@@ -113,6 +115,14 @@ struct SyncSettingsSection: View {
     private func pairedSections(_ state: SyncSnapshot) -> some View {
         Section("Server") {
             LabeledContent("Address", value: state.serverAddress)
+            LabeledContent("User") {
+                if let name = state.userName {
+                    Text(name)
+                } else {
+                    Text("Checking…").foregroundStyle(.secondary)
+                }
+            }
+            .help("The server user this Mac syncs as. Every Mac paired with this user's code shares the same tasks.")
             LabeledContent("This Mac", value: state.deviceName)
             Toggle("Sync", isOn: Binding(
                 get: { state.isEnabled },

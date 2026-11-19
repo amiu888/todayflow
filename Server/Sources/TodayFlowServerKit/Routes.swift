@@ -80,7 +80,11 @@ public func buildRouter(store: Store, config: ServerConfig) -> Router<BasicReque
             try await Task.sleep(for: config.wrongCodeDelay)
             throw HTTPError(.unauthorized, message: "Wrong pairing code.")
         }
-        return PairResponse(deviceId: paired.caller.deviceId, token: paired.token)
+        return PairResponse(
+            deviceId: paired.caller.deviceId,
+            userName: try await store.userName(id: paired.caller.userId),
+            token: paired.token
+        )
     }
 
     @Sendable func caller(_ request: Request) async throws -> Store.Caller {
@@ -97,8 +101,8 @@ public func buildRouter(store: Store, config: ServerConfig) -> Router<BasicReque
         let caller = try await caller(request)
         let counts = try await store.counts(caller: caller)
         return StatusResponse(
-            ok: true, userId: caller.userId, records: counts.records,
-            latestSeq: counts.latestSeq, deviceId: caller.deviceId
+            ok: true, userId: caller.userId, userName: try await store.userName(id: caller.userId),
+            records: counts.records, latestSeq: counts.latestSeq, deviceId: caller.deviceId
         )
     }
 

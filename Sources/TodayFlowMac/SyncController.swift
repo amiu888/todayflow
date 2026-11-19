@@ -37,7 +37,9 @@ public final class SyncController: SyncPanelBackend {
         } else {
             state = .synced
         }
-        var details = ["Server: \(snapshot.serverAddress)", "This Mac: \(snapshot.deviceName)"]
+        var details = ["Server: \(snapshot.serverAddress)"]
+        if let user = snapshot.userName { details.append("User: \(user)") }
+        details.append("This Mac: \(snapshot.deviceName)")
         if snapshot.pendingCount > 0 { details.append("Changes waiting to send: \(snapshot.pendingCount)") }
         if let checked = snapshot.lastCheckedAt {
             details.append("Last checked \(checked.formatted(date: .omitted, time: .standard))")
@@ -49,6 +51,8 @@ public final class SyncController: SyncPanelBackend {
         var server: String
         var deviceId: String
         var deviceName: String
+        /// The server user; nil for pairings made before servers sent it.
+        var userName: String?
         var enabled: Bool
         var pairedAt: Date
         var lastSyncAt: Date?
@@ -96,15 +100,30 @@ public final class SyncController: SyncPanelBackend {
             Task { @MainActor in await self?.runRound() }
         }
         if config?.enabled == true { startLoop() }
+        Task { await fetchUserNameIfMissing() }
     }
 
     // MARK: - SyncPanelBackend
+
+    /// Asks the server for the user's name once, for pairings made before
+    /// the server sent it. Quietly does nothing when offline.
+    private func fetchUserNameIfMissing() async {
+        guard var config, config.userName == nil, let url = URL(string: config.server),
+              let token = await keychain.read(Self.tokenKey),
+              let status = try? await SyncClient(baseURL: url, token: token, session: session).status(),
+              let name = status.userName
+        else { return }
+        config.userName = name
+        try? await save(config)
+        await refresh()
+    }
 
     public func refresh() async {
         var next = SyncSnapshot()
         if let config {
             next.isPaired = true
             next.serverAddress = config.server
+            next.userName = config.userName
             next.deviceName = config.deviceName
             next.isEnabled = config.enabled
             next.lastSyncAt = config.lastSyncAt
@@ -132,7 +151,7 @@ public final class SyncController: SyncPanelBackend {
             try await keychain.write(paired.token, for: Self.tokenKey)
             let config = Config(
                 server: url.absoluteString, deviceId: paired.deviceId, deviceName: deviceName,
-                enabled: false, pairedAt: .now, lastSyncAt: nil
+                userName: paired.userName, enabled: false, pairedAt: .now, lastSyncAt: nil
             )
             try await save(config)
             snapshot.lastError = nil
@@ -239,6 +258,7 @@ public final class SyncController: SyncPanelBackend {
                 ? "\(report.fileErrors) file(s) couldn't be synced; trying again next round."
                 : nil
             if report.received > 0 || report.filesDownloaded > 0 { Self.announceRemoteChanges() }
+            if self.config?.userName == nil { await fetchUserNameIfMissing() }
         } catch SyncError.signedOut {
             config.enabled = false
             try? await save(config)

@@ -278,6 +278,13 @@ public struct Store: Sendable {
     }
 
     /// The device and user a token belongs to, or nil when unknown or revoked.
+    /// The user's name, shown on the device ("Signed in as Alex").
+    public func userName(id: String) async throws -> String? {
+        let rows = try await client.query("SELECT name FROM app_user WHERE id = \(id)", logger: logger)
+        for try await name in rows.decode(String.self) { return name }
+        return nil
+    }
+
     public func caller(forToken token: String) async throws -> Caller? {
         let rows = try await client.query(
             """

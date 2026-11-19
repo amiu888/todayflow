@@ -43,6 +43,7 @@ struct SyncControllerLiveTests {
         #expect(await controller.pair(server: Self.url!, code: "  \(Self.code!) ") == nil)
         #expect(controller.snapshot.isPaired)
         #expect(!controller.snapshot.isEnabled)
+        #expect(controller.snapshot.userName == "E2E")
         #expect(controller.snapshot.pendingCount > 0)
         let backups = try FileManager.default.contentsOfDirectory(atPath: folder.appendingPathComponent("Backups").path)
         #expect(backups.contains { $0.hasPrefix("before-sync-") })

@@ -404,6 +404,17 @@ struct SyncTests {
 
     func auth(_ token: String) -> HTTPFields { [.authorization: "Bearer \(token)"] }
 
+    @Test func pairAndStatus_tellTheDeviceItsUserName() async throws {
+        try await withServer { client, store in
+            let paired = try await device(client, store, user: "Alex", name: "MacBook")
+            #expect(paired.userName == "Alex")
+            try await client.execute(uri: "/v1/status", method: .get, headers: auth(paired.token)) { response in
+                let status = try JSONDecoder().decode(StatusResponse.self, from: Data(buffer: response.body))
+                #expect(status.userName == "Alex")
+            }
+        }
+    }
+
     @Test func blob_uploadDownloadAndDeduplicateWithinAUser() async throws {
         let root = blobDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

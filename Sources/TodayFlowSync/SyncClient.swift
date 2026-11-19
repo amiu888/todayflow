@@ -86,10 +86,13 @@ public struct SyncClient: SyncTransport {
     public struct PairResponse: Decodable, Sendable {
         public var deviceId: String
         public var token: String
+        /// Servers before 2026-11-19 don't send it.
+        public var userName: String?
     }
 
     public struct Status: Decodable, Sendable {
         public var userId: String
+        public var userName: String?
         public var records: Int64
         public var deviceId: String
     }

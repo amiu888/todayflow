@@ -48,6 +48,7 @@ struct SyncSettingsSnapshotTests {
         paired.snapshot.isPaired = true
         paired.snapshot.serverAddress = "http://nas.local:8787"
         paired.snapshot.deviceName = "Studio Mac"
+        paired.snapshot.userName = "Alex"
         paired.snapshot.isEnabled = true
         paired.snapshot.lastSyncAt = Date().addingTimeInterval(-40)
         paired.snapshot.pendingCount = 0

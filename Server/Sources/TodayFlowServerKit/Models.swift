@@ -109,6 +109,8 @@ public struct PairRequest: Codable, Sendable {
 
 public struct PairResponse: ResponseCodable, Sendable {
     public var deviceId: String
+    /// The user this device now belongs to.
+    public var userName: String?
     /// Shown once; the server keeps only a hash.
     public var token: String
 }
@@ -116,6 +118,7 @@ public struct PairResponse: ResponseCodable, Sendable {
 public struct StatusResponse: ResponseCodable, Sendable {
     public var ok: Bool
     public var userId: String
+    public var userName: String?
     public var records: Int64
     public var latestSeq: Int64
     public var deviceId: String
