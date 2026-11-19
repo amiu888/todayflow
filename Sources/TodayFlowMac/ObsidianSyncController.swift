@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import TodayFlowCore
+import TodayFlowFeatures
 
 /// Optional two-way bridge between TodayFlow and Obsidian.
 ///
@@ -24,6 +25,15 @@ public final class ObsidianSyncController {
 
     public private(set) var lastError: String?
     public private(set) var lastSyncAt: Date?
+    /// Called after each round with the header badge (nil: not set up).
+    public var onStatusChange: (@MainActor (SyncBadgeStatus?) -> Void)?
+    private var lastStatus: SyncBadgeStatus??
+
+    private func report(_ status: SyncBadgeStatus?) {
+        guard lastStatus != .some(status) else { return }
+        lastStatus = .some(status)
+        onStatusChange?(status)
+    }
 
     public init(
         workItems: any WorkItemRepository,
@@ -168,13 +178,21 @@ public final class ObsidianSyncController {
             lastWrittenContent = nil
             lastConfiguration = nil
             lastError = nil
+            report(nil)
             return
         }
         guard config.isConfigured else {
             lastWrittenContent = nil
             lastConfiguration = nil
             lastError = nil
+            report(nil)
             return
+        }
+        defer {
+            report(SyncBadgeStatus(
+                state: lastError.map { .failed($0) } ?? .synced,
+                lastSyncAt: lastSyncAt
+            ))
         }
 
         if lastConfiguration != config {

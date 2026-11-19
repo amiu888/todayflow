@@ -85,6 +85,9 @@ public enum TodayFlowEvents {
     public static let captureSaved = Notification.Name("TodayFlow.captureSaved")
     /// Tray membership, names, or order changed (the Today list persists trays).
     public static let traysChanged = Notification.Name("TodayFlow.traysChanged")
+    /// A synced file is downloading (`userInfo["id"]`: attachment id,
+    /// `userInfo["downloading"]`: Bool).
+    public static let attachmentDownload = Notification.Name("TodayFlow.attachmentDownload")
     /// A task reminder was set or cleared; reschedule notifications.
     public static let remindersChanged = Notification.Name("TodayFlow.remindersChanged")
 }

@@ -47,6 +47,8 @@ public struct DetailView: View {
     @State private var newProjectName = ""
     @State private var isActivityExpanded = false
     @State private var renamingAttachmentId: UUIDv7?
+    /// Attachments whose synced file is downloading right now.
+    @State private var downloadingAttachments: Set<String> = []
     @State private var pasteHint: String?
     @State private var attachmentNameDraft = ""
     @FocusState private var isRenamingFocused: Bool
@@ -163,6 +165,14 @@ public struct DetailView: View {
         .task { await model.load() }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.attachmentsChanged)) { _ in
             Task { @MainActor in await model.load() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.attachmentDownload)) { note in
+            guard let id = note.userInfo?["id"] as? String else { return }
+            if note.userInfo?["downloading"] as? Bool == true {
+                downloadingAttachments.insert(id)
+            } else {
+                downloadingAttachments.remove(id)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
             Task { @MainActor in await model.refreshSummaryIfEmpty() }
@@ -1262,6 +1272,8 @@ public struct DetailView: View {
 
                         Spacer()
 
+                        serverFileBadge(attachment)
+
                         Text(attachment.createdAt, format: .dateTime.month(.abbreviated).day().year().hour().minute())
                             .font(.caption2)
                             .foregroundStyle(DesignTokens.Palette.textSecondary)
@@ -1304,6 +1316,38 @@ public struct DetailView: View {
                     Button("Reveal in Finder") { onRevealAttachment?(attachment) }
                 }
             }
+        }
+    }
+
+    /// A file still on the server: its size and a download button; a
+    /// spinner while it downloads.
+    @MainActor
+    @ViewBuilder
+    private func serverFileBadge(_ attachment: Attachment) -> some View {
+        if downloadingAttachments.contains(attachment.id.description) {
+            HStack(spacing: 4) {
+                ProgressView().controlSize(.mini)
+                Text("Downloading…")
+                    .font(.caption2)
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+            }
+            .accessibilityLabel("Downloading \(attachment.displayName)")
+        } else if attachment.isOnServerOnly {
+            Button {
+                onOpenAttachment?(attachment)
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "icloud.and.arrow.down")
+                    if let size = attachment.blobSize {
+                        Text(Int64(size), format: .byteCount(style: .file))
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(DesignTokens.Palette.accent)
+            }
+            .buttonStyle(.plain)
+            .help("On the server. Click to download and open it.")
+            .accessibilityLabel("Download \(attachment.displayName)")
         }
     }
 

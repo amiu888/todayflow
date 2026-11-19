@@ -37,10 +37,13 @@ struct MigrationsTests {
                 .map { $0["name"] as String }
                 .sorted()
         }
-        #expect(triggers == [
+        #expect(triggers.filter { !$0.hasPrefix("sync_") } == [
             "attachment_ad", "attachment_ai", "attachment_au",
             "work_item_ad", "work_item_ai", "work_item_au",
         ])
+        // v9: insert, update and delete tracking on each of the 10 synced tables.
+        #expect(triggers.filter { $0.hasPrefix("sync_") }.count == 30)
+        #expect(tables.contains("sync_change"))
     }
 
     @Test("a file database persists across close and reopen, and re-migrates idempotently")

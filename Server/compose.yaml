@@ -1,0 +1,68 @@
+# TodayFlow Sync Server + its Postgres database.
+#
+#   1. Copy .env.example to .env and set both secrets.
+#   2. docker compose up -d --build
+#   3. Check: curl http://<host>:8787/health   → ok
+#
+# On TrueNAS SCALE (24.10+): Apps ▸ Discover ▸ Install via YAML, paste this
+# file, and point the two volumes at datasets you snapshot.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: todayflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: todayflow
+    volumes:
+      - ${DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U todayflow -d todayflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build: .
+    image: todayflow-server:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: todayflow
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: todayflow
+      TODAYFLOW_BLOB_DIR: /data/blobs
+      TODAYFLOW_ADMIN_PASSWORD: ${TODAYFLOW_ADMIN_PASSWORD:?set TODAYFLOW_ADMIN_PASSWORD in .env}
+      TODAYFLOW_BACKUP_DIR: /backups
+      TODAYFLOW_CONTROL_DIR: /control
+    volumes:
+      - ${DATA_DIR:-./data}/blobs:/data/blobs
+      - ${DATA_DIR:-./data}/backups:/backups:ro
+      - ${DATA_DIR:-./data}/control:/control
+    ports:
+      - "${PORT:-8787}:8787"           # sync
+      - "${ADMIN_PORT:-8788}:8788"     # admin page: keep on the home network
+
+  # Database dumps into ${DATA_DIR}/backups (daily, newest 14 kept).
+  # Dataset snapshots are the second line of defense.
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: todayflow
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: todayflow
+      BACKUP_EVERY_SECONDS: ${BACKUP_EVERY_SECONDS:-86400}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      - ${DATA_DIR:-./data}/backups:/backups
+      - ${DATA_DIR:-./data}/control:/control
+      - ./backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]

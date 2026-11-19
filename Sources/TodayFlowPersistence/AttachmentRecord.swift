@@ -54,5 +54,7 @@ struct AttachmentRecord {
             version: row["version"] as Int,
             deviceId: "local"
         )
+        model.blobSHA256 = row["blob_sha256"] as String?
+        model.blobSize = row["blob_size"] as Int?
     }
 }

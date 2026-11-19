@@ -46,6 +46,23 @@ public struct Attachment: Identifiable, Hashable, Sendable, Codable {
     public var createdAt: Date
     public var version: Int
     public var deviceId: String
+    /// The synced file on the server (SHA-256), set once a Mac uploaded it.
+    public var blobSHA256: String?
+    public var blobSize: Int?
+
+    /// True when the file is only on the server: this Mac has neither its
+    /// own copy nor the original at the same path. Opening downloads it.
+    public var isOnServerOnly: Bool {
+        guard blobSHA256 != nil else { return false }
+        if let copy = localCopyPath, !copy.isEmpty, FileManager.default.fileExists(atPath: copy) { return false }
+        if let reference, reference.hasPrefix("/"),
+           let size = (try? FileManager.default.attributesOfItem(atPath: reference))?[.size] as? NSNumber,
+           blobSize == nil || size.intValue == blobSize
+        {
+            return false
+        }
+        return true
+    }
 
     public init(
         id: UUIDv7 = .new(),

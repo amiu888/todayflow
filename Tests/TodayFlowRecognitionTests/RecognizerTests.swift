@@ -218,7 +218,7 @@ struct FolderRecognizerTests {
     @Test("recognizesDirectories")
     func recognizesDirectories() {
         let object = DroppedObject(
-            fileURL: URL(fileURLWithPath: "/Users/afonso/Documents/Projects"),
+            fileURL: URL(fileURLWithPath: "/Users/me/Documents/Projects"),
             isDirectory: true,
             fileSize: 1234
         )
@@ -227,8 +227,8 @@ struct FolderRecognizerTests {
         #expect(recognized.type == .folder)
         #expect(recognized.displayName == "Projects")
         #expect(recognized.suggestedTitle == "Projects")
-        #expect(recognized.reference == "/Users/afonso/Documents/Projects")
-        #expect(recognized.metadata[MetadataKeys.path] == "/Users/afonso/Documents/Projects")
+        #expect(recognized.reference == "/Users/me/Documents/Projects")
+        #expect(recognized.metadata[MetadataKeys.path] == "/Users/me/Documents/Projects")
     }
 
     @Test("doesNotHandleFiles")
@@ -409,7 +409,7 @@ func messageLinkKeepsText() {
     let text = """
         Subject: Q3 budget review
         From: Carol <carol@example.com>
-        To: Afonso <afonso@example.com>
+        To: Alex <alex@example.com>
 
         Please review the Q3 budget and send the totals by Friday.
         """

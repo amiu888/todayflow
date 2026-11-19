@@ -1,0 +1,6 @@
+.build/
+data/
+.env
+out/
+# This NAS's addresses and paths (template: deploy.env.example).
+deploy.env

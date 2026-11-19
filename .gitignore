@@ -23,3 +23,7 @@ config.env
 
 # Local app bundle output
 build/
+
+# This NAS (addresses, paths, accounts). Templates are committed instead.
+deploy.env
+docs/**/*.local.md

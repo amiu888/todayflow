@@ -8,8 +8,8 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
-  TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (no-op).
-- `swift build` is warning-free; `swift test` passes **819 tests**; the XCUITest suite has 22 cases.
+  TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (server sync: `SyncClient`, `SyncRunner`).
+- `swift build` is warning-free; `swift test` passes **844 tests**; the XCUITest suite has 22 cases.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
@@ -36,7 +36,10 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Installed official Anthropic skills: `frontend-design`, `theme-factory`;
   Superpowers development skills (`test-driven-development`, `systematic-debugging`,
   `verification-before-completion`, `writing-plans`, review skills).
-- v1 is local-only. Sync outbox rows stay pending for the v2 CloudKit engine.
+- Sync (1.9.26, schema v9–v10): triggers record changes in `sync_change`; attachment files
+  upload/download as blobs; Settings ▸ Sync pairs
+  with the self-hosted server in `Server/` (design `docs/sync/PLAN.md`, status `docs/sync/HANDOFF.md`).
+  The old `change_outbox` is left as is.
 
 `./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`
 (hardened runtime). `scripts/package-dmg.sh` notarizes and staples the DMG when

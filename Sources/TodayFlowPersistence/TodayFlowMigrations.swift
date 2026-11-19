@@ -44,6 +44,12 @@ public enum TodayFlowMigrations {
         migrator.registerMigration("v8") { db in
             try db.execute(sql: schemaV8)
         }
+        migrator.registerMigration("v9") { db in
+            try db.execute(sql: schemaV9)
+        }
+        migrator.registerMigration("v10") { db in
+            try db.execute(sql: schemaV10)
+        }
         return migrator
     }
 

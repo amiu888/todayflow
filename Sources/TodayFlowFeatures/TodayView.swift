@@ -37,6 +37,8 @@ public struct TodayView: View {
     private let dockedAppProvider: (@MainActor () -> AppDockState?)?
     private let windowActions: WindowMenuActions?
     private let aiActions: AIActions?
+    /// Server and Obsidian sync badges in the title row; nil hides them.
+    private let syncBadges: SyncBadgesModel?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -86,6 +88,7 @@ public struct TodayView: View {
         self.dockedAppProvider = nil
         self.windowActions = nil
         self.aiActions = nil
+        self.syncBadges = nil
         _localDockedName = State(initialValue: nil)
     }
 
@@ -110,8 +113,10 @@ public struct TodayView: View {
         onUndockApp: (@MainActor () -> Void)? = nil,
         dockedAppProvider: (@MainActor () -> AppDockState?)? = nil,
         windowActions: WindowMenuActions? = nil,
-        aiActions: AIActions? = nil
+        aiActions: AIActions? = nil,
+        syncBadges: SyncBadgesModel? = nil
     ) {
+        self.syncBadges = syncBadges
         self.model = model
         #if canImport(AppKit)
         self.onDrop = onDrop
@@ -195,6 +200,7 @@ public struct TodayView: View {
         self.dockedAppProvider = dockedAppProvider
         self.windowActions = windowActions
         self.aiActions = aiActions
+        self.syncBadges = nil
         _localDockedName = State(
             initialValue: dockedApp?.isDocked == true ? dockedApp?.appName : nil
         )
@@ -558,10 +564,14 @@ public struct TodayView: View {
             if model.isViewingToday {
                 HStack(spacing: 0) {
                     ProgressHeaderView(progress: model.progress, motion: motion)
+                    syncBadgesRow
                     weekToggleButton
                 }
             } else {
-                futureDaySummary
+                HStack(spacing: 0) {
+                    futureDaySummary
+                    syncBadgesRow
+                }
             }
         }
         .background(
@@ -572,6 +582,16 @@ public struct TodayView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(DesignTokens.Palette.hairline, lineWidth: 1)
         )
+    }
+
+    /// Server and Obsidian sync status, at the right of the progress line.
+    @MainActor
+    @ViewBuilder
+    private var syncBadgesRow: some View {
+        if let syncBadges, !syncBadges.isEmpty {
+            SyncBadgesView(model: syncBadges)
+                .padding(.trailing, 2)
+        }
     }
 
     private func reload() {

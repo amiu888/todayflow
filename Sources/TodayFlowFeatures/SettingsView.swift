@@ -16,6 +16,8 @@ public struct SettingsView: View {
     private let onWatchTutorial: (@MainActor @Sendable () -> Void)?
     private let onObsidianSyncNow: (@MainActor @Sendable () -> Void)?
     private let onObsidianOpenNote: (@MainActor @Sendable () -> Void)?
+    /// Settings ▸ Sync; the tab is hidden when nil (tests, previews).
+    private let sync: (any SyncPanelBackend)?
     @State private var selectedTab: SettingsTab = .general
     @State private var showResetConfirmation = false
     @State private var showingNoteBrowser = false
@@ -29,8 +31,10 @@ public struct SettingsView: View {
         onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil,
         onObsidianSyncNow: (@MainActor @Sendable () -> Void)? = nil,
         onObsidianOpenNote: (@MainActor @Sendable () -> Void)? = nil,
+        sync: (any SyncPanelBackend)? = nil,
         onSaved: (@MainActor @Sendable () -> Void)? = nil
     ) {
+        self.sync = sync
         self.onSaved = onSaved
         self.model = model
         self.onOpenAISetup = onOpenAISetup
@@ -50,8 +54,12 @@ public struct SettingsView: View {
         onWatchTutorial: (@MainActor @Sendable () -> Void)? = nil,
         onObsidianSyncNow: (@MainActor @Sendable () -> Void)? = nil,
         onObsidianOpenNote: (@MainActor @Sendable () -> Void)? = nil,
+        sync: (any SyncPanelBackend)? = nil,
+        initialTab: String? = nil,
         onSaved: (@MainActor @Sendable () -> Void)? = nil
     ) {
+        self.sync = sync
+        _selectedTab = State(initialValue: initialTab.flatMap(SettingsTab.init(rawValue:)) ?? .general)
         self.onSaved = onSaved
         model = SettingsViewModel(
             repository: repository,
@@ -67,6 +75,7 @@ public struct SettingsView: View {
 
     private enum SettingsTab: String, CaseIterable, Identifiable {
         case general = "General"
+        case sync = "Sync"
         case obsidian = "Obsidian"
         case ai = "AI"
         case about = "About"
@@ -82,7 +91,7 @@ public struct SettingsView: View {
         @Bindable var model = model
         return VStack(spacing: 0) {
             Picker("Settings section", selection: $selectedTab) {
-                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                ForEach(SettingsTab.allCases.filter { $0 != .sync || sync != nil }, id: \.self) { tab in
                     Text(tab.rawValue).tag(tab)
                 }
             }
@@ -136,6 +145,10 @@ public struct SettingsView: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         }
+                    }
+
+                    if selectedTab == .sync, let sync {
+                        SyncSettingsSection(backend: sync)
                     }
 
                     if selectedTab == .obsidian {
@@ -575,8 +588,11 @@ public struct SettingsView: View {
                 .frame(maxWidth: .infinity)
             }
             .id(selectedTab)
-            Divider()
-            saveBar
+            // Sync acts at once (Pair, the switch); there is nothing to save.
+            if selectedTab != .sync {
+                Divider()
+                saveBar
+            }
         }
         .frame(
             minWidth: DesignTokens.Window.settings.width,

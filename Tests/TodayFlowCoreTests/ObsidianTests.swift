@@ -163,7 +163,7 @@ struct ObsidianTests {
         let settings = ObsidianSettings(
             enabled: true,
             mode: .remote,
-            remoteHost: "10.0.2.50",
+            remoteHost: "192.168.1.50",
             remotePort: 27123,
             remoteUseHTTPS: false
         )
@@ -172,11 +172,11 @@ struct ObsidianTests {
         )
         #expect(
             client.url(for: "/vault/Conversations/Daily/TodayFlow.md")?.absoluteString
-                == "http://10.0.2.50:27123/vault/Conversations/Daily/TodayFlow.md"
+                == "http://192.168.1.50:27123/vault/Conversations/Daily/TodayFlow.md"
         )
         #expect(
             client.url(for: "/vault/My Note.md")?.absoluteString
-                == "http://10.0.2.50:27123/vault/My%20Note.md"
+                == "http://192.168.1.50:27123/vault/My%20Note.md"
         )
     }
 
@@ -197,7 +197,7 @@ struct ObsidianTests {
         let settings = ObsidianSettings(
             enabled: true,
             mode: .remote,
-            remoteHost: "10.0.2.50",
+            remoteHost: "192.168.1.50",
             remotePort: 27123,
             remoteUseHTTPS: false,
             remoteTransport: .mcp,
@@ -208,7 +208,7 @@ struct ObsidianTests {
         let decoded = try JSONDecoder().decode(ObsidianSettings.self, from: data)
         #expect(decoded == settings)
         #expect(decoded.remoteTransport == .mcp)
-        #expect(decoded.remoteBaseURL?.absoluteString == "http://10.0.2.50:27123")
+        #expect(decoded.remoteBaseURL?.absoluteString == "http://192.168.1.50:27123")
         #expect(decoded.isConfigured)
     }
 

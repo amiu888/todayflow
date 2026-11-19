@@ -414,7 +414,7 @@ struct OpenAICompatibleAssistantTests {
     let digest = EmailDigest(
         subject: "Q3 budget review",
         sender: "Carol <carol@example.com>",
-        recipients: "Afonso <afonso@example.com>",
+        recipients: "Alex <alex@example.com>",
         body: "Please review the Q3 budget and send the vendor totals by Friday.",
         sourceApp: "com.apple.mail"
     )

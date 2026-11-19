@@ -129,7 +129,10 @@ let package = Package(
         ),
         .testTarget(
             name: "TodayFlowSyncTests",
-            dependencies: ["TodayFlowSync", "TodayFlowPersistence", "TodayFlowCore"],
+            dependencies: [
+                "TodayFlowSync", "TodayFlowPersistence", "TodayFlowCore",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
@@ -164,6 +167,7 @@ let package = Package(
             dependencies: [
                 "TodayFlowCore",
                 "TodayFlowPersistence",
+                "TodayFlowSync",
                 "TodayFlowRecognition",
                 "TodayFlowAI",
                 "TodayFlowDesign",

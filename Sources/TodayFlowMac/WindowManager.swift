@@ -29,6 +29,12 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     public let contactsModel: ContactsViewModel
     /// Optional two-way Obsidian bridge. Inert until Settings configures it.
     public let obsidian: ObsidianSyncController
+    /// Sync with the TodayFlow server (Settings ▸ Sync). Off until paired.
+    public let sync: SyncController?
+    /// Header badges for server and Obsidian sync.
+    public let syncBadges = SyncBadgesModel()
+    /// The tab the next Settings window opens on.
+    private var settingsTab: String?
     private let contactsImporter = ContactsImporter()
     /// Opens the optional first-run AI setup from Settings or the app menu.
     public var onOpenAISetup: (@MainActor @Sendable () -> Void)?
@@ -81,10 +87,25 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             keychain: environment.keychain,
             calendar: environment.workCalendar
         )
+        self.sync = environment.databaseQueue.map {
+            SyncController(
+                queue: $0,
+                databaseURL: environment.databaseURL,
+                settings: environment.settings,
+                keychain: environment.keychain
+            )
+        }
         self.showOnAllDesktops = UserDefaults.standard.object(forKey: Self.desktopsKey) as? Bool ?? false
         super.init()
         self.todayModel.startWorkflowPolling()
+        self.obsidian.onStatusChange = { [weak self] status in self?.syncBadges.obsidian = status }
+        self.sync?.onStatusChange = { [weak self] status in self?.syncBadges.server = status }
+        self.syncBadges.onOpenServer = { [weak self] in self?.showSettings(tab: "Sync") }
+        self.syncBadges.onOpenObsidian = { [weak self] in self?.showSettings(tab: "Obsidian") }
         self.obsidian.start()
+        if let sync = self.sync {
+            Task { @MainActor in await sync.start() }
+        }
         self.todayModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
         self.todayModel.onFocusTask = { [weak self] id in self?.presentFocus(id) }
         self.contactsModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
@@ -392,6 +413,45 @@ public final class WindowManager: NSObject, NSWindowDelegate {
 
     /// Shows the window for `kind`, creating it on first use. Re-showing an
     /// open window just brings it to the front.
+    /// Runs `then` with a copy on this Mac, downloading a big synced file
+    /// first. The task window shows a spinner while it downloads.
+    private func withLocalFile(_ attachment: Attachment, then: @escaping @MainActor (Attachment) -> Void) {
+        guard attachment.isOnServerOnly, let sync else {
+            then(attachment)
+            return
+        }
+        let id = attachment.id.description
+        NotificationCenter.default.post(
+            name: TodayFlowEvents.attachmentDownload, object: nil, userInfo: ["id": id, "downloading": true]
+        )
+        Task { @MainActor in
+            let fetched = await sync.fetchFile(for: attachment)
+            NotificationCenter.default.post(
+                name: TodayFlowEvents.attachmentDownload, object: nil, userInfo: ["id": id, "downloading": false]
+            )
+            NotificationCenter.default.post(name: TodayFlowEvents.attachmentsChanged, object: nil)
+            if let fetched {
+                then(fetched)
+            } else {
+                let alert = NSAlert()
+                alert.messageText = "Couldn’t download “\(attachment.displayName)”"
+                alert.informativeText = sync.snapshot.isPaired
+                    ? "The server doesn’t have this file yet, or it can’t be reached. The Mac that added it uploads it the next time it syncs."
+                    : "This Mac isn’t paired with a server. Pair it in Settings ▸ Sync."
+                alert.runModal()
+            }
+        }
+    }
+
+    /// Opens Settings on one tab ("Sync", "Obsidian"), reopening the window
+    /// if it is already showing another tab.
+    public func showSettings(tab: String) {
+        if windows[.settings] != nil { close(.settings) }
+        settingsTab = tab
+        show(.settings)
+        settingsTab = nil
+    }
+
     public func show(_ kind: WindowKind) {
         // Keep the AVKit-backed tutorial on its own construction path. Adding
         // it to the shared content switch can make Swift instantiate player
@@ -707,7 +767,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 pinMiniCalendar: { [weak self] corner in
                     self?.pinMiniCalendar(to: corner)
                 }
-            )
+            ),
+            syncBadges: syncBadges
         )
     }
 
@@ -850,6 +911,8 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 onObsidianOpenNote: { [weak self] in
                     self?.openObsidianSyncNote()
                 },
+                sync: sync,
+                initialTab: settingsTab,
                 onSaved: { [weak self] in
                     guard let self, let window = self.windows[.settings] else { return }
                     let frame = window.frame
@@ -909,13 +972,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             let _ = attachAssistant(to: model)
             let _ = registerDetail(model, id: id)
             let actions = attachmentActions
+            let local: @MainActor (Attachment, @escaping @MainActor (Attachment) -> Void) -> Void = { [weak self] attachment, then in
+                self?.withLocalFile(attachment, then: then)
+            }
             DetailView(
                 model: model,
-                onOpenAttachment: { actions.open($0) },
-                onOpenAttachmentWith: { actions.chooseApplication(for: $0) },
+                onOpenAttachment: { local($0) { actions.open($0) } },
+                onOpenAttachmentWith: { local($0) { actions.chooseApplication(for: $0) } },
                 defaultApplicationName: { actions.defaultApplicationName(for: $0) },
-                onQuickLookAttachment: { actions.quickLook($0) },
-                onRevealAttachment: { actions.reveal($0) },
+                onQuickLookAttachment: { local($0) { actions.quickLook($0) } },
+                onRevealAttachment: { local($0) { actions.reveal($0) } },
                 onDropAttachment: { [weak self] providers in
                     self?.handleDrop(providers, onto: id) ?? false
                 },

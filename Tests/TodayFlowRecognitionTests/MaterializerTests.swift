@@ -65,9 +65,9 @@ struct MaterializerTests {
     @Test("folderGetsBookmark")
     func folderGetsBookmark() {
         let (materializer, fake) = makeMaterializer()
-        let recognized = RecognizedObject(type: .folder, displayName: "Projects", reference: "/Users/afonso/Projects")
+        let recognized = RecognizedObject(type: .folder, displayName: "Projects", reference: "/Users/me/Projects")
         let source = DroppedObject(
-            fileURL: URL(fileURLWithPath: "/Users/afonso/Projects"),
+            fileURL: URL(fileURLWithPath: "/Users/me/Projects"),
             isDirectory: true
         )
 
@@ -76,7 +76,7 @@ struct MaterializerTests {
         #expect(result.bookmark == Data([0x42]))
         #expect(result.localCopyPath == nil)
         #expect(fake.copies.isEmpty)
-        #expect(fake.bookmarkRequests == [URL(fileURLWithPath: "/Users/afonso/Projects")])
+        #expect(fake.bookmarkRequests == [URL(fileURLWithPath: "/Users/me/Projects")])
     }
 
     @Test("writesImageDataIntoContainer")

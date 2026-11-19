@@ -9,7 +9,7 @@ struct LinkInputTests {
     }
 
     @Test func keepsALinkThatAlreadyHasAScheme() {
-        #expect(LinkInput.url(from: "http://10.0.2.95:8080/")?.absoluteString == "http://10.0.2.95:8080/")
+        #expect(LinkInput.url(from: "http://192.168.1.95:8080/")?.absoluteString == "http://192.168.1.95:8080/")
         #expect(LinkInput.url(from: "mailto:someone@example.com")?.scheme == "mailto")
         #expect(LinkInput.url(from: "obsidian://open?vault=Notes")?.scheme == "obsidian")
     }
