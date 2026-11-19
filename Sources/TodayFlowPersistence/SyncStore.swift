@@ -111,6 +111,19 @@ public final class SyncStore: Sendable {
         }
     }
 
+    /// Re-dates pending changes stamped in the future to now. Returns how
+    /// many were changed.
+    @discardableResult
+    public func clampFutureChanges() async throws -> Int {
+        try await queue.write { db in
+            try db.execute(sql: """
+                UPDATE sync_change SET changed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE changed_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                """)
+            return db.changesCount
+        }
+    }
+
     public func pendingCount() async throws -> Int {
         try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sync_change") ?? 0
@@ -137,9 +150,13 @@ public final class SyncStore: Sendable {
         try await queue.write { db in
             for table in SyncTables.all {
                 let columns = try Set(db.columns(in: table.name).map(\.name))
+                // Never later than now: a row stamped in the future (an
+                // import, a Mac whose clock was once ahead) would be refused
+                // by the server and would beat every real edit.
+                let now = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
                 let time = ["updated_at", "created_at", "occurred_at"].first(where: columns.contains)
-                    .map { "COALESCE(\($0), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))" }
-                    ?? "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
+                    .map { "MIN(COALESCE(\($0), \(now)), \(now))" }
+                    ?? now
                 try db.execute(sql: """
                     INSERT OR IGNORE INTO sync_change (entity, row_id, changed_at)
                     SELECT '\(table.name)', \(table.key.map { "\"\($0)\"" }.joined(separator: " || '|' || ")), \(time)

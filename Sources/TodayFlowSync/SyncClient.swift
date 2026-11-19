@@ -322,6 +322,8 @@ public struct SyncRunner: Sendable {
             try await downloadFiles(into: filesDirectory, report: &report)
             try await uploadFiles(report: &report)
         }
+        // The server refuses changes dated in the future.
+        try await store.clampFutureChanges()
         // Push in batches. A row edited during the push stays pending for the
         // next round, so a busy Mac never loops forever.
         for _ in 0..<500 {

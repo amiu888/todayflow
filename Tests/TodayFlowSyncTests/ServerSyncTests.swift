@@ -14,8 +14,13 @@ actor FakeServer {
     private var seq: Int64 = 0
     var pageSize = 1000
 
-    func push(_ changes: [SyncChange], device: String) -> [SyncClient.PushResult] {
-        changes.map { change in
+    /// Like the server: a change dated over 10 minutes ahead fails the push.
+    struct FutureChange: Error {}
+
+    func push(_ changes: [SyncChange], device: String) throws -> [SyncClient.PushResult] {
+        let limit = SqlTimestamp.encode(Date().addingTimeInterval(600))
+        if changes.contains(where: { $0.changedAt > limit }) { throw FutureChange() }
+        return changes.map { change in
             let key = change.entity + "/" + change.id
             if let existing = records[key], existing.change.changedAt > change.changedAt {
                 return .init(entity: change.entity, id: change.id, status: "stale", current: existing.change)
@@ -55,7 +60,7 @@ struct FakeTransport: SyncTransport {
         await server.pull(since: since, limit: limit, device: device)
     }
     func push(_ changes: [SyncChange]) async throws -> [SyncClient.PushResult] {
-        await server.push(changes, device: device)
+        try await server.push(changes, device: device)
     }
     func hasBlob(_ sha256: String) async throws -> Bool { await server.hasBlob(sha256) }
     func putBlob(file: URL, sha256: String) async throws { await server.putBlob(try Data(contentsOf: file), sha256) }
@@ -200,6 +205,27 @@ struct ServerSyncTests {
         try await a.sync()
         #expect(await a.title(fromB.id) == fromB.title)
         #expect(await b.title(fromA.id) == fromA.title)
+    }
+
+    @Test func rowsStampedInTheFuture_areSentDatedNow() async throws {
+        let server = FakeServer()
+        let a = try Mac("A", server: server)
+        let b = try Mac("B", server: server)
+        let later = Date().addingTimeInterval(20 * 24 * 3600)
+        let item = WorkItem(title: "Imported with a future time", createdAt: later, updatedAt: later)
+        try await a.items.save(item)
+        // First sync after pairing: existing rows dated by updated_at.
+        try await a.queue.write { try $0.execute(sql: "DELETE FROM sync_change") }
+        try await a.store.markAllPending()
+        #expect(try await a.store.pendingChanges().allSatisfy { $0.changedAt <= SqlTimestamp.encode(Date()) })
+        // A change already queued with a future date (from an older build).
+        try await a.queue.write {
+            try $0.execute(sql: "UPDATE sync_change SET changed_at = '2099-01-01T00:00:00.000Z'")
+        }
+        try await a.sync()
+        #expect(try await a.store.pendingCount() == 0)
+        try await b.sync()
+        #expect(await b.title(item.id) == "Imported with a future time")
     }
 
     @Test func childrenAndCompositeKeys_sync() async throws {
