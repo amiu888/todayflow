@@ -83,6 +83,23 @@ public struct ContactsView: View {
         .sheet(isPresented: $showingDuplicates) {
             ContactDuplicatesView(model: model)
         }
+        .sheet(item: Binding(
+            get: { model.pendingDrops.first },
+            set: { if $0 == nil, !model.pendingDrops.isEmpty { model.cancelPendingDrops() } }
+        )) { pending in
+            ContactCompareView(
+                existing: pending.match.existing,
+                dropped: pending.imported.contact(deviceId: "local", at: .now),
+                reason: pending.match.explanation,
+                progress: model.pendingDropProgress,
+                cancelTitle: "Don't Add",
+                onChoose: { choice in
+                    Task { await model.resolvePendingDrop(choice) }
+                },
+                onCancel: { model.skipPendingDrop() }
+            )
+            .id(pending.id)
+        }
         .alert(
             newGroupParentId == nil ? "New group" : "New subgroup",
             isPresented: $showingNewGroup

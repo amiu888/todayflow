@@ -73,6 +73,9 @@ public final class CaptureViewModel {
     /// Contacts detected in this capture. The sheet renders one card per
     /// contact with an opt-out, group picker, and duplicate resolution.
     public var contactDrops: [CaptureContactDrop] = []
+    /// Set while the side-by-side compare window is open.
+    public private(set) var comparingContactDropId: UUID?
+    @ObservationIgnored private var saveAfterContactChoice = false
     public private(set) var contactGroups: [ContactGroup] = []
 
     /// Raw drops, index-aligned with `draft.objects`.
@@ -185,6 +188,8 @@ public final class CaptureViewModel {
             CaptureContactDrop(imported: $0)
         }
         self.savedContactDropIds = []
+        self.comparingContactDropId = nil
+        self.saveAfterContactChoice = false
         self.savedItem = nil
         self.lastError = nil
         self.isSaving = false
@@ -196,31 +201,53 @@ public final class CaptureViewModel {
     public func loadContactGroups() async {
         guard let contactRepository else { return }
         contactGroups = await contactRepository.groups()
+        await refreshContactMatches()
+    }
+
+    /// Checks dropped contacts that haven't been checked yet against Contacts.
+    public func refreshContactMatches() async {
+        guard let contactRepository else { return }
         let existing = await contactRepository.contacts()
-        for index in contactDrops.indices {
-            contactDrops[index].duplicate = Self.duplicate(
+        for index in contactDrops.indices where contactDrops[index].choice == nil {
+            contactDrops[index].match = ContactMatcher.match(
                 for: contactDrops[index].imported,
                 in: existing
             )
         }
     }
 
-    private static func duplicate(
-        for imported: ImportedContact,
-        in existing: [Contact]
-    ) -> Contact? {
-        let emails = Set(imported.canonicalEmails)
-        let phones = Set(imported.canonicalPhones)
-        return existing.first { contact in
-            if let externalId = imported.externalId,
-               contact.externalId == externalId,
-               contact.source == imported.source
-            {
-                return true
-            }
-            return !emails.isDisjoint(with: Set(contact.canonicalEmails))
-                || !phones.isDisjoint(with: Set(contact.canonicalPhones))
+    // MARK: - Duplicate contacts
+
+    /// The dropped contact shown in the compare window, if any.
+    public var comparingContactDrop: CaptureContactDrop? {
+        guard let comparingContactDropId else { return nil }
+        return contactDrops.first { $0.id == comparingContactDropId }
+    }
+
+    public func compareContactDrop(_ id: UUID) {
+        saveAfterContactChoice = false
+        comparingContactDropId = id
+    }
+
+    /// Records the choice; continues a save that was waiting for it.
+    public func chooseContactDrop(_ choice: ContactDropChoice) async {
+        guard let id = comparingContactDropId,
+              let index = contactDrops.firstIndex(where: { $0.id == id })
+        else { return }
+        contactDrops[index].choice = choice
+        comparingContactDropId = nil
+        guard saveAfterContactChoice else { return }
+        if let next = contactDrops.first(where: \.needsChoice) {
+            comparingContactDropId = next.id
+        } else {
+            saveAfterContactChoice = false
+            await save()
         }
+    }
+
+    public func cancelContactCompare() {
+        comparingContactDropId = nil
+        saveAfterContactChoice = false
     }
 
     /// Adds objects dropped onto the open sheet. Nothing the user typed is
@@ -243,6 +270,7 @@ public final class CaptureViewModel {
             contentsOf: recognized.compactMap(\.contact).map { CaptureContactDrop(imported: $0) }
         )
         lastError = nil
+        Task { await refreshContactMatches() }
     }
 
     /// Shown when a drop onto the sheet had nothing readable.
@@ -370,6 +398,12 @@ public final class CaptureViewModel {
     /// Creates the work item and its attachments from the current draft.
     public func save() async {
         guard !isSaving else { return }
+        // A dropped contact that matches one in Contacts: ask before saving.
+        if let waiting = contactDrops.first(where: \.needsChoice) {
+            saveAfterContactChoice = true
+            comparingContactDropId = waiting.id
+            return
+        }
         isSaving = true
         lastError = nil
         Diagnostics.log(
@@ -533,24 +567,13 @@ public final class CaptureViewModel {
                 let incoming = drop.imported.contact(deviceId: deviceId, at: now)
                 let contact: Contact
                 if let duplicate = drop.duplicate {
-                    switch drop.resolution {
-                    case .useExisting:
-                        contact = await repository.contact(duplicate.id) ?? duplicate
-                    case .merge:
-                        let current = await repository.contact(duplicate.id) ?? duplicate
-                        let merged = ContactMerger.merge(
-                            [current, incoming],
-                            primary: current,
-                            at: now
-                        )
-                        try await repository.save(merged)
-                        contact = merged
-                    case .keepSeparate:
-                        var separate = incoming
-                        separate.source = "drag"
-                        separate.externalId = nil
-                        try await repository.save(separate)
-                        contact = separate
+                    let current = await repository.contact(duplicate.id) ?? duplicate
+                    let choice = drop.choice ?? .keepBoth
+                    if let changed = choice.contactToSave(existing: current, dropped: incoming, at: now) {
+                        try await repository.save(changed)
+                        contact = changed
+                    } else {
+                        contact = current
                     }
                 } else {
                     var created = incoming
@@ -570,7 +593,7 @@ public final class CaptureViewModel {
                 savedContactDropIds.insert(drop.id)
                 Diagnostics.log(
                     "contacts",
-                    "drop contact=\(contact.id) task=\(item.id) resolution=\(drop.resolution.rawValue)"
+                    "drop contact=\(contact.id) task=\(item.id) choice=\(drop.duplicate == nil ? "new" : (drop.choice ?? .keepBoth).logName)"
                 )
             } catch {
                 Diagnostics.log("contacts", "drop save failed: \(error)")

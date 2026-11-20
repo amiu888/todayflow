@@ -64,8 +64,26 @@ public struct CaptureSheetHost: View {
             },
             onDropProviders: onDropProviders,
             onPaste: onPaste,
-            onAddLink: onAddLink
+            onAddLink: onAddLink,
+            onCompareContact: { id in viewModel.compareContactDrop(id) }
         )
+        .sheet(isPresented: Binding(
+            get: { viewModel.comparingContactDrop != nil },
+            set: { if !$0 { viewModel.cancelContactCompare() } }
+        )) {
+            if let drop = viewModel.comparingContactDrop, let match = drop.match {
+                ContactCompareView(
+                    existing: match.existing,
+                    dropped: drop.imported.contact(deviceId: "local", at: .now),
+                    reason: match.explanation,
+                    allowsUseExisting: true,
+                    onChoose: { choice in
+                        Task { @MainActor in await viewModel.chooseContactDrop(choice) }
+                    },
+                    onCancel: { viewModel.cancelContactCompare() }
+                )
+            }
+        }
         .task {
             await model.loadParents()
             await model.loadContactGroups()

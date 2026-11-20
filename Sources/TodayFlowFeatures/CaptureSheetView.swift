@@ -40,6 +40,9 @@ public struct CaptureSheetView: View {
     public let onPaste: (@MainActor (Bool) -> Bool)?
     /// Adds a typed link to the draft as an attachment.
     public let onAddLink: (@MainActor (URL) -> Void)?
+    /// Opens the side-by-side compare for a dropped contact that matches one
+    /// already in Contacts.
+    public let onCompareContact: (@MainActor (UUID) -> Void)?
 
     public init(
         draft: Binding<CaptureDraft>,
@@ -55,9 +58,11 @@ public struct CaptureSheetView: View {
         onCreateProject: (@Sendable (String) -> Void)? = nil,
         onDropProviders: (@MainActor ([NSItemProvider]) -> Bool)? = nil,
         onPaste: (@MainActor (Bool) -> Bool)? = nil,
-        onAddLink: (@MainActor (URL) -> Void)? = nil
+        onAddLink: (@MainActor (URL) -> Void)? = nil,
+        onCompareContact: (@MainActor (UUID) -> Void)? = nil
     ) {
         self.onAddLink = onAddLink
+        self.onCompareContact = onCompareContact
         self.onCreateProject = onCreateProject
         self.onDropProviders = onDropProviders
         self.onPaste = onPaste
@@ -578,19 +583,20 @@ public struct CaptureSheetView: View {
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                                 Spacer()
-                                Menu {
-                                    ForEach(ContactDuplicateResolution.allCases) { resolution in
-                                        Button(resolution.label) {
-                                            drop.resolution = resolution
-                                        }
-                                    }
+                                Button {
+                                    onCompareContact?(drop.id)
                                 } label: {
-                                    Label(drop.resolution.label, systemImage: "arrow.triangle.merge")
-                                        .font(.caption2)
+                                    Label(
+                                        drop.choice?.label ?? "Compare…",
+                                        systemImage: "rectangle.split.2x1"
+                                    )
+                                    .font(.caption2.weight(.semibold))
                                 }
-                                .menuStyle(.borderlessButton)
-                                .fixedSize()
-                                .help(drop.resolution.hint)
+                                .buttonStyle(.borderless)
+                                .help(drop.choice == nil
+                                    ? "Compare side by side, then Keep Both, Replace or Merge"
+                                    : "Change what happens to this contact")
+                                .accessibilityIdentifier("contact-drop-compare")
                             } else {
                                 Text("New contact")
                                     .font(.caption2)

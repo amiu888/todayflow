@@ -33,6 +33,14 @@ public final class ContactsViewModel {
     public private(set) var importSourceLabel = ""
     public var isImporting = false
 
+    /// Dropped contacts that match an existing one, waiting for the user.
+    public private(set) var pendingDrops: [PendingContactDrop] = []
+    @ObservationIgnored private var pendingDropTotal = 0
+    @ObservationIgnored private var pendingDropsAdded = 0
+    @ObservationIgnored private var pendingDropsReplaced = 0
+    @ObservationIgnored private var pendingDropsMerged = 0
+    @ObservationIgnored private var pendingDropsSkipped = 0
+
     @ObservationIgnored private let repository: any ContactRepository
     @ObservationIgnored private let workItems: any WorkItemRepository
     @ObservationIgnored private let deviceId: String
@@ -337,42 +345,130 @@ public final class ContactsViewModel {
         }
     }
 
-    /// Imports vCard/CSV/text contacts dropped from another app. Matches merge
-    /// by email/phone; the target group is added to every touched contact.
+    /// Imports vCard/CSV/text contacts dropped from another app. Each one is
+    /// added as a new contact; one that matches an existing contact waits in
+    /// `pendingDrops` for the user to Keep Both, Replace or Merge.
     public func importDroppedContacts(
         _ providers: [NSItemProvider],
         into groupId: UUIDv7?
     ) async {
         let records = await ContactProviderImporter.contacts(from: providers)
+        await importDropped(records, into: groupId)
+    }
+
+    public func importDropped(_ records: [ImportedContact], into groupId: UUIDv7?) async {
         guard !records.isEmpty else {
             flash("No contact details found in that drop.")
             return
         }
         let freshContacts = await repository.contacts()
         let freshGroups = await repository.groups()
-        var plan = ContactImporter().plan(
-            importing: records,
-            existing: freshContacts,
-            existingGroups: freshGroups,
-            deviceId: deviceId,
-            now: clock()
-        )
-        if let groupId {
-            for contact in plan.contacts {
-                plan.groupAssignments[contact.id, default: []].append(groupId)
+        var fresh: [ImportedContact] = []
+        var matched: [PendingContactDrop] = []
+        for record in records {
+            if let match = ContactMatcher.match(for: record, in: freshContacts) {
+                matched.append(PendingContactDrop(imported: record, match: match, groupId: groupId))
+            } else {
+                fresh.append(record)
             }
         }
-        do {
-            try await repository.applyImport(plan)
-            await load()
-            if let groupId, let group = groups.first(where: { $0.id == groupId }) {
-                flash("Added \(plan.importedCount) · merged \(plan.mergedCount) into \(group.name).")
-            } else {
-                flash("Added \(plan.importedCount) · merged \(plan.mergedCount) contacts.")
+        var added = 0
+        if !fresh.isEmpty {
+            var plan = ContactImporter().plan(
+                importing: fresh,
+                existing: [],
+                existingGroups: freshGroups,
+                deviceId: deviceId,
+                now: clock()
+            )
+            if let groupId {
+                for contact in plan.contacts {
+                    plan.groupAssignments[contact.id, default: []].append(groupId)
+                }
             }
+            do {
+                try await repository.applyImport(plan)
+                added = plan.contacts.count
+            } catch {
+                lastError = error.localizedDescription
+                return
+            }
+        }
+        await load()
+        pendingDrops.append(contentsOf: matched)
+        pendingDropTotal += matched.count
+        pendingDropsAdded += added
+        if pendingDrops.isEmpty { finishPendingDrops() }
+    }
+
+    /// Applies the user's choice to the first waiting contact.
+    public func resolvePendingDrop(_ choice: ContactDropChoice) async {
+        guard let pending = pendingDrops.first else { return }
+        let now = clock()
+        let incoming = pending.imported.contact(deviceId: deviceId, at: now)
+        let current = await repository.contact(pending.match.existing.id) ?? pending.match.existing
+        do {
+            var contact = current
+            if let changed = choice.contactToSave(existing: current, dropped: incoming, at: now) {
+                try await repository.save(changed)
+                contact = changed
+            }
+            if let groupId = pending.groupId {
+                let existing = Set(await repository.groupIds(for: contact.id))
+                try await repository.setGroups(Array(existing.union([groupId])), for: contact.id)
+            }
+            switch choice {
+            case .keepBoth: pendingDropsAdded += 1
+            case .replace: pendingDropsReplaced += 1
+            case .merge: pendingDropsMerged += 1
+            case .useExisting: pendingDropsSkipped += 1
+            }
+            Diagnostics.log("contacts", "drop into Contacts choice=\(choice.logName) contact=\(contact.id)")
         } catch {
             lastError = error.localizedDescription
         }
+        pendingDrops.removeFirst()
+        await load()
+        if pendingDrops.isEmpty { finishPendingDrops() }
+    }
+
+    /// Leaves the first waiting contact out.
+    public func skipPendingDrop() {
+        guard !pendingDrops.isEmpty else { return }
+        pendingDrops.removeFirst()
+        pendingDropsSkipped += 1
+        if pendingDrops.isEmpty { finishPendingDrops() }
+    }
+
+    /// Leaves out every waiting contact.
+    public func cancelPendingDrops() {
+        pendingDropsSkipped += pendingDrops.count
+        pendingDrops.removeAll()
+        finishPendingDrops()
+    }
+
+    /// "2 of 3" for the compare window.
+    public var pendingDropProgress: String? {
+        guard pendingDropTotal > 1 else { return nil }
+        return "\(pendingDropTotal - pendingDrops.count + 1) of \(pendingDropTotal)"
+    }
+
+    private func finishPendingDrops() {
+        var parts: [String] = []
+        if pendingDropsAdded > 0 { parts.append("Added \(pendingDropsAdded)") }
+        if pendingDropsReplaced > 0 { parts.append("replaced \(pendingDropsReplaced)") }
+        if pendingDropsMerged > 0 { parts.append("merged \(pendingDropsMerged)") }
+        if pendingDropsSkipped > 0 { parts.append("skipped \(pendingDropsSkipped)") }
+        if !parts.isEmpty {
+            var text = parts.joined(separator: " · ")
+            text = text.prefix(1).uppercased() + text.dropFirst()
+            flash(text + (pendingDropsAdded + pendingDropsReplaced + pendingDropsMerged + pendingDropsSkipped == 1 ? " contact." : " contacts."))
+        }
+        pendingDropTotal = 0
+        pendingDropsAdded = 0
+        pendingDropsReplaced = 0
+        pendingDropsMerged = 0
+        pendingDropsSkipped = 0
     }
 
     private func flash(_ message: String) {
@@ -443,3 +539,11 @@ public final class ContactsViewModel {
     }
 }
 
+
+/// A dropped contact that matches one already in Contacts.
+public struct PendingContactDrop: Identifiable, Hashable, Sendable {
+    public let id = UUID()
+    public var imported: ImportedContact
+    public var match: ContactMatch
+    public var groupId: UUIDv7?
+}

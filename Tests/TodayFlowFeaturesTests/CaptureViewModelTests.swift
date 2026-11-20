@@ -901,7 +901,22 @@ func contactDropCanBeExcludedFromContacts() async {
 }
 
 @Test @MainActor
-func contactDropMergesADuplicateByDefault() async {
+func contactDropWithoutAMatch_isAddedAsANewContact() async {
+    let f = Fixture()
+    try? await f.contactRepository.save(Contact(firstName: "Bob", emails: ["bob@else.com"]))
+    f.vm.prepare(
+        dropped: [DroppedObject(text: vcardText, sourceApp: "contacts")],
+        recognized: [contactObject()]
+    )
+    await f.vm.loadContactGroups()
+    #expect(f.vm.contactDrops[0].match == nil)
+
+    await f.vm.save()
+    #expect(await f.contactRepository.contacts().count == 2)
+}
+
+@Test @MainActor
+func contactDropWithAMatch_asksBeforeSaving() async {
     let f = Fixture()
     let existing = Contact(firstName: "Jane", company: "", emails: ["jane@acme.com"])
     try? await f.contactRepository.save(existing)
@@ -911,17 +926,28 @@ func contactDropMergesADuplicateByDefault() async {
     )
     await f.vm.loadContactGroups()
     #expect(f.vm.contactDrops[0].duplicate?.id == existing.id)
-    #expect(f.vm.contactDrops[0].resolution == .merge)
+    #expect(f.vm.contactDrops[0].choice == nil)
 
     await f.vm.save()
+    // Nothing saved yet: the compare window is open.
+    #expect(f.vm.savedItem == nil)
+    #expect(f.vm.comparingContactDrop?.id == f.vm.contactDrops[0].id)
+
+    let draft = ContactMergeDraft(
+        existing: existing,
+        dropped: f.vm.contactDrops[0].imported.contact(deviceId: "t", at: .now)
+    )
+    await f.vm.chooseContactDrop(.merge(draft))
+    // Choosing continues the save.
+    let taskId = try! #require(f.vm.savedItem?.id)
     let contacts = await f.contactRepository.contacts()
     #expect(contacts.count == 1)
     #expect(contacts.first?.company == "Acme")
-    #expect(await f.contactRepository.contacts(forTask: f.vm.savedItem!.id).count == 1)
+    #expect(await f.contactRepository.contacts(forTask: taskId).count == 1)
 }
 
 @Test @MainActor
-func contactDropCanKeepASeparateDuplicate() async {
+func contactDropCanKeepBoth() async {
     let f = Fixture()
     try? await f.contactRepository.save(
         Contact(firstName: "Jane", emails: ["jane@acme.com"])
@@ -931,10 +957,45 @@ func contactDropCanKeepASeparateDuplicate() async {
         recognized: [contactObject()]
     )
     await f.vm.loadContactGroups()
-    f.vm.contactDrops[0].resolution = .keepSeparate
+    f.vm.contactDrops[0].choice = .keepBoth
 
     await f.vm.save()
     #expect(await f.contactRepository.contacts().count == 2)
+}
+
+@Test @MainActor
+func contactDropCanReplaceTheExistingContact() async {
+    let f = Fixture()
+    let existing = Contact(firstName: "Janet", company: "Old Co", emails: ["jane@acme.com"])
+    try? await f.contactRepository.save(existing)
+    f.vm.prepare(
+        dropped: [DroppedObject(text: vcardText, sourceApp: "contacts")],
+        recognized: [contactObject()]
+    )
+    await f.vm.loadContactGroups()
+    f.vm.contactDrops[0].choice = .replace
+
+    await f.vm.save()
+    let contacts = await f.contactRepository.contacts()
+    #expect(contacts.count == 1)
+    #expect(contacts.first?.id == existing.id)
+    #expect(contacts.first?.firstName == "Jane")
+    #expect(contacts.first?.company == "Acme")
+}
+
+@Test @MainActor
+func cancellingTheCompare_savesNothing() async {
+    let f = Fixture()
+    try? await f.contactRepository.save(Contact(firstName: "Jane", emails: ["jane@acme.com"]))
+    f.vm.prepare(
+        dropped: [DroppedObject(text: vcardText, sourceApp: "contacts")],
+        recognized: [contactObject()]
+    )
+    await f.vm.loadContactGroups()
+    await f.vm.save()
+    f.vm.cancelContactCompare()
+    #expect(f.vm.savedItem == nil)
+    #expect(f.vm.comparingContactDrop == nil)
 }
 
 @Test @MainActor
