@@ -366,7 +366,7 @@ private struct MiniDayList: View {
                         MiniDayRow(item: item)
                     }
                     .buttonStyle(.plain)
-                    .help(item.descriptionMd.isEmpty ? item.title : item.descriptionMd)
+                    .help(item.descriptionMd.isEmpty ? item.title : DescriptionLog.plainText(item.descriptionMd))
                 }
             }
         }

@@ -408,7 +408,7 @@ public final class DetailViewModel {
                 : corrector.correctText(summary)
             async let correctedDescription: String = description.isEmpty
                 ? description
-                : corrector.correctText(description)
+                : Self.correctNotes(description, createdAt: item?.createdAt ?? clock(), with: corrector)
             let (newTitle, newSummary, newDescription) = try await (
                 correctedTitle,
                 correctedSummary,
@@ -501,6 +501,19 @@ public final class DetailViewModel {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    /// Corrects each note on its own, so the time markers are never touched.
+    private static func correctNotes(
+        _ markdown: String, createdAt: Date, with corrector: any AIAssistant
+    ) async throws -> String {
+        guard markdown.contains("<!-- note ") else { return try await corrector.correctText(markdown) }
+        var notes = DescriptionLog.notes(in: markdown, createdAt: createdAt)
+        for index in notes.indices {
+            let fixed = try await corrector.correctText(notes[index].text)
+            if !fixed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { notes[index].text = fixed }
+        }
+        return DescriptionLog.markdown(for: notes)
     }
 
     /// True when the editable fields differ from what is stored.
@@ -1208,6 +1221,51 @@ public final class DetailViewModel {
         await commit()
     }
 
+    // MARK: Description notes
+
+    /// The description as time-stamped notes, newest first.
+    public var notes: [DescriptionLog.Note] {
+        DescriptionLog.notes(in: edit.descriptionMd, createdAt: item?.createdAt ?? clock())
+    }
+
+    /// Adds a note stamped now and saves. A date in the note ("by Friday")
+    /// still sets the task's dates, as typing in the description did.
+    public func addNote(_ text: String) async {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let now = clock()
+        setDescriptionQuietly(DescriptionLog.adding(
+            text, at: now, to: edit.descriptionMd, createdAt: item?.createdAt ?? now
+        ))
+        let parser = ParseNaturalLanguageDates(calendar: calendar.calendar, workCalendar: calendar)
+        if parser.parse(edit.title, at: now).isEmpty, let hit = parser.parse(text, at: now).first {
+            edit.startAt = hit.start
+            edit.endAt = hit.end
+        }
+        await commit()
+    }
+
+    /// Changes a note's text; it keeps its time. Empty text deletes it.
+    public func updateNote(_ id: String, text: String) async {
+        setDescriptionQuietly(DescriptionLog.updating(
+            id, to: text, in: edit.descriptionMd, createdAt: item?.createdAt ?? clock()
+        ))
+        await commit()
+    }
+
+    public func deleteNote(_ id: String) async {
+        setDescriptionQuietly(DescriptionLog.removing(
+            id, from: edit.descriptionMd, createdAt: item?.createdAt ?? clock()
+        ))
+        await commit()
+    }
+
+    /// Changes the description without re-reading dates from old notes.
+    private func setDescriptionQuietly(_ markdown: String) {
+        isApplying = true
+        edit.descriptionMd = markdown
+        isApplying = false
+    }
+
     // MARK: Natural-language dates
 
     /// Re-resolves NL dates after a title/description keystroke (FR-05): the
@@ -1219,7 +1277,7 @@ public final class DetailViewModel {
         if let hit = parser.parse(edit.title, at: now).first {
             edit.startAt = hit.start
             edit.endAt = hit.end
-        } else if let hit = parser.parse(edit.descriptionMd, at: now).first {
+        } else if let hit = parser.parse(DescriptionLog.plainText(edit.descriptionMd), at: now).first {
             edit.startAt = hit.start
             edit.endAt = hit.end
         }

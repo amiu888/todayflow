@@ -445,7 +445,7 @@ public struct TrayStripView: View {
                         title: item.title,
                         tooltip: item.descriptionMd.isEmpty
                             ? item.title
-                            : item.descriptionMd,
+                            : DescriptionLog.plainText(item.descriptionMd),
                         onClick: { model.onOpenTask?(item.id) },
                         menuActions: [
                             .init("Open") { model.onOpenTask?(item.id) },
@@ -488,7 +488,7 @@ public struct TrayStripView: View {
                 Task { await model.removeFromTray(item.id, trayId: trayId) }
             }
         }
-        .help(item.descriptionMd.isEmpty ? item.title : item.descriptionMd)
+        .help(item.descriptionMd.isEmpty ? item.title : DescriptionLog.plainText(item.descriptionMd))
         .accessibilityIdentifier("tray-chip-\(item.title)")
         .onDrag {
             WorkItemDragPayload.itemProvider(for: item.id, sourceTray: trayId)

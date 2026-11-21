@@ -349,7 +349,7 @@ public struct FilterChipsView: View {
 
 /// Wraps filter chips onto a second row when the panel is narrow. Every
 /// control stays visible instead of clipping or hiding behind an overflow.
-private struct ChipFlowLayout: Layout {
+struct ChipFlowLayout: Layout {
     var spacing: CGFloat = 6
     var lineSpacing: CGFloat = 4
 

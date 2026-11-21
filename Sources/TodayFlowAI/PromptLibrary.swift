@@ -135,7 +135,7 @@ enum PromptContext {
             "  due: \(ISO8601DateFormatter().string(from: item.endAt))",
         ]
         if includeDescription, !item.descriptionMd.isEmpty {
-            lines.append("  description: \(item.descriptionMd.prefix(2_000))")
+            lines.append("  description: \(DescriptionLog.plainText(item.descriptionMd).prefix(2_000))")
         }
         return lines.joined(separator: "\n")
     }

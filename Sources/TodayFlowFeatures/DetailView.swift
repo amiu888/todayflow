@@ -553,7 +553,7 @@ public struct DetailView: View {
 
     @MainActor
     private func pillsRow(_ item: WorkItem) -> some View {
-        HStack(spacing: 8) {
+        ChipFlowLayout(spacing: 8, lineSpacing: 6) {
             statusPill
             priorityPill
             if item.kind == .task {
@@ -571,16 +571,6 @@ public struct DetailView: View {
                     RoundedRectangle(cornerRadius: DesignTokens.Spacing.cornerRadius)
                         .fill(.quaternary.opacity(0.5))
                 )
-
-            if let tags = model.item?.tags, !tags.isEmpty {
-                ForEach(tags, id: \.self) { tag in
-                    Text(tag)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(.quaternary.opacity(0.4)))
-                }
-            }
 
             if model.isSaving {
                 HStack(spacing: 4) {
@@ -606,6 +596,9 @@ public struct DetailView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
     }
 
     @MainActor
@@ -666,52 +659,63 @@ public struct DetailView: View {
 
     @MainActor
     private func tagsRow(_ item: WorkItem) -> some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .top, spacing: 8) {
             Image(systemName: "tag")
                 .font(.caption)
                 .foregroundStyle(DesignTokens.Palette.textSecondary)
+                .padding(.top, 5)
 
-            ForEach(item.tags, id: \.self) { tag in
-                HStack(spacing: 3) {
-                    Text(tag)
-                        .font(.caption2.weight(.medium))
-                    Button {
-                        Task { await model.removeTag(tag) }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 7, weight: .bold))
+            ChipFlowLayout(spacing: 6, lineSpacing: 6) {
+                ForEach(item.tags, id: \.self) { tag in
+                    HStack(spacing: 5) {
+                        Text(tag)
+                            .font(.caption.weight(.medium))
+                            .lineLimit(1)
+                            .fixedSize()
+                        Button {
+                            Task { await model.removeTag(tag) }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(DesignTokens.Palette.accent.opacity(0.7))
+                        .help("Remove tag “\(tag)”")
+                        .accessibilityLabel("Remove tag \(tag)")
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("Remove tag")
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(DesignTokens.Palette.accent.opacity(0.14)))
+                    .overlay(Capsule().stroke(DesignTokens.Palette.accent.opacity(0.25), lineWidth: 0.5))
+                    .foregroundStyle(DesignTokens.Palette.accent)
+                    .fixedSize()
                 }
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(DesignTokens.Palette.accent.opacity(0.16)))
-                .foregroundStyle(DesignTokens.Palette.accent)
-            }
 
-            TextField("Add tag", text: $newTag)
-                .textFieldStyle(.plain)
-                .font(.caption)
-                .frame(width: 78)
-                .onSubmit {
-                    let value = newTag
-                    newTag = ""
-                    Task { await model.addTag(value) }
-                }
-                .help("Type a tag and press Return")
+                TextField("Add tag", text: $newTag)
+                    .textFieldStyle(.plain)
+                    .font(.caption)
+                    .frame(width: 90)
+                    .padding(.vertical, 4)
+                    .onSubmit {
+                        let value = newTag
+                        newTag = ""
+                        Task { await model.addTag(value) }
+                    }
+                    .help("Type a tag and press Return")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if let onOpenInObsidian {
-                Spacer(minLength: 8)
                 Button {
                     onOpenInObsidian(item)
                 } label: {
                     Label("Obsidian", systemImage: "arrow.up.forward.app")
                         .font(.caption)
+                        .fixedSize()
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(DesignTokens.Palette.accent)
+                .padding(.top, 3)
                 .help("Open or create a note for this \(item.kind.label.lowercased()) in Obsidian")
                 .accessibilityLabel("Open in Obsidian")
             }
@@ -844,18 +848,12 @@ public struct DetailView: View {
 
     @MainActor
     private var descriptionSection: some View {
-        @Bindable var model = model
-
-        return TextEditor(text: $model.edit.descriptionMd)
-            .font(.body)
-            .frame(minHeight: 100, maxHeight: 200)
-            .scrollContentBackground(.hidden)
-            .padding(8)
-            .background(
-                RoundedRectangle(cornerRadius: DesignTokens.Spacing.cornerRadius)
-                    .fill(.quaternary.opacity(0.5))
-            )
-            .focused($focusedField, equals: .description)
+        DescriptionNotesView(
+            notes: model.notes,
+            onAdd: { text in Task { await model.addNote(text) } },
+            onUpdate: { id, text in Task { await model.updateNote(id, text: text) } },
+            onDelete: { id in Task { await model.deleteNote(id) } }
+        )
     }
 
     /// "Break down" (driver.md §8): AI suggestions checked by default, then
