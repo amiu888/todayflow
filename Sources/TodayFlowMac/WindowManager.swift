@@ -58,6 +58,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
 
     private static let desktopsKey = "todayflow.allDesktops"
 
+    /// Arranges, sorts and titles open task windows; owns the switcher.
+    public let taskWindows: TaskWindowArranger
+
     /// "Group related tasks" (row menu, task window Group… button).
     public let groupRelated: GroupRelatedController
 
@@ -91,6 +94,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         self.capture = CaptureWindowController(environment: environment)
         self.aiWriter = AIWriterController(environment: environment)
         self.groupRelated = GroupRelatedController(environment: environment)
+        self.taskWindows = TaskWindowArranger()
         self.capture.rewriteAction = AIRewriteAction { [aiWriter] text, field, applyTitle, apply in
             aiWriter.open(text: text, fieldName: field, applyTitle: applyTitle, near: NSApp.keyWindow, apply: apply)
         }
@@ -141,6 +145,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             Task { @MainActor in await sync.start() }
         }
         self.todayModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
+        self.taskWindows.windowsProvider = { [weak self] in
+            var result: [UUIDv7: NSWindow] = [:]
+            for (kind, window) in self?.windows ?? [:] {
+                if case .detail(let id) = kind { result[id] = window }
+            }
+            return result
+        }
+        self.taskWindows.itemProvider = { [weak self] id in self?.detailModels[id]?.item }
+        self.taskWindows.panelProvider = { [weak self] in self?.windows[.panel] ?? self?.windows[.slimBar] }
+        self.taskWindows.onClose = { [weak self] id in self?.windows[.detail(id)]?.performClose(nil) }
         self.todayModel.onGroupRelated = { [weak self] id in
             self?.groupRelated.present(for: id, near: self?.windows[.panel] ?? self?.windows[.slimBar])
         }
@@ -515,6 +529,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         windows[kind] = window
         window.delegate = self
         place(window, for: kind)
+        if case .detail(let id) = kind {
+            taskWindows.didOpen(id, window: window)
+        }
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
         if kind == .panel {
@@ -637,7 +654,10 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         guard let window = notification.object as? NSWindow else { return }
         rememberFrame(of: window)
         for (kind, open) in windows where open === window {
-            if case .detail(let id) = kind { detailModels[id] = nil }
+            if case .detail(let id) = kind {
+                detailModels[id] = nil
+                taskWindows.didClose(id)
+            }
         }
         windows = windows.filter { $0.value !== window }
     }
@@ -684,12 +704,26 @@ public final class WindowManager: NSObject, NSWindowDelegate {
 
     private func registerDetail(_ model: DetailViewModel, id: UUIDv7) {
         detailModels[id] = model
+        watchTitle(of: model, id: id)
         model.onSavedAndClosed = { [weak self] in
             guard let self, let window = self.windows[.detail(id)] else { return }
             let frame = window.frame
             window.close()
             self.windows[.detail(id)] = nil
             SavedToast.show(centeredOn: frame)
+        }
+    }
+
+    /// Retitles (and re-sorts) the task window when its task changes.
+    private func watchTitle(of model: DetailViewModel, id: UUIDv7) {
+        withObservationTracking {
+            _ = model.item
+        } onChange: { [weak self, weak model] in
+            Task { @MainActor in
+                guard let self, let model, self.detailModels[id] === model else { return }
+                self.taskWindows.didChange(id)
+                self.watchTitle(of: model, id: id)
+            }
         }
     }
 

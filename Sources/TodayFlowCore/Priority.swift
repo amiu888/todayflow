@@ -24,6 +24,9 @@ public enum Priority: Int, Codable, CaseIterable, Sendable, Comparable, Hashable
         }
     }
 
+    /// "P1" … "P4", for window titles.
+    public var shortLabel: String { "P\(rawValue)" }
+
     /// SF Symbol point name for the priority dot (driver.md §4).
     public var symbolName: String {
         "circle.fill"

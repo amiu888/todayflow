@@ -190,3 +190,58 @@ func panelContentViewFitsMinimumWidth() async throws {
     print("PANEL contentFrame=\(window.contentView?.frame ?? .zero) fitting=\(window.contentView?.fittingSize ?? .zero) intrinsic=\(window.contentView?.intrinsicContentSize ?? .zero)")
     #expect(window.contentView?.frame.width == DesignTokens.Window.panelMinimum.width)
 }
+
+// MARK: - Task window stack
+
+@MainActor
+private func waitUntil(_ condition: @MainActor () -> Bool) async {
+    for _ in 0..<100 {
+        if condition() { return }
+        try? await Task.sleep(for: .milliseconds(20))
+    }
+}
+
+struct TaskWindowArrangementTests {
+    @Test @MainActor
+    func stackSortsByPriorityTitlesWindowsAndShowsEveryTitleBar() async throws {
+        let workItems = InMemoryWorkItemRepository()
+        let now = Date()
+        let low = WorkItem(title: "Low one", priority: .low, endAt: now.addingTimeInterval(7_200))
+        let urgent = WorkItem(title: "Urgent one", priority: .urgent, endAt: now.addingTimeInterval(3_600))
+        let high = WorkItem(title: "High one", priority: .high, endAt: now.addingTimeInterval(1_800))
+        for item in [low, urgent, high] { await workItems.seed(item) }
+        let environment = AppEnvironment(
+            workItems: workItems,
+            links: InMemoryLinkRepository(),
+            attachments: InMemoryAttachmentRepository(),
+            settings: InMemorySettingRepository(),
+            keychain: InMemoryKeychainStore(),
+            pipeline: .standard
+        )
+        let manager = WindowManager(environment: environment)
+        let arranger = manager.taskWindows
+        let previousLayout = arranger.layout
+        let previousOrder = arranger.order
+        defer {
+            arranger.setLayout(previousLayout)
+            arranger.setOrder(previousOrder)
+        }
+        arranger.setOrder(.priority)
+        for item in [low, urgent, high] { manager.show(.detail(item.id)) }
+        await waitUntil { arranger.model.entries.count == 3 }
+
+        #expect(arranger.model.entries.map(\.title) == ["Urgent one", "High one", "Low one"])
+        let urgentWindow = try #require(manager.window(for: .detail(urgent.id)))
+        #expect(urgentWindow.title.hasPrefix("P1 · Due "))
+        #expect(urgentWindow.title.hasSuffix(" — Urgent one"))
+
+        arranger.setLayout(.stack)
+        let frames = [urgent, high, low].compactMap { manager.window(for: .detail($0.id))?.frame }
+        #expect(frames.count == 3)
+        // Front (urgent) lowest; each window behind it one title bar higher.
+        #expect(frames[0].maxY < frames[1].maxY)
+        #expect(frames[1].maxY < frames[2].maxY)
+        #expect(Set(frames.map(\.minX)).count == 1)
+        manager.closeAll()
+    }
+}

@@ -370,6 +370,36 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewItem.submenu = viewMenu
         main.addItem(viewItem)
 
+        // Window: arrange, sort and switch between task windows.
+        let windowItem = NSMenuItem()
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(responderItem("Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m"))
+        windowMenu.addItem(NSMenuItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: ""))
+        windowMenu.addItem(.separator())
+        windowMenu.addItem(item("Task Windows…", #selector(toggleTaskWindowsMenu), key: "t", modifiers: [.command, .option]))
+        let arrangeItem = NSMenuItem(title: "Arrange Task Windows", action: nil, keyEquivalent: "")
+        let arrangeMenu = NSMenu(title: "Arrange Task Windows")
+        for (index, layout) in TaskWindowLayout.allCases.enumerated() {
+            let entry = item(layout.label, #selector(arrangeTaskWindowsMenu(_:)), key: "")
+            entry.tag = index
+            arrangeMenu.addItem(entry)
+        }
+        arrangeItem.submenu = arrangeMenu
+        windowMenu.addItem(arrangeItem)
+        let sortItem = NSMenuItem(title: "Sort Task Windows By", action: nil, keyEquivalent: "")
+        let sortMenu = NSMenu(title: "Sort Task Windows By")
+        for (index, order) in TaskWindowOrder.allCases.enumerated() {
+            let entry = item(order.label, #selector(sortTaskWindowsMenu(_:)), key: "")
+            entry.tag = index
+            sortMenu.addItem(entry)
+        }
+        sortItem.submenu = sortMenu
+        windowMenu.addItem(sortItem)
+        windowMenu.addItem(.separator())
+        windowItem.submenu = windowMenu
+        main.addItem(windowItem)
+        NSApp.windowsMenu = windowMenu
+
         let helpItem = NSMenuItem()
         let helpMenu = NSMenu(title: "Help")
         helpMenu.addItem(
@@ -585,6 +615,30 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func showCompletedMenu() {
         windows?.show(.completed)
+    }
+
+    /// Ticks the current task-window layout and sort in the Window menu.
+    @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(arrangeTaskWindowsMenu(_:)), let arranger = windows?.taskWindows {
+            menuItem.state = TaskWindowLayout.allCases.firstIndex(of: arranger.layout) == menuItem.tag ? .on : .off
+        } else if menuItem.action == #selector(sortTaskWindowsMenu(_:)), let arranger = windows?.taskWindows {
+            menuItem.state = TaskWindowOrder.allCases.firstIndex(of: arranger.order) == menuItem.tag ? .on : .off
+        }
+        return true
+    }
+
+    @objc private func toggleTaskWindowsMenu() {
+        windows?.taskWindows.toggleSwitcher()
+    }
+
+    @objc private func arrangeTaskWindowsMenu(_ sender: NSMenuItem) {
+        guard TaskWindowLayout.allCases.indices.contains(sender.tag) else { return }
+        windows?.taskWindows.setLayout(TaskWindowLayout.allCases[sender.tag])
+    }
+
+    @objc private func sortTaskWindowsMenu(_ sender: NSMenuItem) {
+        guard TaskWindowOrder.allCases.indices.contains(sender.tag) else { return }
+        windows?.taskWindows.setOrder(TaskWindowOrder.allCases[sender.tag])
     }
 
     /// ⌘K in the app; ⌃⌥F from any app.
