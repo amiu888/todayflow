@@ -432,7 +432,8 @@ public final class TodayViewModel {
         let day = activeDay
         let query = TodayQuery(repository: repository, calendar: calendar)
 
-        async let dayResult = query.execute(on: day, at: now)
+        let isToday = calendar.calendar.isDate(day, inSameDayAs: now)
+        async let dayResult = query.execute(on: day, at: now, onlyThatDay: !isToday)
         async let loadedLinks = linkRepository.allLinks()
         async let loadedItems = repository.allItems()
         let (r, allLinks, allItems) = await (dayResult, loadedLinks, loadedItems)

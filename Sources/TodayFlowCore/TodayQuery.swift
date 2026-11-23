@@ -58,11 +58,21 @@ public struct TodayQuery: Sendable {
         self.calendar = calendar
     }
 
-    public func execute(on day: Date, at: Date = .now) async -> Result {
+    /// - Parameter onlyThatDay: true for a day picked in the calendar strip:
+    ///   only tasks that start or are due on `day`, not everything still open
+    ///   by then (Today keeps the carry-over).
+    public func execute(on day: Date, at: Date = .now, onlyThatDay: Bool = false) async -> Result {
         // Epics and projects are containers, not day work. Keeping them out
         // of the Today query also keeps the progress ring task-based.
+        let cal = calendar.calendar
+        let dayStart = cal.startOfDay(for: day)
         let open = await repository.todayItems(on: day, calendar: calendar)
             .filter { $0.kind == .task }
+            .filter {
+                !onlyThatDay
+                    || cal.isDate($0.startAt, inSameDayAs: dayStart)
+                    || cal.isDate($0.endAt, inSameDayAs: dayStart)
+            }
         let overdue = open.filter { $0.endAt < at }
         let onTime = open.filter { $0.endAt >= at }
         let doneToday = await repository.completedToday(on: day, calendar: calendar)

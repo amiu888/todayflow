@@ -761,6 +761,40 @@ func selectDay_showsThatDaysPlanAndCanReturnToToday() async {
 }
 
 @Test @MainActor
+func selectDay_listsOnlyTasksThatStartOrAreDueThatDay() async {
+    let f = Fixture()
+    let tomorrow = testCalendar.date(byAdding: .day, value: 1, to: f.now)!
+    let inTwoDays = testCalendar.date(byAdding: .day, value: 2, to: f.now)!
+    let todayOnly = f.item(
+        "Today only",
+        startAt: f.now,
+        endAt: f.calendar.endOfBusiness(for: f.now),
+        displayOrder: "a1"
+    )
+    let startsTomorrow = f.item(
+        "Starts tomorrow",
+        startAt: tomorrow,
+        endAt: f.calendar.endOfBusiness(for: inTwoDays),
+        displayOrder: "a2"
+    )
+    let dueTomorrow = f.item(
+        "Due tomorrow",
+        startAt: f.now,
+        endAt: f.calendar.endOfBusiness(for: tomorrow),
+        displayOrder: "a3"
+    )
+    for item in [todayOnly, startsTomorrow, dueTomorrow] { await f.seed(item) }
+    await f.vm.load()
+
+    await f.vm.selectDay(tomorrow)
+    #expect(Set(f.vm.visibleRows.map(\.title)) == ["Starts tomorrow", "Due tomorrow"])
+    #expect(f.vm.progress.total == 2)
+
+    await f.vm.goToToday()
+    #expect(Set(f.vm.visibleRows.map(\.title)) == ["Today only", "Due tomorrow"])
+}
+
+@Test @MainActor
 func setUpcomingPriority_updatesTheTask() async {
     let f = Fixture()
     let tomorrow = testCalendar.date(byAdding: .day, value: 1, to: f.now)!
