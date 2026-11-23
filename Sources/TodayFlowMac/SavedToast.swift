@@ -12,7 +12,8 @@ enum SavedToast {
     static func show(centeredOn frame: NSRect, message: String = "Saved", duration: TimeInterval = 0.5) {
         current?.orderOut(nil)
 
-        let size = NSSize(width: 132, height: 44)
+        // Wide enough for longer messages ("Grouped 4 tasks in …").
+        let size = NSSize(width: max(132, min(460, CGFloat(message.count) * 7.5 + 64)), height: 44)
         let origin = NSPoint(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2)
         let panel = NSPanel(
             contentRect: NSRect(origin: origin, size: size),

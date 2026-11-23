@@ -21,6 +21,8 @@ public struct FilterChipsView: View {
     public let trays: [WorkTray]
     public let trayFilter: UUIDv7?
     public let onTrayFilterChange: (@Sendable (UUIDv7?) -> Void)?
+    public let groupByProject: Bool
+    public let onGroupByProjectChange: (@Sendable (Bool) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -42,8 +44,12 @@ public struct FilterChipsView: View {
         trays: [WorkTray] = [],
         trayFilter: UUIDv7? = nil,
         onTrayFilterChange: (@Sendable (UUIDv7?) -> Void)? = nil,
+        groupByProject: Bool = false,
+        onGroupByProjectChange: (@Sendable (Bool) -> Void)? = nil,
         onSearch: @escaping @Sendable () -> Void
     ) {
+        self.groupByProject = groupByProject
+        self.onGroupByProjectChange = onGroupByProjectChange
         self.filter = filter
         self.sort = sort
         self.projects = projects
@@ -158,6 +164,13 @@ public struct FilterChipsView: View {
     @ViewBuilder
     private var sortMenu: some View {
         Menu {
+            if let onGroupByProjectChange {
+                Toggle("Group by Project", isOn: Binding(
+                    get: { groupByProject },
+                    set: { onGroupByProjectChange($0) }
+                ))
+                Divider()
+            }
             ForEach(TodaySort.allCases) { sortCase in
                 Button {
                     onSortChange(sortCase)

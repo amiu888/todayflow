@@ -62,6 +62,10 @@ public struct TodayView: View {
     @State private var manuallyExpandedSections: Set<TodayPanelSection> = []
     /// True while the tray filter (not the user) is what folded the tray strip.
     @State private var traysCollapsedByFilter = false
+    /// Today list shown as one section per project (sort menu toggle).
+    @AppStorage("todayflow.today.groupByProject") private var groupByProject = false
+    /// Project sections the user folded, by section id, space-separated.
+    @AppStorage("todayflow.today.foldedProjects") private var foldedProjects = ""
     @AppStorage("todayflow.calendarStripMode") private var stripModeRaw =
         TodayViewModel.StripMode.week.rawValue
     @State private var showingNewProject = false
@@ -498,6 +502,12 @@ public struct TodayView: View {
                     model.trayFilter = trayId
                 }
             },
+            groupByProject: groupByProject,
+            onGroupByProjectChange: { value in
+                Task { @MainActor in
+                    withAnimation(.easeInOut(duration: 0.2)) { groupByProject = value }
+                }
+            },
             onSearch: {
                 Task { @MainActor in
                     isSearching = true
@@ -802,6 +812,71 @@ public struct TodayView: View {
         }
     }
 
+    // MARK: - Project sections
+
+    private func toggleFold(_ id: String) {
+        var ids = Set(foldedProjects.split(separator: " ").map(String.init))
+        if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            foldedProjects = ids.sorted().joined(separator: " ")
+        }
+    }
+
+    /// Color bar, name, "3 of 7 done" with a thin bar, and today's count.
+    @MainActor
+    private func projectSectionHeader(_ section: TodayViewModel.ProjectSection) -> some View {
+        let folded = foldedProjects.split(separator: " ").contains(Substring(section.id))
+        let tint = section.colorHex.map { Color(hex: $0) } ?? DesignTokens.Palette.textSecondary
+        return Button {
+            toggleFold(section.id)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .rotationEffect(.degrees(folded ? 0 : 90))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(tint)
+                    .frame(width: 4, height: 16)
+                Text(section.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(section.projectId == nil ? DesignTokens.Palette.textSecondary : DesignTokens.Palette.textPrimary)
+                    .lineLimit(1)
+                Text("\(section.rows.count)")
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(DesignTokens.Palette.surfaceRaised, in: Capsule())
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                Spacer(minLength: 6)
+                if section.totalCount > 0 {
+                    Text("\(section.doneCount) of \(section.totalCount) done")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(DesignTokens.Palette.textSecondary)
+                        .lineLimit(1)
+                    ProgressView(value: Double(section.doneCount), total: Double(max(section.totalCount, 1)))
+                        .progressViewStyle(.linear)
+                        .tint(tint)
+                        .frame(width: 44)
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.top, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if let projectId = section.projectId {
+                Button("Show Only This Project") { model.projectFilter = projectId }
+                Button("Open Project") { model.onOpenTask?(projectId) }
+            }
+            Button(folded ? "Unfold" : "Fold") { toggleFold(section.id) }
+        }
+        .help(section.projectId == nil ? "Tasks not in a project" : "Click to fold. Right-click for more.")
+        .accessibilityLabel("\(section.title), \(section.rows.count) tasks today\(section.totalCount > 0 ? ", \(section.doneCount) of \(section.totalCount) done" : "")")
+        .accessibilityHint(folded ? "Unfold" : "Fold")
+    }
+
     // MARK: - List
 
     @MainActor
@@ -816,7 +891,17 @@ public struct TodayView: View {
                 }
 
                 LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionGap) {
-                if !model.visibleOverdueRows.isEmpty {
+                if groupByProject {
+                    ForEach(model.projectSections) { section in
+                        projectSectionHeader(section)
+                        if !foldedProjects.split(separator: " ").contains(Substring(section.id)) {
+                            ForEach(section.rows) { row in
+                                rowView(row)
+                            }
+                        }
+                    }
+                }
+                if !groupByProject, !model.visibleOverdueRows.isEmpty {
                     sectionHeader(
                         "Overdue",
                         count: model.visibleOverdueRows.count,
@@ -831,7 +916,7 @@ public struct TodayView: View {
                     }
                 }
 
-                if !model.visibleOpenRows.isEmpty {
+                if !groupByProject, !model.visibleOpenRows.isEmpty {
                     sectionHeader(
                         "Today",
                         count: model.visibleOpenRows.count,

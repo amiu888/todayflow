@@ -58,6 +58,16 @@ public final class WindowManager: NSObject, NSWindowDelegate {
 
     private static let desktopsKey = "todayflow.allDesktops"
 
+    /// "Group related tasks" (row menu, task window Group… button).
+    public let groupRelated: GroupRelatedController
+
+    func groupRelatedAction(near kind: WindowKind) -> GroupRelatedAction {
+        GroupRelatedAction { [weak self] id in
+            guard let self else { return }
+            self.groupRelated.present(for: id, near: self.windows[kind] ?? NSApp.keyWindow)
+        }
+    }
+
     /// The AI Writer (✨ Rewrite buttons and Edit ▸ Rewrite with AI…).
     public let aiWriter: AIWriterController
 
@@ -80,6 +90,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         self.environment = environment
         self.capture = CaptureWindowController(environment: environment)
         self.aiWriter = AIWriterController(environment: environment)
+        self.groupRelated = GroupRelatedController(environment: environment)
         self.capture.rewriteAction = AIRewriteAction { [aiWriter] text, field, applyTitle, apply in
             aiWriter.open(text: text, fieldName: field, applyTitle: applyTitle, near: NSApp.keyWindow, apply: apply)
         }
@@ -130,6 +141,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             Task { @MainActor in await sync.start() }
         }
         self.todayModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
+        self.todayModel.onGroupRelated = { [weak self] id in
+            self?.groupRelated.present(for: id, near: self?.windows[.panel] ?? self?.windows[.slimBar])
+        }
         self.todayModel.onFocusTask = { [weak self] id in self?.presentFocus(id) }
         self.contactsModel.onOpenTask = { [weak self] id in self?.show(.detail(id)) }
         let mainWindowProvider: @MainActor () -> NSWindow? = { [weak self] in
@@ -1085,6 +1099,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                 }
             )
             .environment(\.aiRewrite, rewriteAction(for: .detail(id)))
+            .environment(\.groupRelated, groupRelatedAction(near: .detail(id)))
         }
     }
 }

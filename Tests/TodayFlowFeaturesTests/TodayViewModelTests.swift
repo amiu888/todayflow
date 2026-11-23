@@ -1313,3 +1313,24 @@ func calendarStrip_monthGrid() async {
     #expect(f.vm.weekDays.count == 7)
     #expect(f.vm.stripOffset == 0)
 }
+
+// MARK: - Group by project
+
+@Test @MainActor
+func projectSections_groupTodaysTasksUnderTheirProjectWithProgress() async {
+    let f = Fixture()
+    let website = f.item("Website", kind: .project, displayOrder: "a0", color: "#5B8DEF")
+    let hero = f.item("Hero image", displayOrder: "a1", parentId: website.id)
+    let footer = f.item("Footer", status: .done, displayOrder: "a2", parentId: website.id, completedAt: f.now)
+    let lunch = f.item("Lunch", displayOrder: "a3")
+    for item in [website, hero, footer, lunch] { await f.seed(item) }
+    await f.vm.load()
+
+    let sections = f.vm.projectSections
+    #expect(sections.map(\.title) == ["Website", "No project"])
+    #expect(sections[0].rows.map(\.title) == ["Hero image"])
+    #expect(sections[0].doneCount == 1)
+    #expect(sections[0].totalCount == 2)
+    #expect(sections[0].colorHex == "#5B8DEF")
+    #expect(sections[1].rows.map(\.title) == ["Lunch"])
+}

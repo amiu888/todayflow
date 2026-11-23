@@ -1,4 +1,5 @@
 import SwiftUI
+import TodayFlowCore
 import TodayFlowDesign
 
 /// Opens the AI Writer for some text. The Mac app puts one in the
@@ -63,5 +64,28 @@ struct AIRewriteButton: View {
                 : "Rewrite \(field.lowercased()) with AI: more formal, shorter, fix grammar, or tell it what you want")
             .accessibilityLabel("Rewrite \(field) with AI")
         }
+    }
+}
+
+/// Opens "Group related tasks" for a task id (set by the Mac app).
+public struct GroupRelatedAction: Sendable {
+    let handler: @MainActor @Sendable (UUIDv7) -> Void
+
+    public init(_ handler: @escaping @MainActor @Sendable (UUIDv7) -> Void) {
+        self.handler = handler
+    }
+
+    @MainActor
+    public func callAsFunction(_ id: UUIDv7) { handler(id) }
+}
+
+private struct GroupRelatedKey: EnvironmentKey {
+    static let defaultValue: GroupRelatedAction? = nil
+}
+
+public extension EnvironmentValues {
+    var groupRelated: GroupRelatedAction? {
+        get { self[GroupRelatedKey.self] }
+        set { self[GroupRelatedKey.self] = newValue }
     }
 }

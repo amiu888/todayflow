@@ -19,6 +19,8 @@ public enum TaskRowQuickAction: Hashable, Sendable {
     case focus
     /// Open the item in the detail view.
     case open
+    /// Put it and the tasks related to it into a project.
+    case groupRelated
 }
 
 extension TaskRowModel {
@@ -378,6 +380,8 @@ public final class TodayViewModel {
     @ObservationIgnored private var clock: @Sendable () -> Date
     @ObservationIgnored public var onOpenTask: (@MainActor (UUIDv7) -> Void)?
     @ObservationIgnored public var onFocusTask: (@MainActor (UUIDv7) -> Void)?
+    /// Opens "Group related tasks" for a task (set by the Mac app).
+    @ObservationIgnored public var onGroupRelated: (@MainActor (UUIDv7) -> Void)?
 
     public init(
         repository: any WorkItemRepository,
@@ -901,6 +905,69 @@ public final class TodayViewModel {
         return withChains(overdue + onTime)
     }
 
+    // MARK: Group by project
+
+    /// One project's tasks in the Today list, with the project's progress.
+    public struct ProjectSection: Identifiable, Hashable, Sendable {
+        /// The project id, or "none" for tasks without a project.
+        public let id: String
+        public let projectId: UUIDv7?
+        public let title: String
+        public let colorHex: String?
+        /// Today's open rows (overdue first).
+        public let rows: [TaskRowModel]
+        /// Every task in the project, for "3 of 7 done".
+        public let doneCount: Int
+        public let totalCount: Int
+    }
+
+    /// The project a task is filed under, walking up through parents.
+    public func project(of itemId: UUIDv7) -> WorkItem? {
+        var current = allItemsById[itemId]?.parentId
+        var visited = Set<UUIDv7>()
+        while let id = current, visited.insert(id).inserted {
+            guard let item = allItemsById[id] else { return nil }
+            if item.kind == .project { return item }
+            current = item.parentId
+        }
+        return nil
+    }
+
+    /// Today's open tasks grouped by project, in the projects' order, with
+    /// "No project" last.
+    public var projectSections: [ProjectSection] {
+        var rowsByProject: [UUIDv7: [TaskRowModel]] = [:]
+        var loose: [TaskRowModel] = []
+        for row in visibleRows {
+            if let project = project(of: row.id) {
+                rowsByProject[project.id, default: []].append(row)
+            } else {
+                loose.append(row)
+            }
+        }
+        var counts: [UUIDv7: (done: Int, total: Int)] = [:]
+        for item in allItemsById.values where item.kind == .task && !item.isDeleted {
+            guard let project = project(of: item.id), rowsByProject[project.id] != nil else { continue }
+            counts[project.id, default: (0, 0)].total += 1
+            if item.status.isComplete { counts[project.id, default: (0, 0)].done += 1 }
+        }
+        var sections = projects.compactMap { project -> ProjectSection? in
+            guard let rows = rowsByProject[project.id] else { return nil }
+            let count = counts[project.id] ?? (0, rows.count)
+            return ProjectSection(
+                id: project.id.uuid.uuidString, projectId: project.id, title: project.title,
+                colorHex: project.color, rows: rows, doneCount: count.done, totalCount: count.total
+            )
+        }
+        if !loose.isEmpty {
+            sections.append(ProjectSection(
+                id: "none", projectId: nil, title: "No project", colorHex: nil,
+                rows: loose, doneCount: 0, totalCount: 0
+            ))
+        }
+        return sections
+    }
+
     /// The pinned "Overdue" section.
     public var visibleOverdueRows: [TaskRowModel] {
         visibleRows.filter(\.isOverdue)
@@ -1320,6 +1387,8 @@ public final class TodayViewModel {
             onFocusTask?(id)
         case .open:
             onOpenTask?(id)
+        case .groupRelated:
+            onGroupRelated?(id)
         }
     }
 }

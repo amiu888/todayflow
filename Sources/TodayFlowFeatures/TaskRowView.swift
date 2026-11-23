@@ -148,6 +148,10 @@ public struct TaskRowView: View {
                 Button("Move to tomorrow") {
                     onQuickAction(model.id, .moveToTomorrow)
                 }
+                Divider()
+                Button("Group with Related Tasks…") {
+                    onQuickAction(model.id, .groupRelated)
+                }
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("task-row-\(model.title)")

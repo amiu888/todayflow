@@ -119,6 +119,12 @@ public final class DetailViewModel {
     public private(set) var related: [WorkItem] = []
     /// Items the "Add link" menu can point at (FR-30).
     public private(set) var linkCandidates: [WorkItem] = []
+    /// Unfiled tasks that clearly belong with this one (same ticket, thread).
+    public struct RelatedHint: Hashable, Sendable {
+        public var count: Int
+        public var reason: String
+    }
+    public private(set) var relatedHint: RelatedHint?
     /// Tags used on other tasks, most used first (for Add tag suggestions).
     public private(set) var knownTags: [String] = []
     /// Newest-first audit trail for the Activity section (FR-20).
@@ -292,6 +298,15 @@ public final class DetailViewModel {
             for tag in other.tags {
                 tagCounts[tag.lowercased(), default: (tag, 0)].count += 1
             }
+        }
+        // "3 related tasks (same ticket …)": only for tasks not filed yet.
+        if item.kind == .task, item.parentId == nil {
+            let records = allItems.map { TaskSearchRecord(item: $0) }
+            let strong = RelatedTasks.suggest(for: TaskSearchRecord(item: item), among: records)
+                .filter { $0.isStrong && $0.item.parentId == nil }
+            relatedHint = strong.isEmpty ? nil : RelatedHint(count: strong.count, reason: strong[0].reasons.first ?? "")
+        } else {
+            relatedHint = nil
         }
         knownTags = tagCounts.values
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name.localizedStandardCompare($1.name) == .orderedAscending }

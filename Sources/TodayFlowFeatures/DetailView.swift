@@ -30,6 +30,7 @@ public struct DetailView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.groupRelated) private var groupRelated
     @FocusState private var focusedField: Field?
     @State private var selectedSuggestions: Set<String> = []
     @State private var isAttachmentDropTargeted = false
@@ -236,6 +237,9 @@ public struct DetailView: View {
                         titleField
                         summarySection
                         pillsRow(item)
+                        if let hint = model.relatedHint, let groupRelated {
+                            relatedHintBar(hint) { groupRelated(item.id) }
+                        }
                         tagsRow(item)
                         contactsSection
                         datesRow
@@ -581,6 +585,17 @@ public struct DetailView: View {
             priorityPill
             if item.kind == .task {
                 projectPill
+                if let groupRelated {
+                    Button {
+                        groupRelated(item.id)
+                    } label: {
+                        Label("Group…", systemImage: "folder.badge.plus")
+                            .font(.callout)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Put this task and the tasks related to it into a project")
+                    .accessibilityIdentifier("task-group-related")
+                }
             }
             if item.kind == .task || item.kind == .subtask {
                 recurrencePill
@@ -678,6 +693,34 @@ public struct DetailView: View {
         }
         .disabled(model.isSaving)
         .help("Change priority")
+    }
+
+    /// "3 related tasks · Same ticket CHG0012345 · Group them…"
+    private func relatedHintBar(_ hint: DetailViewModel.RelatedHint, open: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "link")
+                .foregroundStyle(DesignTokens.Palette.accent)
+            Text(hint.count == 1 ? "1 related task" : "\(hint.count) related tasks")
+                .fontWeight(.semibold)
+            if !hint.reason.isEmpty {
+                Text("· \(hint.reason)")
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button("Group them…", action: open)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .font(.callout)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(DesignTokens.Palette.accent.opacity(0.10))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("task-related-hint")
     }
 
     @MainActor
