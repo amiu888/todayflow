@@ -74,6 +74,22 @@ public final class AIEnvironment: AIModelCatalog {
         return makeAssistant(settings)
     }
 
+    /// The AI Writer's rewriter. Works whenever AI is on (no separate
+    /// feature switch): Apple Intelligence when chosen, else the endpoint.
+    public func rewriter() async -> (any TextRewriting)? {
+        let settings = await loadSettings()
+        guard settings.enabled else { return nil }
+        if settings.provider == .apple {
+            #if canImport(FoundationModels)
+            if #available(macOS 26.0, *), AppleTextRewriter.isAvailable {
+                return AppleTextRewriter()
+            }
+            #endif
+            return nil
+        }
+        return makeAssistant(settings)
+    }
+
     /// Suggests a title and description for a drop: Apple Intelligence on
     /// the device when it is the chosen provider, otherwise the endpoint.
     public func taskSuggester() async -> (any TaskSuggesting)? {

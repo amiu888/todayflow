@@ -150,6 +150,27 @@ private func item(_ title: String, id: UUIDv7 = .new()) -> WorkItem {
 // MARK: - Tests
 
 struct OpenAICompatibleAssistantTests {
+    @Test func rewrite_sendsAChatThatBuildsOnTheLastVersion() async throws {
+        let (assistant, transport, _, _) = assistant(responses: [
+            .init(status: 200, body: chatResponse("NOTE: Shorter now.\nTEXT:\nPlease patch db-server-01 by Friday.")),
+        ])
+        let turns = [
+            RewriteTurn(request: "More formal", text: "Kindly patch the server.", note: "Made it formal."),
+            RewriteTurn(request: "mention Friday"),
+        ]
+
+        let reply = try await assistant.rewrite("pls patch the server", conversation: turns)
+
+        #expect(reply.text == "Please patch db-server-01 by Friday.")
+        #expect(reply.note == "Shorter now.")
+        let messages = try #require(bodyObject(await transport.requests[0])["messages"] as? [[String: Any]])
+        #expect(messages.map { $0["role"] as? String } == ["system", "user", "assistant", "user"])
+        #expect((messages[1]["content"] as? String)?.contains("pls patch the server") == true)
+        #expect((messages[1]["content"] as? String)?.contains("Request: More formal") == true)
+        #expect((messages[2]["content"] as? String)?.contains("Kindly patch the server.") == true)
+        #expect(messages[3]["content"] as? String == "Request: mention Friday")
+    }
+
     @Test func suggestTask_parsesJSONAndSendsAuthAndSchema() async throws {
         let payload = """
         {"title":"Review contract","summary":"Check the redlines.","priority":"P2","actions":["Open the PDF"]}

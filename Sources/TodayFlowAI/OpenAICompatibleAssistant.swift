@@ -13,7 +13,7 @@ import TodayFlowCore
 ///   ignores streaming gets its normal JSON response parsed at the end.
 /// - Every outgoing payload is reported through `onRequest` (redacted: no API
 ///   key) for the "What was sent" disclosure.
-public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, EmailSummarizer, Sendable {
+public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, EmailSummarizer, TextRewriting, Sendable {
     private let configuration: AIConfiguration
     private let transport: any AITransport
     private let sleeper: @Sendable (TimeInterval) async throws -> Void
@@ -205,6 +205,39 @@ public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, EmailSumma
             throw AIError.malformedResponse("The corrected text was empty.")
         }
         return corrected
+    }
+
+    // MARK: - TextRewriting
+
+    /// A real chat: the original text and first request, then each earlier
+    /// version and the next request, so "more formal" builds on the last try.
+    public func rewrite(_ original: String, conversation: [RewriteTurn]) async throws -> RewriteReply {
+        let text = String(original.prefix(12_000))
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let first = conversation.first
+        else { throw AIError.invalidConfiguration("There is no text to rewrite.") }
+
+        var messages: [ChatMessage] = [
+            .system(prompts.text(PromptLibrary.rewriteText)),
+            .user("Text:\n<<<\n\(text)\n>>>\n\nRequest: \(first.request)"),
+        ]
+        for (index, turn) in conversation.enumerated() {
+            if index > 0 { messages.append(.user("Request: \(turn.request)")) }
+            guard let previous = turn.text else { break }
+            messages.append(ChatMessage(
+                role: "assistant",
+                content: "NOTE: \(turn.note ?? "none")\nTEXT:\n\(previous)"
+            ))
+        }
+        let (request, info) = try makeRequest(
+            messages: messages, stream: false, format: nil, feature: "rewrite_text"
+        )
+        let data = try await sendWithRetry(request, info: info)
+        let reply = RewriteReply.parse(try Self.content(from: data))
+        guard !reply.text.isEmpty || reply.note != nil else {
+            throw AIError.malformedResponse("The rewrite was empty.")
+        }
+        return reply
     }
 
     // MARK: - AIModelCatalog

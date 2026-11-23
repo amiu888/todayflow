@@ -19,6 +19,8 @@ public final class CaptureWindowController {
     private var panel: PanelWindow?
     private var currentModel: CaptureViewModel?
     public var mainWindowProvider: (@MainActor () -> NSWindow?)?
+    /// ✨ Rewrite for the title and description (set by the window manager).
+    public var rewriteAction: AIRewriteAction?
     /// Called after a successful save, after the sheet closes (the host uses
     /// it to force the Today list to refresh and come forward).
     public var onSaved: (@MainActor (UUIDv7) -> Void)?
@@ -70,6 +72,7 @@ public final class CaptureWindowController {
                     self.add([DroppedObject(url: url, uti: .url)], to: model, origin: "link")
                 }
             )
+            .environment(\.aiRewrite, rewriteAction)
         )
         let panel = panel ?? makePanel()
         panel.contentView = host

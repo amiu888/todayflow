@@ -36,6 +36,7 @@ struct DetailNotesSnapshotTests {
         let shots: [(ColorScheme, CGFloat)] = [(.dark, 720), (.light, 720), (.dark, 480), (.dark, 1300)]
         for (scheme, width) in shots {
             let host = NSHostingView(rootView: DetailView(model: model, onOpenInObsidian: { _ in })
+                .environment(\.aiRewrite, AIRewriteAction { _, _, _, _ in })
                 .frame(width: width, height: 1100)
                 .environment(\.colorScheme, scheme)
                 .background(DesignTokens.Palette.background))

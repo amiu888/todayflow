@@ -244,6 +244,17 @@ public struct CaptureSheetView: View {
 
     @MainActor
     private var titleField: some View {
+        titleTextField
+            .overlay(alignment: .trailing) {
+                AIRewriteButton(text: draft.title, field: "Title", compact: true) { text in
+                    draft.title = text
+                }
+                .padding(.trailing, 12)
+            }
+    }
+
+    @MainActor
+    private var titleTextField: some View {
         TextField("What needs doing?", text: $draft.title)
             .textFieldStyle(.plain)
             .font(.system(.title3, design: .rounded).weight(.semibold))
@@ -477,14 +488,19 @@ public struct CaptureSheetView: View {
                         .stroke(borderColor, lineWidth: 1)
                 )
                 .overlay(alignment: .topTrailing) {
-                    Button("Hide") {
-                        setDescriptionExpanded(false)
+                    HStack(spacing: 10) {
+                        AIRewriteButton(text: draft.descriptionMd, field: "Description") { text in
+                            draft.descriptionMd = text
+                        }
+                        Button("Hide") {
+                            setDescriptionExpanded(false)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Hide description")
                     }
-                    .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                     .padding(4)
-                    .accessibilityLabel("Hide description")
                 }
                 .accessibilityLabel("Description")
         } else {

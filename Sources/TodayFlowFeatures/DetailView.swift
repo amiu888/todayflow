@@ -346,13 +346,19 @@ public struct DetailView: View {
     private var titleField: some View {
         @Bindable var model = model
 
-        return TextField("Title", text: $model.edit.title)
-            .font(.title2.weight(.semibold))
-            .textFieldStyle(.plain)
-            .focused($focusedField, equals: .title)
-            .onSubmit {
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            TextField("Title", text: $model.edit.title)
+                .font(.title2.weight(.semibold))
+                .textFieldStyle(.plain)
+                .focused($focusedField, equals: .title)
+                .onSubmit {
+                    Task { await model.commit() }
+                }
+            AIRewriteButton(text: model.edit.title, field: "Title", compact: true) { text in
+                model.edit.title = text
                 Task { await model.commit() }
             }
+        }
     }
 
     @MainActor
@@ -360,9 +366,16 @@ public struct DetailView: View {
         @Bindable var model = model
 
         return VStack(alignment: .leading, spacing: 4) {
-            Text("Summary")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignTokens.Palette.textSecondary)
+            HStack {
+                Text("Summary")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignTokens.Palette.textSecondary)
+                Spacer()
+                AIRewriteButton(text: model.edit.summary, field: "Summary") { text in
+                    model.edit.summary = text
+                    Task { await model.commit() }
+                }
+            }
 
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $model.edit.summary)

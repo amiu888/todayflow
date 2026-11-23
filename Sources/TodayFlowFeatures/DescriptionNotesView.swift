@@ -98,6 +98,11 @@ struct DescriptionNotesView: View {
             )
             if composerFocused || !newText.isEmpty {
                 HStack(spacing: 8) {
+                    AIRewriteButton(text: newText, field: "New note", applyTitle: "Use This") { text in
+                        newText = text
+                        composerFocused = true
+                    }
+                    Spacer()
                     Text("⌘↩ to add")
                         .font(.caption2)
                         .foregroundStyle(DesignTokens.Palette.textSecondary)
@@ -188,6 +193,9 @@ struct DescriptionNotesView: View {
 
     private func rowActions(_ note: DescriptionLog.Note) -> some View {
         HStack(spacing: 2) {
+            AIRewriteButton(text: note.text, field: "Note", compact: true) { text in
+                onUpdate(note.id, text)
+            }
             Button {
                 editText = note.text
                 editingId = note.id
@@ -224,6 +232,10 @@ struct DescriptionNotesView: View {
                         .stroke(DesignTokens.Palette.accent.opacity(0.7))
                 )
             HStack(spacing: 8) {
+                AIRewriteButton(text: editText, field: "Note", applyTitle: "Use This") { text in
+                    editText = text
+                }
+                Spacer()
                 Button("Cancel") { editingId = nil }
                     .keyboardShortcut(.cancelAction)
                 Button("Save") {

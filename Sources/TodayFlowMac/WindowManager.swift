@@ -58,6 +58,20 @@ public final class WindowManager: NSObject, NSWindowDelegate {
 
     private static let desktopsKey = "todayflow.allDesktops"
 
+    /// The AI Writer (✨ Rewrite buttons and Edit ▸ Rewrite with AI…).
+    public let aiWriter: AIWriterController
+
+    /// The ✨ Rewrite action for views in `kind`'s window.
+    func rewriteAction(for kind: WindowKind) -> AIRewriteAction {
+        AIRewriteAction { [weak self] text, field, applyTitle, apply in
+            guard let self else { return }
+            self.aiWriter.open(
+                text: text, fieldName: field, applyTitle: applyTitle,
+                near: self.windows[kind], apply: apply
+            )
+        }
+    }
+
     /// The shared summary model (driver.md FR-40); the delegate assigns it
     /// after construction. The slim bar reads it in `body` so it stays live.
     public var summary: TodaySummaryModel?
@@ -65,6 +79,10 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     public init(environment: AppEnvironment) {
         self.environment = environment
         self.capture = CaptureWindowController(environment: environment)
+        self.aiWriter = AIWriterController(environment: environment)
+        self.capture.rewriteAction = AIRewriteAction { [aiWriter] text, field, applyTitle, apply in
+            aiWriter.open(text: text, fieldName: field, applyTitle: applyTitle, near: NSApp.keyWindow, apply: apply)
+        }
         self.focus = FocusWindowController(environment: environment)
         self.miniCalendar = MiniCalendarWindowController(environment: environment)
         let model = TodayViewModel(
@@ -1063,6 +1081,7 @@ public final class WindowManager: NSObject, NSWindowDelegate {
                     self?.openObsidianNote(for: item)
                 }
             )
+            .environment(\.aiRewrite, rewriteAction(for: .detail(id)))
         }
     }
 }

@@ -48,6 +48,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             let windowManager = WindowManager(environment: environment)
             windowManager.summary = summary
             self.windows = windowManager
+            windowManager.aiWriter.onOpenSettings = { [weak windowManager] in windowManager?.show(.settings) }
             let review = EndOfDayReviewController(environment: environment)
             self.endOfDayReview = review
             let dayPlan = DayPlanWindowController(environment: environment)
@@ -284,6 +285,14 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         editMenu.addItem(responderItem("Copy", #selector(NSText.copy(_:)), key: "c"))
         editMenu.addItem(responderItem("Paste", #selector(NSText.paste(_:)), key: "v"))
         editMenu.addItem(responderItem("Select All", #selector(NSText.selectAll(_:)), key: "a"))
+        editMenu.addItem(.separator())
+        editMenu.addItem(item("Rewrite with AI…", #selector(rewriteWithAIMenu), key: "r", modifiers: [.command, .control]))
+        let spelling = NSMenuItem(title: "Spelling and Grammar", action: nil, keyEquivalent: "")
+        let spellingMenu = NSMenu(title: "Spelling and Grammar")
+        spellingMenu.addItem(responderItem("Show Spelling and Grammar", #selector(NSText.showGuessPanel(_:)), key: ":"))
+        spellingMenu.addItem(responderItem("Check Document Now", #selector(NSText.checkSpelling(_:)), key: ";"))
+        spelling.submenu = spellingMenu
+        editMenu.addItem(spelling)
         editItem.submenu = editMenu
         main.addItem(editItem)
 
@@ -414,6 +423,17 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func about() {
         NSApp.orderFrontStandardAboutPanel(nil)
+    }
+
+    /// Edit ▸ Rewrite with AI… (⌃⌘R) for whatever text box has focus.
+    @objc private func rewriteWithAIMenu() {
+        guard let windows else { return }
+        if !windows.aiWriter.rewriteFocusedText() {
+            let alert = NSAlert()
+            alert.messageText = "Click into some text first"
+            alert.informativeText = "Rewrite with AI works on the text box you are typing in. Select part of the text to rewrite only that part."
+            alert.runModal()
+        }
     }
 
     @objc private func openSettingsMenu() {
