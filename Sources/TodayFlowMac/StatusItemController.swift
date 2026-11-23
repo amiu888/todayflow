@@ -21,6 +21,7 @@ public final class StatusItemController: NSObject {
     public var onEndOfDayReview: (() -> Void)?
     /// Presents the AI plan/ask sheets (driver.md §8).
     public var onPlanDay: (() -> Void)?
+    public var onDailyReport: (() -> Void)?
     public var onAskAI: (() -> Void)?
     /// NFR-09 export commands.
     public var onExportJSON: (() -> Void)?
@@ -135,6 +136,7 @@ public final class StatusItemController: NSObject {
         menu.addItem(.separator())
         menu.addItem(item("Open Today", #selector(openPanel)))
         menu.addItem(item("End-of-day review…", #selector(openEndOfDayReview)))
+        menu.addItem(item("Daily report…", #selector(openDailyReport)))
         menu.addItem(.separator())
         menu.addItem(item("Plan my day…", #selector(openPlanDay)))
         menu.addItem(item("Ask about tasks…", #selector(openAskAI)))
@@ -170,6 +172,7 @@ public final class StatusItemController: NSObject {
     @objc private func openEndOfDayReview() { onEndOfDayReview?() }
 
     @objc private func openPlanDay() { onPlanDay?() }
+    @objc private func openDailyReport() { onDailyReport?() }
 
     @objc private func openAskAI() { onAskAI?() }
 

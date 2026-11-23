@@ -31,6 +31,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     /// AI planning and Q&A windows (driver.md §8).
     public private(set) var dayPlan: DayPlanWindowController?
     public private(set) var askAI: AskWindowController?
+    /// "What I did today" for management.
+    public private(set) var dailyReport: DailyReportController?
     /// Optional first-run model download / AI choice.
     public private(set) var aiSetup: AIOnboardingController?
 
@@ -70,6 +72,15 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             dayPlan.mainWindowProvider = mainWindowProvider
             askAI.mainWindowProvider = mainWindowProvider
             review.mainWindowProvider = mainWindowProvider
+            let dailyReport = DailyReportController(environment: environment)
+            dailyReport.mainWindowProvider = mainWindowProvider
+            dailyReport.rewriteAction = AIRewriteAction { [weak windowManager, weak dailyReport] text, field, applyTitle, apply in
+                windowManager?.aiWriter.open(
+                    text: text, fieldName: field, applyTitle: applyTitle,
+                    near: dailyReport?.window, apply: apply
+                )
+            }
+            self.dailyReport = dailyReport
             windowManager.onOpenAISetup = { [weak self] in
                 self?.aiSetup?.present(force: true)
             }
@@ -83,6 +94,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             )
             controller.onEndOfDayReview = { [weak review] in review?.present() }
             controller.onPlanDay = { [weak dayPlan] in dayPlan?.present() }
+            controller.onDailyReport = { [weak dailyReport] in dailyReport?.present() }
             controller.onAskAI = { [weak askAI] in askAI?.present() }
             controller.onExportJSON = { [weak self] in self?.export(.json) }
             controller.onExportCSV = { [weak self] in self?.export(.csv) }
@@ -274,6 +286,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         )
         fileMenu.addItem(.separator())
         fileMenu.addItem(item("End-of-Day Review…", #selector(reviewMenu), key: ""))
+        fileMenu.addItem(item("Daily Report…", #selector(dailyReportMenu), key: "R", modifiers: [.command, .shift]))
         fileMenu.addItem(item("Plan My Day…", #selector(planMenu), key: ""))
         fileMenu.addItem(item("Ask About Tasks…", #selector(askMenu), key: ""))
         fileMenu.addItem(.separator())
@@ -525,6 +538,10 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func reviewMenu() {
         endOfDayReview?.present()
+    }
+
+    @objc private func dailyReportMenu() {
+        dailyReport?.present()
     }
 
     @objc private func planMenu() {
