@@ -720,3 +720,67 @@ func createProjectAndAssign_createsAndMovesTheTask() async throws {
     #expect(stored.parentId == project.id)
     #expect(f.vm.availableProjects.contains { $0.id == project.id })
 }
+
+// MARK: - Tags
+
+@Test @MainActor
+func addTag_acceptsSeveralCommaSeparatedTagsAndMoreThanTwelve() async {
+    let item = WorkItem(kind: .task, title: "Patch servers", tags: (1...12).map { "t\($0)" })
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.vm.load()
+
+    await f.vm.addTag("db-server-01, web server")
+
+    let saved = await f.repository.item(item.id)?.tags ?? []
+    #expect(saved.count == 14)
+    #expect(saved.suffix(2) == ["db-server-01", "web-server"])
+    #expect(f.vm.lastError == nil)
+}
+
+@Test @MainActor
+func addTag_saysSoWhenTheLimitIsReached() async {
+    let item = WorkItem(
+        kind: .task, title: "Many tags",
+        tags: (1...TagName.maximumCount).map { "t\($0)" }
+    )
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.vm.load()
+
+    await f.vm.addTag("one-more")
+
+    #expect(await f.repository.item(item.id)?.tags.count == TagName.maximumCount)
+    #expect(f.vm.lastError?.contains("\(TagName.maximumCount)") == true)
+}
+
+@Test @MainActor
+func renameTag_keepsItsPlaceAndEmptyRemovesIt() async {
+    let item = WorkItem(kind: .task, title: "Rename", tags: ["alpha", "beta", "gamma"])
+    let f = Fixture(itemId: item.id)
+    await f.repository.seed(item)
+    await f.vm.load()
+
+    await f.vm.renameTag("beta", to: "Beta 2")
+    #expect(await f.repository.item(item.id)?.tags == ["alpha", "Beta-2", "gamma"])
+
+    // Renaming to a tag the task already has merges them.
+    await f.vm.renameTag("gamma", to: "ALPHA")
+    #expect(await f.repository.item(item.id)?.tags == ["alpha", "Beta-2"])
+
+    await f.vm.renameTag("Beta-2", to: "  ")
+    #expect(await f.repository.item(item.id)?.tags == ["alpha"])
+}
+
+@Test @MainActor
+func tagSuggestions_comeFromOtherTasksMostUsedFirst() async {
+    let item = WorkItem(kind: .task, title: "Mine", tags: ["billing"])
+    let a = WorkItem(kind: .task, title: "A", tags: ["ops", "billing"])
+    let b = WorkItem(kind: .task, title: "B", tags: ["ops", "web"])
+    let f = Fixture(itemId: item.id)
+    for x in [item, a, b] { await f.repository.seed(x) }
+    await f.vm.load()
+
+    #expect(f.vm.tagSuggestions(matching: "") == ["ops", "web"])
+    #expect(f.vm.tagSuggestions(matching: "W") == ["web"])
+}

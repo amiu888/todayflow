@@ -5,7 +5,7 @@ import Foundation
 /// a row.
 public enum TagName {
     public static let maximumLength = 40
-    public static let maximumCount = 12
+    public static let maximumCount = 40
 
     /// Parses a comma- or semicolon-separated tag string.
     public static func parse(_ text: String) -> [String] {

@@ -35,7 +35,6 @@ public struct DetailView: View {
     @State private var isAttachmentDropTargeted = false
     @State private var showSaved = false
     @State private var savedFeedbackTask: Task<Void, Never>?
-    @State private var newTag = ""
     @State private var showingContactPicker = false
     @State private var contactSearch = ""
     @State private var newContactName = ""
@@ -670,52 +669,13 @@ public struct DetailView: View {
 
     @MainActor
     private func tagsRow(_ item: WorkItem) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "tag")
-                .font(.caption)
-                .foregroundStyle(DesignTokens.Palette.textSecondary)
-                .padding(.top, 5)
-
-            ChipFlowLayout(spacing: 6, lineSpacing: 6) {
-                ForEach(item.tags, id: \.self) { tag in
-                    HStack(spacing: 5) {
-                        Text(tag)
-                            .font(.caption.weight(.medium))
-                            .lineLimit(1)
-                            .fixedSize()
-                        Button {
-                            Task { await model.removeTag(tag) }
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 8, weight: .bold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(DesignTokens.Palette.accent.opacity(0.7))
-                        .help("Remove tag “\(tag)”")
-                        .accessibilityLabel("Remove tag \(tag)")
-                    }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(DesignTokens.Palette.accent.opacity(0.14)))
-                    .overlay(Capsule().stroke(DesignTokens.Palette.accent.opacity(0.25), lineWidth: 0.5))
-                    .foregroundStyle(DesignTokens.Palette.accent)
-                    .fixedSize()
-                }
-
-                TextField("Add tag", text: $newTag)
-                    .textFieldStyle(.plain)
-                    .font(.caption)
-                    .frame(width: 90)
-                    .padding(.vertical, 4)
-                    .onSubmit {
-                        let value = newTag
-                        newTag = ""
-                        Task { await model.addTag(value) }
-                    }
-                    .help("Type a tag and press Return")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
+        TaskTagsEditor(
+            tags: item.tags,
+            suggestions: { model.tagSuggestions(matching: $0) },
+            onAdd: { value in Task { await model.addTag(value) } },
+            onRename: { old, new in Task { await model.renameTag(old, to: new) } },
+            onRemove: { tag in Task { await model.removeTag(tag) } }
+        ) {
             if let onOpenInObsidian {
                 Button {
                     onOpenInObsidian(item)
@@ -726,7 +686,6 @@ public struct DetailView: View {
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(DesignTokens.Palette.accent)
-                .padding(.top, 3)
                 .help("Open or create a note for this \(item.kind.label.lowercased()) in Obsidian")
                 .accessibilityLabel("Open in Obsidian")
             }

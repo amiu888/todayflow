@@ -119,6 +119,8 @@ public final class DetailViewModel {
     public private(set) var related: [WorkItem] = []
     /// Items the "Add link" menu can point at (FR-30).
     public private(set) var linkCandidates: [WorkItem] = []
+    /// Tags used on other tasks, most used first (for Add tag suggestions).
+    public private(set) var knownTags: [String] = []
     /// Newest-first audit trail for the Activity section (FR-20).
     public private(set) var activity: [ActivityEvent] = []
     /// The task's optional custom reminder (FR-42).
@@ -285,6 +287,15 @@ public final class DetailViewModel {
             allContacts = []
         }
         children = kids
+        var tagCounts: [String: (name: String, count: Int)] = [:]
+        for other in allItems where other.id != item.id && !other.isDeleted {
+            for tag in other.tags {
+                tagCounts[tag.lowercased(), default: (tag, 0)].count += 1
+            }
+        }
+        knownTags = tagCounts.values
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .map(\.name)
         linkCandidates = allItems
             .filter { $0.id != item.id && !$0.isDeleted }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
@@ -1098,17 +1109,58 @@ public final class DetailViewModel {
 
     // MARK: Tags
 
+    /// Adds one tag, or several separated by commas.
     public func addTag(_ text: String) async {
-        guard var item else { return }
-        let updated = TagName.normalize(item.tags + [text])
-        guard updated.count != item.tags.count else { return }
+        guard let item else { return }
+        let added = TagName.parse(text)
+        guard !added.isEmpty else { return }
+        let updated = TagName.normalize(item.tags + added)
+        guard updated.count != item.tags.count else {
+            if item.tags.count >= TagName.maximumCount {
+                lastError = "A task can have up to \(TagName.maximumCount) tags. Remove one to add another."
+            }
+            return
+        }
+        await saveTags(updated)
+    }
 
-        item.tags = updated
+    /// Changes a tag in place. Empty text removes it; a name the task
+    /// already has merges the two.
+    public func renameTag(_ tag: String, to text: String) async {
+        guard let item, let index = item.tags.firstIndex(of: tag) else { return }
+        var tags = item.tags
+        let renamed = TagName.normalize([text]).first
+        if let renamed {
+            tags[index] = renamed
+        } else {
+            tags.remove(at: index)
+        }
+        let updated = TagName.normalize(tags)
+        guard updated != item.tags else { return }
+        await saveTags(updated)
+    }
+
+    /// Tags used on other tasks, most used first, that this task does not
+    /// have yet and that contain `text`.
+    public func tagSuggestions(matching text: String, limit: Int = 8) -> [String] {
+        let own = Set((item?.tags ?? []).map { $0.lowercased() })
+        let query = text.trimmingCharacters(in: .whitespaces).lowercased()
+        return knownTags
+            .filter { !own.contains($0.lowercased()) }
+            .filter { query.isEmpty || $0.lowercased().contains(query) }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private func saveTags(_ tags: [String]) async {
+        guard var item else { return }
+        item.tags = tags
         item = item.touching(clock())
         item.deviceId = deviceId
         do {
             try await repository.save(item)
             self.item = item
+            lastError = nil
             lastSavedAt = clock()
             await reloadRelated()
         } catch {

@@ -22,7 +22,7 @@ struct TagNameTests {
     }
 
     @Test func capsTheNumberOfTags() {
-        let many = (1...20).map { "tag\($0)" }
+        let many = (1...(TagName.maximumCount + 8)).map { "tag\($0)" }
         #expect(TagName.normalize(many).count == TagName.maximumCount)
     }
 
