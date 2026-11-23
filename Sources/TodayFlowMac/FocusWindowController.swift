@@ -45,6 +45,7 @@ public final class FocusWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = false
         window.delegate = self
+        WindowSizeMemory.makeResizable(window, name: "focus", minimum: NSSize(width: 380, height: 460))
         WindowPlacement.besideMainWindow(window, main: mainWindowProvider?())
         self.window = window
 

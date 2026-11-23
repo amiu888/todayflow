@@ -69,6 +69,7 @@ public final class DayPlanWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = false
         window.delegate = self
+        WindowSizeMemory.makeResizable(window, name: "dayPlan", minimum: NSSize(width: 400, height: 420))
         WindowPlacement.besideMainWindow(window, main: mainWindowProvider?())
         self.window = window
 

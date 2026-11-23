@@ -121,6 +121,25 @@ struct WindowManagerTests {
     }
 
     @Test @MainActor
+    func windowsGrowWhenResizedAndStopAtTheirMinimum() throws {
+        let manager = WindowManager(environment: makeEnvironment())
+        let kinds: [WindowKind] = [
+            .hierarchy, .insights, .upcoming, .completed, .calendar, .detail(UUIDv7.new()),
+        ]
+        for kind in kinds {
+            manager.show(kind)
+            let window = try #require(manager.window(for: kind))
+            #expect(window.styleMask.contains(.resizable), "\(kind)")
+            #expect(window.contentMinSize.width > 0, "\(kind) has no minimum")
+
+            window.setContentSize(NSSize(width: 1100, height: 820))
+            window.layoutIfNeeded()
+            #expect(window.contentView?.frame.size == NSSize(width: 1100, height: 820), "\(kind) did not grow")
+            manager.close(kind)
+        }
+    }
+
+    @Test @MainActor
     func slimBarWindowUsesSlimBarSize() {
         let manager = WindowManager(environment: makeEnvironment())
         manager.show(.slimBar)

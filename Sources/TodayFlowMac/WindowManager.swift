@@ -507,6 +507,12 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             break
         }
 
+        // Windows open at the size they were last resized to (one size for
+        // all task windows), then take their usual place beside the panel.
+        if let name = Self.sizeName(kind) {
+            WindowSizeMemory.restore(window, name: name)
+        }
+
         let mainWindow = windows[.panel] ?? windows[.slimBar]
         let screen = mainWindow?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
         guard let screen,
@@ -550,6 +556,26 @@ public final class WindowManager: NSObject, NSWindowDelegate {
     }
 
     // MARK: NSWindowDelegate
+
+    /// The remembered-size name for a window, or nil for the panel and slim
+    /// bar (they remember their whole frame).
+    static func sizeName(_ kind: WindowKind) -> String? {
+        switch kind {
+        case .panel, .slimBar: nil
+        case .detail: "detail"
+        case .hierarchy: "hierarchy"
+        case .calendar: "calendar"
+        case .insights: "insights"
+        case .upcoming: "upcoming"
+        case .completed: "completed"
+        case .allTasks: "allTasks"
+        case .history: "history"
+        case .settings: "settings"
+        case .contacts: "contacts"
+        case .workflows: "workflows"
+        case .tutorial: "tutorial"
+        }
+    }
 
     /// Where the panel or slim bar was last left; restored when it opens.
     private static func frameKey(_ kind: WindowKind) -> String {
@@ -690,6 +716,17 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         }
         if case .workflows = kind {
             window.contentMinSize = NSSize(width: 780, height: 540)
+        }
+        switch kind {
+        case .detail: window.contentMinSize = DesignTokens.Window.detailMinimum
+        case .hierarchy: window.contentMinSize = DesignTokens.Window.hierarchyMinimum
+        case .calendar: window.contentMinSize = NSSize(width: 700, height: 540)
+        case .upcoming, .completed: window.contentMinSize = DesignTokens.Window.listMinimum
+        case .insights: window.contentMinSize = DesignTokens.Window.insightsMinimum
+        default: break
+        }
+        if let name = Self.sizeName(kind) {
+            WindowSizeMemory.track(window, name: name)
         }
         window.contentView = NSHostingView(rootView: content(for: kind))
         window.isReleasedWhenClosed = false

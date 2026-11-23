@@ -107,6 +107,14 @@ public enum DesignTokens {
         public static let settings = CGSize(width: 600, height: 620)
         public static let contacts = CGSize(width: 760, height: 600)
         public static let contactsMinimum = CGSize(width: 580, height: 420)
+
+        // Smallest sizes for resizable windows: below these the content
+        // would clip, so the window stops shrinking there.
+        public static let captureMinimum = CGSize(width: 360, height: 440)
+        public static let detailMinimum = CGSize(width: 480, height: 420)
+        public static let hierarchyMinimum = CGSize(width: 460, height: 380)
+        public static let listMinimum = CGSize(width: 340, height: 360)
+        public static let insightsMinimum = CGSize(width: 460, height: 380)
     }
 
     /// Header progress ring geometry — a thin mark: 2.5pt stroke on a 28pt ring.

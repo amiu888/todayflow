@@ -121,7 +121,7 @@ public struct FocusView: View {
             }
         }
         .padding(20)
-        .frame(width: 420, height: 500)
+        .frame(minWidth: 380, idealWidth: 420, maxWidth: .infinity, minHeight: 460, idealHeight: 500, maxHeight: .infinity)
         .background(DesignTokens.Palette.background)
         .background(alignment: .top) {
             DesignTokens.Palette.aurora.frame(height: 300)

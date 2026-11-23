@@ -42,7 +42,7 @@ public struct AIOnboardingView: View {
             Divider()
             footer
         }
-        .frame(width: 760, height: 620)
+        .frame(minWidth: 680, idealWidth: 760, maxWidth: .infinity, minHeight: 560, idealHeight: 620, maxHeight: .infinity)
         .background(DesignTokens.Palette.background)
         .task {
             await model.refreshServer()

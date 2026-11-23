@@ -188,7 +188,7 @@ public struct MiniCalendarView: View {
             footer
         }
         .padding(10)
-        .frame(width: 320, height: 310)
+        .frame(minWidth: 300, idealWidth: 320, maxWidth: .infinity, minHeight: 290, idealHeight: 310, maxHeight: .infinity)
         .background(DesignTokens.Palette.background)
         .background(alignment: .top) {
             DesignTokens.Palette.aurora.frame(height: 140)

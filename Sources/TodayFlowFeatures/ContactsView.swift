@@ -745,7 +745,8 @@ private struct ContactEditorView: View {
             }
             .padding(16)
         }
-        .frame(width: 480, height: 560)
+        .frame(minWidth: 400, idealWidth: 480, maxWidth: .infinity, minHeight: 440, idealHeight: 560, maxHeight: .infinity)
+        .resizableWindow()
     }
 
     private func lines(_ text: String) -> [String] {
@@ -846,7 +847,8 @@ private struct ContactImportView: View {
             }
         }
         .padding(20)
-        .frame(width: 520, height: 420)
+        .frame(minWidth: 440, idealWidth: 520, maxWidth: .infinity, minHeight: 360, idealHeight: 420, maxHeight: .infinity)
+        .resizableWindow()
     }
 
     private func loadFile(_ url: URL) {
@@ -934,6 +936,7 @@ private struct ContactDuplicatesView: View {
             }
         }
         .padding(20)
-        .frame(width: 520, height: 480)
+        .frame(minWidth: 440, idealWidth: 520, maxWidth: .infinity, minHeight: 400, idealHeight: 480, maxHeight: .infinity)
+        .resizableWindow()
     }
 }

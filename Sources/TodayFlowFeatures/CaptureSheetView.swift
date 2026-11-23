@@ -133,8 +133,12 @@ public struct CaptureSheetView: View {
             footer
         }
         .frame(
-            width: DesignTokens.Window.capture.width,
-            height: DesignTokens.Window.capture.height,
+            minWidth: DesignTokens.Window.captureMinimum.width,
+            idealWidth: DesignTokens.Window.capture.width,
+            maxWidth: .infinity,
+            minHeight: DesignTokens.Window.captureMinimum.height,
+            idealHeight: DesignTokens.Window.capture.height,
+            maxHeight: .infinity,
             alignment: .top
         )
         .background(DesignTokens.Palette.background)

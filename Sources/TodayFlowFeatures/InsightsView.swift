@@ -133,7 +133,7 @@ public struct InsightsView: View {
             Spacer()
         }
         .padding(20)
-        .frame(width: 540, height: 430)
+        .frame(minWidth: 460, idealWidth: 540, maxWidth: .infinity, minHeight: 380, idealHeight: 430, maxHeight: .infinity)
         .background(DesignTokens.Palette.background)
         .overlay(alignment: .top) { WindowDragGrabber() }
         .tint(DesignTokens.Palette.accent)

@@ -128,7 +128,7 @@ public struct CompletedHistoryView: View {
                 }
             }
         }
-        .frame(width: 420, height: 520)
+        .frame(minWidth: 340, idealWidth: 420, maxWidth: .infinity, minHeight: 360, idealHeight: 520, maxHeight: .infinity)
         .task { await model.load() }
     }
 }

@@ -70,6 +70,7 @@ public final class AskWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = false
         window.delegate = self
+        WindowSizeMemory.makeResizable(window, name: "ask", minimum: NSSize(width: 420, height: 400))
         WindowPlacement.besideMainWindow(window, main: mainWindowProvider?())
         self.window = window
 

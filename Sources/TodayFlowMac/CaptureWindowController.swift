@@ -74,6 +74,7 @@ public final class CaptureWindowController {
         let panel = panel ?? makePanel()
         panel.contentView = host
         panel.setContentSize(DesignTokens.Window.capture)
+        WindowSizeMemory.restore(panel, name: "capture")
         self.panel = panel
 
         NSApp.activate(ignoringOtherApps: true)
@@ -192,8 +193,7 @@ public final class CaptureWindowController {
     private func makePanel() -> PanelWindow {
         let rect = NSRect(origin: .zero, size: DesignTokens.Window.capture)
         let panel = PanelWindow(contentRect: rect, style: .capture)
-        panel.contentMinSize = DesignTokens.Window.capture
-        panel.contentMaxSize = DesignTokens.Window.capture
+        WindowSizeMemory.makeResizable(panel, name: "capture", minimum: DesignTokens.Window.captureMinimum)
         panel.isReleasedWhenClosed = false
         return panel
     }

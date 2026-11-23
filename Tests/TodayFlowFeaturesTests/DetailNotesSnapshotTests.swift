@@ -32,13 +32,15 @@ struct DetailNotesSnapshotTests {
             attachmentRepository: InMemoryAttachmentRepository(), contactRepository: InMemoryContactRepository()
         )
         await model.load()
-        for scheme in [ColorScheme.dark, .light] {
+        // The smallest, the usual and a wide task window.
+        let shots: [(ColorScheme, CGFloat)] = [(.dark, 720), (.light, 720), (.dark, 480), (.dark, 1300)]
+        for (scheme, width) in shots {
             let host = NSHostingView(rootView: DetailView(model: model, onOpenInObsidian: { _ in })
-                .frame(width: 720, height: 1100)
+                .frame(width: width, height: 1100)
                 .environment(\.colorScheme, scheme)
                 .background(DesignTokens.Palette.background))
             host.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
-            host.frame = NSRect(x: 0, y: 0, width: 720, height: 1100)
+            host.frame = NSRect(x: 0, y: 0, width: width, height: 1100)
             let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
             window.contentView = host
             host.layoutSubtreeIfNeeded()
@@ -47,7 +49,7 @@ struct DetailNotesSnapshotTests {
             let rep = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
             host.cacheDisplay(in: host.bounds, to: rep)
             try #require(rep.representation(using: .png, properties: [:]))
-                .write(to: root.appendingPathComponent("detail-\(scheme == .dark ? "dark" : "light").png"))
+                .write(to: root.appendingPathComponent("detail-\(scheme == .dark ? "dark" : "light")-\(Int(width)).png"))
         }
     }
 }

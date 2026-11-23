@@ -63,7 +63,7 @@ public struct DayPlanView: View {
             Divider()
             footer
         }
-        .frame(width: 480, height: 560)
+        .frame(minWidth: 400, idealWidth: 480, maxWidth: .infinity, minHeight: 420, idealHeight: 560, maxHeight: .infinity)
         .overlay(alignment: .top) { WindowDragGrabber() }
         .task { await model.loadAndPlan() }
     }

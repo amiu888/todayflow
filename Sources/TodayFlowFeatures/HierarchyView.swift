@@ -49,7 +49,14 @@ public struct HierarchyView: View {
                 tree
             }
         }
-        .frame(width: DesignTokens.Window.hierarchy.width, height: DesignTokens.Window.hierarchy.height)
+        .frame(
+            minWidth: DesignTokens.Window.hierarchyMinimum.width,
+            idealWidth: DesignTokens.Window.hierarchy.width,
+            maxWidth: .infinity,
+            minHeight: DesignTokens.Window.hierarchyMinimum.height,
+            idealHeight: DesignTokens.Window.hierarchy.height,
+            maxHeight: .infinity
+        )
         .background { keyboardShortcuts }
         .task { await model.refresh() }
     }

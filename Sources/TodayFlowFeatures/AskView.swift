@@ -124,7 +124,7 @@ public struct AskView: View {
             }
         }
         .padding(20)
-        .frame(width: 500, height: 520)
+        .frame(minWidth: 420, idealWidth: 500, maxWidth: .infinity, minHeight: 400, idealHeight: 520, maxHeight: .infinity)
         .overlay(alignment: .top) { WindowDragGrabber() }
         .onAppear { isQuestionFocused = true }
     }

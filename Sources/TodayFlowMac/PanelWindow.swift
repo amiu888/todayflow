@@ -36,8 +36,11 @@ public final class PanelWindow: NSPanel {
             // The main panel activates TodayFlow when clicked, so the regular
             // macOS menu bar (TodayFlow, File, Edit, View, Help) appears.
             mask = [.titled, .closable, .miniaturizable, .resizable]
-        case .slimBar, .capture:
+        case .slimBar:
             mask = Self.isUITesting ? [.borderless] : [.borderless, .nonactivatingPanel]
+        case .capture:
+            // Resizable from its edges like any window.
+            mask = Self.isUITesting ? [.borderless, .resizable] : [.borderless, .nonactivatingPanel, .resizable]
         }
         super.init(contentRect: contentRect, styleMask: mask, backing: .buffered, defer: false)
         isFloatingPanel = !Self.isUITesting

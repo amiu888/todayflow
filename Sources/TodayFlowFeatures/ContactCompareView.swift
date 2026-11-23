@@ -58,8 +58,9 @@ public struct ContactCompareView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 14)
         }
-        .frame(width: 660)
-        .frame(minHeight: 420, idealHeight: 540)
+        .frame(minWidth: 600, idealWidth: 660, maxWidth: .infinity)
+        .frame(minHeight: 420, idealHeight: 540, maxHeight: .infinity)
+        .resizableWindow()
         .background(DesignTokens.Palette.background)
         .accessibilityIdentifier("contact-compare")
     }

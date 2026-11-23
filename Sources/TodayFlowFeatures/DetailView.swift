@@ -140,7 +140,14 @@ public struct DetailView: View {
                 loadingState
             }
         }
-        .frame(width: DesignTokens.Window.detail.width, height: DesignTokens.Window.detail.height)
+        .frame(
+            minWidth: DesignTokens.Window.detailMinimum.width,
+            idealWidth: DesignTokens.Window.detail.width,
+            maxWidth: .infinity,
+            minHeight: DesignTokens.Window.detailMinimum.height,
+            idealHeight: DesignTokens.Window.detail.height,
+            maxHeight: .infinity
+        )
         #if canImport(AppKit)
         // Dropping a file anywhere on the detail window attaches it to this
         // task (FR-04). This is the natural place to add a screenshot/PDF
@@ -260,6 +267,10 @@ public struct DetailView: View {
                         }
                     }
                     .padding(20)
+                    // A wide window keeps lines readable: the column stops
+                    // growing at 900 pt and stays centered.
+                    .frame(maxWidth: 900, alignment: .leading)
+                    .frame(maxWidth: .infinity)
                 }
 
                 // Pinned above the buttons (not at the bottom of the scroll)
@@ -722,44 +733,71 @@ public struct DetailView: View {
         }
     }
 
+    /// Starts, Due and Set due on one line, or stacked when the window is
+    /// narrow, so the labels and dates are never squeezed.
     @MainActor
     private var datesRow: some View {
-        @Bindable var model = model
-
-        return HStack(spacing: 12) {
-            DatePicker(
-                "Starts",
-                selection: $model.edit.startAt,
-                displayedComponents: [.date, .hourAndMinute]
-            )
-            .onChange(of: model.edit.startAt) {
-                // commit() moves a due time that the new start overtook.
-                Task { await model.commit() }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                startPicker
+                duePicker
+                setDueMenu
             }
-
-            DatePicker(
-                "Due",
-                selection: $model.edit.endAt,
-                in: model.edit.startAt.addingTimeInterval(TaskSchedule.minimumDuration)...,
-                displayedComponents: [.date, .hourAndMinute]
-            )
-            .help("Due must be after the start")
-            .onChange(of: model.edit.endAt) {
-                Task { await model.commit() }
-            }
-
-            // FR-22 compact date shortcuts.
-            Menu {
-                ForEach(DetailViewModel.DateShortcut.allCases) { shortcut in
-                    Button(shortcut.label) {
-                        Task { await model.applyDateShortcut(shortcut) }
-                    }
+            VStack(alignment: .leading, spacing: 8) {
+                startPicker
+                HStack(spacing: 12) {
+                    duePicker
+                    setDueMenu
                 }
-            } label: {
-                Label("Set due", systemImage: "calendar")
             }
         }
         .font(.callout)
+    }
+
+    @MainActor
+    private var startPicker: some View {
+        @Bindable var model = model
+        return DatePicker(
+            "Starts",
+            selection: $model.edit.startAt,
+            displayedComponents: [.date, .hourAndMinute]
+        )
+        .fixedSize()
+        .onChange(of: model.edit.startAt) {
+            // commit() moves a due time that the new start overtook.
+            Task { await model.commit() }
+        }
+    }
+
+    @MainActor
+    private var duePicker: some View {
+        @Bindable var model = model
+        return DatePicker(
+            "Due",
+            selection: $model.edit.endAt,
+            in: model.edit.startAt.addingTimeInterval(TaskSchedule.minimumDuration)...,
+            displayedComponents: [.date, .hourAndMinute]
+        )
+        .fixedSize()
+        .help("Due must be after the start")
+        .onChange(of: model.edit.endAt) {
+            Task { await model.commit() }
+        }
+    }
+
+    /// FR-22 compact date shortcuts.
+    @MainActor
+    private var setDueMenu: some View {
+        Menu {
+            ForEach(DetailViewModel.DateShortcut.allCases) { shortcut in
+                Button(shortcut.label) {
+                    Task { await model.applyDateShortcut(shortcut) }
+                }
+            }
+        } label: {
+            Label("Set due", systemImage: "calendar")
+        }
+        .fixedSize()
     }
 
     @MainActor

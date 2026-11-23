@@ -71,6 +71,7 @@ public final class MiniCalendarWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.setContentSize(size)
+        WindowSizeMemory.makeResizable(window, name: "miniCalendar", minimum: NSSize(width: 300, height: 290))
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.window = window
 
