@@ -26,6 +26,19 @@ public final class AskWindowController: NSObject, NSWindowDelegate {
         window?.isVisible ?? false
     }
 
+    /// Opens Ask and asks `question` right away (Quick Find's "Ask AI").
+    public func present(question: String) {
+        pendingQuestion = question
+        if let model, window != nil {
+            model.question = question
+            model.ask()
+            pendingQuestion = nil
+        }
+        present()
+    }
+
+    private var pendingQuestion: String?
+
     public func present() {
         if let window {
             NSApp.activate(ignoringOtherApps: true)
@@ -53,6 +66,11 @@ public final class AskWindowController: NSObject, NSWindowDelegate {
             onFinished: { [weak self] in self?.dismiss() }
         )
         self.model = model
+        if let question = pendingQuestion {
+            pendingQuestion = nil
+            model.question = question
+            model.ask()
+        }
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 500, height: 520),

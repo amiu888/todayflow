@@ -107,19 +107,12 @@ public final class AllTasksViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        async let itemsTask = repository.allItems()
-        async let attachmentsTask = attachmentRepository.allAttachments()
-        async let actionsTask = actionRepository?.allActions() ?? []
-        let (items, attachments, actions) = await (itemsTask, attachmentsTask, actionsTask)
-
-        var contactNames: [UUIDv7: [String]] = [:]
-        if let contactRepository {
-            for contact in await contactRepository.contacts() {
-                for taskId in await contactRepository.taskIds(forContact: contact.id) {
-                    contactNames[taskId, default: []].append(contact.displayName)
-                }
-            }
-        }
+        let loaded = await TaskSearchLoader.load(
+            repository: repository,
+            attachmentRepository: attachmentRepository,
+            actionRepository: actionRepository,
+            contactRepository: contactRepository
+        )
 
         await loadTrays()
         if !preferencesLoaded, let settingRepository {
@@ -129,16 +122,7 @@ public final class AllTasksViewModel {
             if hide != hideTrayTasks { hideTrayTasks = hide }
         }
 
-        let attachmentsByItem = Dictionary(grouping: attachments, by: \.itemId)
-        let actionsByItem = Dictionary(grouping: actions, by: \.itemId)
-        records = items.map { item in
-            TaskSearchRecord(
-                item: item,
-                attachments: attachmentsByItem[item.id] ?? [],
-                actions: actionsByItem[item.id] ?? [],
-                contactNames: contactNames[item.id] ?? []
-            )
-        }
+        records = loaded
         allTags = TaskSearch.allTags(in: records.filter { $0.item.kind != .project })
         // Drop selections for tags that no longer exist.
         let live = Set(allTags.map { $0.lowercased() })

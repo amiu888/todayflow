@@ -17,6 +17,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
     public private(set) var summary: TodaySummaryModel?
     /// The system-wide capture hotkey (FR-05, default ⌃⌥Space).
     public private(set) var hotKey: GlobalHotKey?
+    public private(set) var quickFindHotKey: GlobalHotKey?
+    public private(set) var quickFind: QuickFindController?
     /// Nudges and task reminders (FR-42/FR-44).
     public private(set) var notifications: NotificationController?
     /// The automatic end-of-day review (FR-43).
@@ -98,6 +100,14 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
                 windowManager?.showCapture()
             }
             self.hotKey = hotKey
+            let quickFind = QuickFindController(environment: environment)
+            quickFind.onOpenTask = { [weak windowManager] id in windowManager?.show(.detail(id)) }
+            quickFind.onAsk = { [weak askAI] question in askAI?.present(question: question) }
+            self.quickFind = quickFind
+            // ⌃⌥F (0x03 is the F key) opens Quick Find from any app.
+            self.quickFindHotKey = GlobalHotKey(
+                identifier: 2, keyCode: 0x03, modifiers: GlobalHotKey.defaultModifiers
+            ) { [weak quickFind] in quickFind?.toggle() }
             if !hotKey.isRegistered {
                 NSLog("TodayFlow: ⌃⌥Space is unavailable; use the menu-bar New Task item.")
             }
@@ -324,6 +334,7 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
         viewMenu.addItem(item("Insights", #selector(showInsightsMenu), key: "6"))
         viewMenu.addItem(item("Upcoming", #selector(showUpcomingMenu), key: "2"))
         viewMenu.addItem(item("Completed", #selector(showCompletedMenu), key: "3"))
+        viewMenu.addItem(item("Quick Find…", #selector(showQuickFindMenu), key: "k"))
         viewMenu.addItem(
             item("All Tasks & Search", #selector(showAllTasksMenu), key: "f", modifiers: [.command, .shift])
         )
@@ -574,6 +585,11 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
 
     @objc private func showCompletedMenu() {
         windows?.show(.completed)
+    }
+
+    /// ⌘K in the app; ⌃⌥F from any app.
+    @objc private func showQuickFindMenu() {
+        quickFind?.toggle()
     }
 
     @objc private func showAllTasksMenu() {

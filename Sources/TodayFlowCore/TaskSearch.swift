@@ -267,15 +267,21 @@ public enum TaskSearch {
     }
 
     private static func haystack(for record: TaskSearchRecord) -> [Field] {
-        var fields: [Field] = []
+        searchableText(for: record).map { Field(field: $0.field, text: normalize($0.text)) }
+    }
+
+    /// Every searchable piece of text about a task, as written, in field
+    /// order (title first). Quick Find quotes these to show why a task matched.
+    public static func searchableText(for record: TaskSearchRecord) -> [(field: TaskSearchField, text: String)] {
+        var fields: [(field: TaskSearchField, text: String)] = []
         func add(_ field: TaskSearchField, _ value: String?) {
             guard let value, !value.isEmpty else { return }
-            fields.append(Field(field: field, text: normalize(value)))
+            fields.append((field, value))
         }
 
         let item = record.item
         add(.title, item.title)
-        add(.description, item.descriptionMd)
+        add(.description, DescriptionLog.plainText(item.descriptionMd))
         add(.summary, item.summary)
         for tag in item.tags { add(.tag, tag) }
 

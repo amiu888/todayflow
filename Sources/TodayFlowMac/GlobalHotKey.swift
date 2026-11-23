@@ -18,9 +18,9 @@ public final class GlobalHotKey {
     public static let defaultKeyCode: UInt32 = 0x31
     public static let defaultModifiers = UInt32(controlKey | optionKey)
 
-    /// Four-character signature `TFHK` plus id 1 identify our hotkey.
+    /// Four-character signature `TFHK` plus an id per hotkey (1 = capture).
     private nonisolated static let signature: FourCharCode = 0x5446_484B
-    private nonisolated static let identifier: UInt32 = 1
+    private nonisolated let identifier: UInt32
 
     private let action: @MainActor () -> Void
     private var hotKeyRef: EventHotKeyRef?
@@ -31,7 +31,15 @@ public final class GlobalHotKey {
     /// Creates the hotkey and registers it immediately with the defaults.
     public init(action: @escaping @MainActor () -> Void) {
         self.action = action
+        self.identifier = 1
         isRegistered = register()
+    }
+
+    /// A second hotkey with its own id and keys (e.g. Quick Find).
+    public init(identifier: UInt32, keyCode: UInt32, modifiers: UInt32, action: @escaping @MainActor () -> Void) {
+        self.action = action
+        self.identifier = identifier
+        isRegistered = register(keyCode: keyCode, modifiers: modifiers)
     }
 
     /// Registers (or re-registers) the hotkey. Returns false when either the
@@ -60,7 +68,7 @@ public final class GlobalHotKey {
             return false
         }
 
-        let hotKeyID = EventHotKeyID(signature: Self.signature, id: Self.identifier)
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: identifier)
         let hotKeyStatus = RegisterEventHotKey(
             keyCode,
             modifiers,
@@ -112,14 +120,15 @@ public final class GlobalHotKey {
             nil,
             &hotKeyID
         )
+        let hotKey = Unmanaged<GlobalHotKey>.fromOpaque(userData).takeUnretainedValue()
         guard status == noErr,
               hotKeyID.signature == GlobalHotKey.signature,
-              hotKeyID.id == GlobalHotKey.identifier
+              hotKeyID.id == hotKey.identifier
         else {
+            // Another TodayFlow hotkey: let its own handler take it.
             return OSStatus(eventNotHandledErr)
         }
 
-        let hotKey = Unmanaged<GlobalHotKey>.fromOpaque(userData).takeUnretainedValue()
         MainActor.assumeIsolated {
             hotKey.action()
         }

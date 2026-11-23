@@ -483,6 +483,9 @@ public final class WindowManager: NSObject, NSWindowDelegate {
             showTutorialWindow()
             return
         }
+        if case .detail(let id) = kind {
+            RecentTasks.record(id)
+        }
         if let window = windows[kind] {
             if window.isMiniaturized {
                 window.deminiaturize(nil)
