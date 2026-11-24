@@ -95,6 +95,19 @@ public final class ObsidianMCPClient: ObsidianRemoteTransport, @unchecked Sendab
         try checkToolResult(result)
     }
 
+    public func delete(_ path: String) async throws {
+        let result = try await call(
+            method: "tools/call",
+            tool: "vault_delete",
+            arguments: ["path": path]
+        )
+        if result["isError"] as? Bool == true {
+            let lowered = (textContent(result) ?? "").lowercased()
+            if lowered.contains("not found") || lowered.contains("does not exist") { return }
+        }
+        try checkToolResult(result)
+    }
+
     public func open(_ path: String) async throws {
         let result = try await call(
             method: "tools/call",
@@ -120,7 +133,7 @@ public final class ObsidianMCPClient: ObsidianRemoteTransport, @unchecked Sendab
                 "io.modelcontextprotocol/protocolVersion": Self.protocolVersion,
                 "io.modelcontextprotocol/clientInfo": [
                     "name": Self.clientName,
-                    "version": "1.9.31",
+                    "version": "1.9.32",
                 ],
                 "io.modelcontextprotocol/clientCapabilities": [:],
             ],

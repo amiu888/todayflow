@@ -55,6 +55,10 @@ public actor InMemoryWorkItemRepository: WorkItemRepository {
             .sorted { FractionalIndex.isLessThan($0.displayOrder, $1.displayOrder) }
     }
 
+    public func deletedItems() async -> [WorkItem] {
+        items.values.filter(\.isDeleted).sorted { $0.id < $1.id }
+    }
+
     public func save(_ item: WorkItem) async throws {
         items[item.id] = item
         await notifyObservers()

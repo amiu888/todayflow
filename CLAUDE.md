@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (server sync: `SyncClient`, `SyncRunner`).
-- `swift build` is warning-free; `swift test` passes **941 tests**; the XCUITest suite has 22 cases.
+- `swift build` is warning-free; `swift test` passes **958 tests**; the XCUITest suite has 22 cases.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
@@ -40,10 +40,13 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
   upload/download as blobs; Settings ▸ Sync pairs
   with the self-hosted server in `Server/` (design `docs/sync/PLAN.md`, status `docs/sync/HANDOFF.md`).
   The old `change_outbox` is left as is.
+- Obsidian archive: besides the two-way sync note, `ObsidianArchive` (Core) renders every task,
+  project, contact and day as a cross-linked note plus `TodayFlow.base`; `ObsidianSyncController`
+  writes only changed files, tracked by `ObsidianArchiveManifest` in setting `obsidian_archive`.
 
 `./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`
 (hardened runtime). `scripts/package-dmg.sh` notarizes and staples the DMG when
-`NOTARY_PROFILE` is set; the 1.9.31 DMG is notarized. Known follow-ups: XCUITests +
+`NOTARY_PROFILE` is set; the 1.9.32 DMG is notarized. Known follow-ups: XCUITests +
 performance gates, live Markdown rendering and inline images in the detail
 description. ⌘V in a task or New Task window attaches the clipboard (image, file,
 link); the Today list and All Tasks have a hide/show filter for tasks in trays.

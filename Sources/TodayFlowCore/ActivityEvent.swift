@@ -89,3 +89,8 @@ public protocol ActivityRepository: Sendable {
     /// Newest first across all items.
     func recent(limit: Int) async -> [ActivityEvent]
 }
+
+public extension ActivityRepository {
+    /// Every event, newest first (the Obsidian archive's timelines and days).
+    func allEvents() async -> [ActivityEvent] { await recent(limit: 10_000_000) }
+}

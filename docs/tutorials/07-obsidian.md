@@ -69,7 +69,7 @@ Safe defaults:
 
 - Removing a line in Obsidian does **not** delete the task. Delete tasks in TodayFlow.
 - New project lines are display-only; create projects in TodayFlow.
-- Tasks completed before today are not included in the note.
+- Tasks completed before today are not included in the sync note; they stay in the archive.
 - The note is read and written every few seconds while sync is on.
 
 The block looks like this:
@@ -85,11 +85,33 @@ The block looks like this:
 
 Keep the markers if you edit around the block.
 
+## The archive: every task, project, contact and day
+
+Next to the sync note, TodayFlow keeps a read-only archive of **everything**, including completed, cancelled and deleted tasks:
+
+```
+TodayFlow/
+├─ Tasks.md                                  ← the two-way sync note
+├─ Tasks/2026-11/Review Q4 roadmap (a1b2c3).md
+├─ Projects/Launch Q4 (d4e5f6).md
+├─ Contacts/Maria Silva (0a1b2c).md
+├─ Daily/2026-11-24.md
+├─ Deleted/Old idea (123abc).md
+└─ TodayFlow.base
+```
+
+- **Task notes** show what happened from beginning to end: a timeline from the activity log (created, dropped from Outlook, priority and due changes, notes, completion), the outcome (lead time, on time or late), the people involved, and related work (blocked by, blocks, relates to, subtasks, other tasks in the project). Properties such as `status`, `priority`, `project`, `contacts`, `created`, `due`, `completed`, `lead_time_days` and `late` can be filtered and sorted.
+- **Daily notes** answer “what did I do that day?”: completed, worked on, created, and due but not done.
+- **Contact notes** list each person's open and completed tasks; **project notes** list their tasks and people.
+- **TodayFlow.base** opens in Obsidian's built-in Bases with views for open, overdue, completed, done late and cancelled tasks, projects, contacts and days.
+
+The archive is a copy: TodayFlow rewrites a note whenever its data changes, so edit tasks in TodayFlow or in the sync note. Only changed notes are written. A renamed task's note is renamed. TodayFlow only removes notes it created, never your own. If the sync note is not in a folder called `TodayFlow`, the archive goes in a `TodayFlow` folder next to it.
+
 ## Deep links to notes
 
 - **Settings → Obsidian → Open sync note** opens the central note directly in Obsidian.
-- In a task or project, open its detail view and click **Obsidian** in the tag row. TodayFlow creates a note under `TodayFlow/Tasks/` or `TodayFlow/Projects/` and opens it with an `obsidian://open` link.
-- Per-task notes are snapshots for reference. The central sync note is the two-way note.
+- In a task or project, open its detail view and click **Obsidian** in the tag row. TodayFlow opens that item's archive note.
+- Archive notes are read-only copies. The central sync note is the two-way note.
 
 ## Reconfigure or turn it off
 

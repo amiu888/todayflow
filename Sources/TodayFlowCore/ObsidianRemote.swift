@@ -35,6 +35,8 @@ public protocol ObsidianRemoteTransport: Sendable {
     func open(_ path: String) async throws
     /// Lists one vault directory. Directory names end with "/".
     func list(_ path: String) async throws -> [String]
+    /// Removes one file; a missing file is not an error.
+    func delete(_ path: String) async throws
 }
 
 /// Talks to the Obsidian Local REST API plugin on another machine.
@@ -126,6 +128,17 @@ public final class ObsidianRemoteClient: ObsidianRemoteTransport, @unchecked Sen
             body: body,
             contentType: "text/markdown"
         )
+        if response.statusCode == 401 || response.statusCode == 403 {
+            throw ObsidianRemoteError.unauthorized
+        }
+        guard (200...299).contains(response.statusCode) else {
+            throw ObsidianRemoteError.server(response.statusCode)
+        }
+    }
+
+    public func delete(_ path: String) async throws {
+        let (_, response) = try await send(method: "DELETE", path: "/vault/\(path)")
+        if response.statusCode == 404 { return }
         if response.statusCode == 401 || response.statusCode == 403 {
             throw ObsidianRemoteError.unauthorized
         }

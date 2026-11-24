@@ -24,6 +24,9 @@ public enum SettingKeys {
     public static let workflowRules = "workflow_rules"
     /// Optional Obsidian vault and sync note, encoded as `ObsidianSettings`.
     public static let obsidian = "obsidian"
+    /// JSON `ObsidianArchiveManifest`: the archive files last written to the
+    /// vault (per device; settings are not synced).
+    public static let obsidianArchive = "obsidian_archive"
 }
 
 /// The user's business hours (driver.md line 49: the WorkCalendar settings

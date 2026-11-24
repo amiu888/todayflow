@@ -28,6 +28,9 @@ public protocol WorkItemRepository: Sendable {
     /// source (driver.md FR-16).
     func allItems() async -> [WorkItem]
 
+    /// Soft-deleted items, kept for history (the Obsidian archive's Deleted folder).
+    func deletedItems() async -> [WorkItem]
+
     /// Insert or update an item (upsert by `id`).
     func save(_ item: WorkItem) async throws
 
@@ -42,4 +45,9 @@ public protocol WorkItemRepository: Sendable {
 
     /// Search over titles and descriptions.
     func search(_ query: String) async -> [WorkItem]
+}
+
+public extension WorkItemRepository {
+    /// Default for simple test doubles; real adapters override this.
+    func deletedItems() async -> [WorkItem] { [] }
 }

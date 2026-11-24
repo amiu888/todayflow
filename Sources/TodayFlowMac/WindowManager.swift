@@ -116,6 +116,10 @@ public final class WindowManager: NSObject, NSWindowDelegate {
         )
         self.obsidian = ObsidianSyncController(
             workItems: environment.workItems,
+            links: environment.links,
+            contacts: environment.contacts,
+            attachments: environment.attachments,
+            activities: environment.activities,
             settings: environment.settings,
             keychain: environment.keychain,
             calendar: environment.workCalendar
