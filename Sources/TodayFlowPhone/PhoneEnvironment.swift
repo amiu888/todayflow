@@ -10,7 +10,7 @@ import TodayFlowRecognition
 @MainActor
 public final class PhoneEnvironment {
     /// The app group shared with the share extension (docs/ios/DESIGN.md §4).
-    public static let appGroup = "group.com.todayflow.ios"
+    public static let appGroup = ShareInbox.appGroup
 
     public let workItems: any WorkItemRepository
     public let links: any LinkRepository
@@ -100,14 +100,6 @@ public final class PhoneEnvironment {
                 attachmentsDirectory: FileManager.default.temporaryDirectory
             )
         )
-    }
-
-    /// The folder the share extension drops inbox items into, or `nil` when
-    /// the app group isn't available (simulator builds without signing).
-    public static func inboxDirectory() -> URL? {
-        FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: appGroup)?
-            .appendingPathComponent("Inbox", isDirectory: true)
     }
 
     /// Reads the stored work-hours settings; a missing value keeps the default.

@@ -19,8 +19,10 @@ struct PhoneDetailView: View {
     @State private var confirmDelete = false
     @State private var previewURL: URL?
     @FocusState private var noteFocused: Bool
+    private let attachmentsDirectory: URL
 
     init(id: UUIDv7, environment: PhoneEnvironment) {
+        attachmentsDirectory = environment.materializer.attachmentsDirectory
         _model = State(initialValue: DetailViewModel(
             itemId: id,
             repository: environment.workItems,
@@ -399,9 +401,15 @@ struct PhoneDetailView: View {
 
     // MARK: Attachments
 
+    /// The attachment's file on this iPhone. iOS moves the app's folder when
+    /// the app is updated, so a stored path that no longer exists is looked
+    /// up by name in the current Attachments folder.
     private func localFile(_ attachment: Attachment) -> URL? {
+        let manager = FileManager.default
         for path in [attachment.localCopyPath, attachment.reference].compactMap({ $0 }) where path.hasPrefix("/") {
-            if FileManager.default.fileExists(atPath: path) { return URL(fileURLWithPath: path) }
+            if manager.fileExists(atPath: path) { return URL(fileURLWithPath: path) }
+            let moved = attachmentsDirectory.appendingPathComponent((path as NSString).lastPathComponent)
+            if manager.fileExists(atPath: moved.path) { return moved }
         }
         return nil
     }

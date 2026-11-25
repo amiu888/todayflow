@@ -103,6 +103,7 @@ public struct PhoneRootView: View {
             await environment.loadSettings()
             await PhoneSampleData.seedIfRequested(environment)
             await sync?.start()
+            await PhoneInboxImporter.importPending(environment)
             #if DEBUG
             // Screenshots and checks: `-openTask <uuid>` opens a task, `-tab calendar|search` picks a tab.
             let defaults = UserDefaults.standard
@@ -135,7 +136,12 @@ public struct PhoneRootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             // SyncController runs its own round when the app comes forward.
-            if phase == .active { reloadAll() }
+            if phase == .active {
+                Task {
+                    await PhoneInboxImporter.importPending(environment)
+                    reloadAll()
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
             reloadAll()
