@@ -2,6 +2,7 @@
 import SwiftUI
 import TodayFlowCore
 import TodayFlowDesign
+import TodayFlowFeatures
 
 /// The three tabs of the iPhone app (docs/ios/DESIGN.md §3).
 public struct PhoneRootView: View {
@@ -9,15 +10,37 @@ public struct PhoneRootView: View {
 
     private let environment: PhoneEnvironment
     @State private var selection: Tab = .today
+    @State private var today: TodayViewModel
+    @State private var showingAdd = false
+    @State private var showingSettings = false
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(environment: PhoneEnvironment) {
         self.environment = environment
+        _today = State(initialValue: TodayViewModel(
+            repository: environment.workItems,
+            linkRepository: environment.links,
+            attachmentRepository: environment.attachments,
+            settingRepository: environment.settings,
+            calendar: environment.workCalendar,
+            deviceId: "local"
+        ))
     }
 
     public var body: some View {
         TabView(selection: $selection) {
             SwiftUI.Tab("Today", systemImage: "checklist", value: Tab.today) {
-                NavigationStack { PhonePlaceholder(title: "Today") }
+                NavigationStack {
+                    PhoneTodayView(
+                        model: today,
+                        environment: environment,
+                        onAdd: { showingAdd = true },
+                        onSettings: { showingSettings = true }
+                    )
+                    .navigationDestination(for: UUIDv7.self) { id in
+                        PhoneTaskDestination(id: id, environment: environment)
+                    }
+                }
             }
             SwiftUI.Tab("Calendar", systemImage: "calendar", value: Tab.calendar) {
                 NavigationStack { PhonePlaceholder(title: "Calendar") }
@@ -26,11 +49,37 @@ public struct PhoneRootView: View {
                 NavigationStack { PhonePlaceholder(title: "Search") }
             }
         }
-        .task { await environment.loadSettings() }
+        .sheet(isPresented: $showingAdd) {
+            PhonePlaceholder(title: "New Task")
+        }
+        .sheet(isPresented: $showingSettings) {
+            NavigationStack { PhonePlaceholder(title: "Settings") }
+        }
+        .task {
+            await environment.loadSettings()
+            await PhoneSampleData.seedIfRequested(environment)
+            await today.observe()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await today.load() } }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
+            Task { await today.load() }
+        }
     }
 }
 
-/// Stand-in for a tab until its screen lands.
+/// Where a tapped task goes; the detail screen replaces it in M4.
+struct PhoneTaskDestination: View {
+    let id: UUIDv7
+    let environment: PhoneEnvironment
+
+    var body: some View {
+        PhonePlaceholder(title: "Task")
+    }
+}
+
+/// Stand-in for a screen until it lands.
 struct PhonePlaceholder: View {
     let title: String
 
