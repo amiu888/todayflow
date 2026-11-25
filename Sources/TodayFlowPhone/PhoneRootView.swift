@@ -14,6 +14,9 @@ public struct PhoneRootView: View {
     @State private var showingAdd = false
     @State private var showingSettings = false
     @State private var todayPath: [UUIDv7] = []
+    @State private var calendarModel: CalendarViewModel
+    @State private var search: QuickFindModel
+    @State private var addDay: Date?
     @Environment(\.scenePhase) private var scenePhase
 
     public init(environment: PhoneEnvironment) {
@@ -26,6 +29,18 @@ public struct PhoneRootView: View {
             calendar: environment.workCalendar,
             deviceId: "local"
         ))
+        _calendarModel = State(initialValue: CalendarViewModel(
+            repository: environment.workItems,
+            calendar: environment.workCalendar.calendar
+        ))
+        _search = State(initialValue: QuickFindModel(
+            repository: environment.workItems,
+            linkRepository: environment.links,
+            attachmentRepository: environment.attachments,
+            actionRepository: environment.actions,
+            contactRepository: environment.contacts,
+            calendar: environment.workCalendar
+        ))
     }
 
     public var body: some View {
@@ -35,7 +50,10 @@ public struct PhoneRootView: View {
                     PhoneTodayView(
                         model: today,
                         environment: environment,
-                        onAdd: { showingAdd = true },
+                        onAdd: {
+                            addDay = today.activeDay
+                            showingAdd = true
+                        },
                         onSettings: { showingSettings = true }
                     )
                     .navigationDestination(for: UUIDv7.self) { id in
@@ -44,14 +62,27 @@ public struct PhoneRootView: View {
                 }
             }
             SwiftUI.Tab("Calendar", systemImage: "calendar", value: Tab.calendar) {
-                NavigationStack { PhonePlaceholder(title: "Calendar") }
+                NavigationStack {
+                    PhoneCalendarView(model: calendarModel) { day in
+                        addDay = day
+                        showingAdd = true
+                    }
+                    .navigationDestination(for: UUIDv7.self) { id in
+                        PhoneTaskDestination(id: id, environment: environment)
+                    }
+                }
             }
             SwiftUI.Tab("Search", systemImage: "magnifyingglass", value: Tab.search, role: .search) {
-                NavigationStack { PhonePlaceholder(title: "Search") }
+                NavigationStack {
+                    PhoneSearchView(model: search)
+                        .navigationDestination(for: UUIDv7.self) { id in
+                            PhoneTaskDestination(id: id, environment: environment)
+                        }
+                }
             }
         }
-        .sheet(isPresented: $showingAdd) {
-            PhoneQuickAddView(environment: environment, initialDay: today.activeDay)
+        .sheet(isPresented: $showingAdd, onDismiss: reloadAll) {
+            PhoneQuickAddView(environment: environment, initialDay: addDay)
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack { PhonePlaceholder(title: "Settings") }
@@ -80,10 +111,19 @@ public struct PhoneRootView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await today.load() } }
+            if phase == .active { reloadAll() }
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
-            Task { await today.load() }
+            reloadAll()
+        }
+        .onChange(of: selection) { reloadAll() }
+    }
+
+    private func reloadAll() {
+        Task {
+            await today.load()
+            await calendarModel.load()
+            await search.load()
         }
     }
 }
@@ -111,6 +151,7 @@ struct PhoneTaskDestination: View {
 
     var body: some View {
         PhoneDetailView(id: id, environment: environment)
+            .onAppear { RecentTasks.record(id) }
     }
 }
 
