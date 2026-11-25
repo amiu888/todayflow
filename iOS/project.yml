@@ -43,6 +43,9 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        CFBundleURLTypes:
+          - CFBundleURLName: com.todayflow.ios
+            CFBundleURLSchemes: [todayflow]
         NSLocalNetworkUsageDescription: TodayFlow syncs with your TodayFlow server on your home network.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
