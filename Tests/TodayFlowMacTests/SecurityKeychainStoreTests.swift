@@ -3,6 +3,7 @@ import Foundation
 import Security
 import Testing
 import TodayFlowCore
+import TodayFlowPersistence
 import TodayFlowMac
 
 /// Exercises the real macOS Keychain under a test-only service so the tests

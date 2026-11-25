@@ -3,7 +3,7 @@ import Foundation
 import Security
 import TodayFlowCore
 
-/// An error from the macOS Keychain, carrying the underlying `OSStatus`.
+/// An error from the Keychain, carrying the underlying `OSStatus`.
 public struct KeychainError: Error, CustomStringConvertible {
     public enum Operation: String, Sendable {
         case add
@@ -19,7 +19,7 @@ public struct KeychainError: Error, CustomStringConvertible {
     }
 }
 
-/// Production `KeychainStore` backed by the macOS Keychain (driver.md
+/// Production `KeychainStore` backed by the Keychain (driver.md
 /// line 411 / NFR-10: API keys in Keychain).
 ///
 /// Secrets are stored as generic passwords scoped by `service`:

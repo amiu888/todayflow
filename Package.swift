@@ -23,7 +23,7 @@ let package = Package(
     name: "TodayFlow",
     platforms: [
         .macOS(.v14),
-        .iOS(.v17),
+        .iOS("26.0"), // the iPhone app (docs/ios/DESIGN.md §8)
         .watchOS(.v10),
     ],
     products: [
@@ -35,6 +35,7 @@ let package = Package(
         .library(name: "TodayFlowDesign", targets: ["TodayFlowDesign"]),
         .library(name: "TodayFlowFeatures", targets: ["TodayFlowFeatures"]),
         .library(name: "TodayFlowMac", targets: ["TodayFlowMac"]),
+        .library(name: "TodayFlowPhone", targets: ["TodayFlowPhone"]),
         .executable(name: "TodayFlowApp", targets: ["TodayFlowApp"]),
     ],
     dependencies: [
@@ -170,6 +171,24 @@ let package = Package(
                 "TodayFlowSync",
                 "TodayFlowRecognition",
                 "TodayFlowAI",
+                "TodayFlowDesign",
+                "TodayFlowFeatures",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]
+        ),
+        // iPhone screens (docs/ios/DESIGN.md). Every file is `#if os(iOS)`, so
+        // the Mac build compiles it to nothing; the app lives in iOS/project.yml.
+        .target(
+            name: "TodayFlowPhone",
+            dependencies: [
+                "TodayFlowCore",
+                "TodayFlowPersistence",
+                "TodayFlowSync",
+                "TodayFlowRecognition",
                 "TodayFlowDesign",
                 "TodayFlowFeatures",
                 .product(name: "GRDB", package: "GRDB.swift"),

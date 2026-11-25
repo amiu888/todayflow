@@ -27,3 +27,6 @@ build/
 # This NAS (addresses, paths, accounts). Templates are committed instead.
 deploy.env
 docs/**/*.local.md
+
+# iPhone signing team (template: iOS/signing.env.example)
+iOS/signing.env

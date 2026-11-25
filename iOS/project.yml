@@ -1,0 +1,63 @@
+# TodayFlow for iPhone (docs/ios/DESIGN.md). Generate the Xcode project with
+#   iOS/generate.sh
+# The .xcodeproj is not committed. The signing team comes from iOS/signing.env
+# (ignored; see signing.env.example), so no account details live in git.
+name: TodayFlowPhone
+options:
+  bundleIdPrefix: com.todayflow
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  TodayFlow:
+    path: ..
+targets:
+  TodayFlowPhoneApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: TodayFlowPhoneApp
+    dependencies:
+      - package: TodayFlow
+        product: TodayFlowPhone
+    entitlements:
+      path: TodayFlowPhoneApp/TodayFlowPhoneApp.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.todayflow.ios
+    info:
+      path: TodayFlowPhoneApp/Info.plist
+      properties:
+        CFBundleDisplayName: TodayFlow
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+        NSLocalNetworkUsageDescription: TodayFlow syncs with your TodayFlow server on your home network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.todayflow.ios
+        PRODUCT_NAME: TodayFlow
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+schemes:
+  TodayFlowPhone:
+    build:
+      targets:
+        TodayFlowPhoneApp: all
+    run:
+      config: Debug
+    archive:
+      config: Release
