@@ -18,11 +18,12 @@ public struct PhoneRootView: View {
     @State private var search: QuickFindModel
     @State private var addDay: Date?
     @State private var sync: SyncController?
-    @State private var notificationSettings = PhoneNotificationSettings()
+    private let notifications: PhoneNotificationController
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(environment: PhoneEnvironment) {
+    public init(environment: PhoneEnvironment, notifications: PhoneNotificationController) {
         self.environment = environment
+        self.notifications = notifications
         _today = State(initialValue: TodayViewModel(
             repository: environment.workItems,
             linkRepository: environment.links,
@@ -96,7 +97,7 @@ public struct PhoneRootView: View {
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
-                PhoneSettingsView(environment: environment, sync: sync, notifications: notificationSettings)
+                PhoneSettingsView(environment: environment, sync: sync, notifications: notifications.settings)
             }
         }
         .task {
@@ -104,6 +105,12 @@ public struct PhoneRootView: View {
             await PhoneSampleData.seedIfRequested(environment)
             await sync?.start()
             await PhoneInboxImporter.importPending(environment)
+            notifications.onOpen = { id in
+                selection = .today
+                todayPath = [id]
+            }
+            await notifications.requestAuthorization()
+            await notifications.refresh()
             #if DEBUG
             // Screenshots and checks: `-openTask <uuid>` opens a task, `-tab calendar|search` picks a tab.
             let defaults = UserDefaults.standard
@@ -136,6 +143,7 @@ public struct PhoneRootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             // SyncController runs its own round when the app comes forward.
+            if phase == .background { notifications.scheduleRefresh() }
             if phase == .active {
                 Task {
                     await PhoneInboxImporter.importPending(environment)
@@ -145,6 +153,10 @@ public struct PhoneRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
             reloadAll()
+            notifications.scheduleRefresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.remindersChanged)) { _ in
+            notifications.scheduleRefresh()
         }
         .onChange(of: selection) { reloadAll() }
     }

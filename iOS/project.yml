@@ -95,11 +95,30 @@ targets:
         PRODUCT_NAME: TodayFlowShare
         GENERATE_INFOPLIST_FILE: NO
         APPLICATION_EXTENSION_API_ONLY: YES
+  TodayFlowPhoneTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: TodayFlowPhoneApp
+      - package: TodayFlow
+        product: TodayFlowPhone
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.todayflow.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/TodayFlow.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TodayFlow
+        BUNDLE_LOADER: $(TEST_HOST)
 schemes:
   TodayFlowPhone:
     build:
       targets:
         TodayFlowPhoneApp: all
+    test:
+      config: Debug
+      targets:
+        - TodayFlowPhoneTests
     run:
       config: Debug
     archive:
