@@ -1,6 +1,6 @@
 # TodayFlow for iPhone — design (v1)
 
-Status: **proposal, not built**. Nothing here is implemented until approved.
+Status: **M1–M8 built (2026-11-25)**; M9 (TestFlight) waits for an Apple account in Xcode. How to build: `iOS/README.md`.
 
 ## 1. Goal
 
@@ -237,6 +237,12 @@ app and its tests must stay unchanged and green at every step.
 | M7 | Share extension + inbox import | Claude | sharing a Safari page and a photo creates tasks |
 | M8 | Notifications | Claude | reminder and nudges fire; actions work |
 | M9 | TestFlight build | Claude | installed on your iPhone |
+
+**Built 2026-11-25:** M2–M8 are done and committed (Claude wrote M3–M5 too, to
+keep one loop going). Checked in the simulator with sample data; two simulators
+synced through a local server; shares imported from the app group inbox; 8 iOS
+unit tests. Not yet checked by hand: the share sheet itself and notification
+banners (both need taps on a device).
 
 Rough size: 10–25 M tokens processed with Claude alone; about 6–14 M with
 Kapitsa writing the M3–M5 screens. One milestone per session keeps it at the

@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (server sync: `SyncClient`, `SyncRunner`).
-- `swift build` is warning-free; `swift test` passes **966 tests**; the XCUITest suite has 22 cases.
+- `swift build` is warning-free; `swift test` passes **969 tests**; the XCUITest suite has 22 cases.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
@@ -46,6 +46,10 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Obsidian via server: transport `.server` sends REST calls to the paired sync server's
   `/v1/obsidian/…` proxy (`Server/…/ObsidianProxy.swift`) with `X-Obsidian-Target`/`-Authorization`;
   the server stores nothing. Local, REST and MCP are unchanged.
+- iPhone app (docs/ios/DESIGN.md, iOS/README.md): `Sources/TodayFlowPhone` (every file `#if os(iOS)`),
+  `iOS/project.yml` (XcodeGen; team id in ignored `iOS/signing.env`), share extension writes
+  `ShareInbox` items to the app group; `SyncController` now lives in TodayFlowFeatures and
+  `SecurityKeychainStore` in TodayFlowPersistence so both apps share them. iOS tests: 8.
 
 `./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`
 (hardened runtime). `scripts/package-dmg.sh` notarizes and staples the DMG when
