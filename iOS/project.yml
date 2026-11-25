@@ -39,6 +39,8 @@ targets:
       path: TodayFlowPhoneApp/Info.plist
       properties:
         CFBundleDisplayName: TodayFlow
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

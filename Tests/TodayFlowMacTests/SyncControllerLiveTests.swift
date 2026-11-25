@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import TodayFlowCore
 import TodayFlowPersistence
+@testable import TodayFlowFeatures
 @testable import TodayFlowMac
 
 /// Settings ▸ Sync's controller against a real server:

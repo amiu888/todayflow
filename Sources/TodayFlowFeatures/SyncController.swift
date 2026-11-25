@@ -1,9 +1,12 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import Foundation
 import GRDB
 import Observation
 import TodayFlowCore
-import TodayFlowFeatures
 import TodayFlowPersistence
 import TodayFlowSync
 
@@ -39,7 +42,7 @@ public final class SyncController: SyncPanelBackend {
         }
         var details = ["Server: \(snapshot.serverAddress)"]
         if let user = snapshot.userName { details.append("User: \(user)") }
-        details.append("This Mac: \(snapshot.deviceName)")
+        details.append("This \(Self.deviceKind): \(snapshot.deviceName)")
         if snapshot.pendingCount > 0 { details.append("Changes waiting to send: \(snapshot.pendingCount)") }
         if let checked = snapshot.lastCheckedAt {
             details.append("Last checked \(checked.formatted(date: .omitted, time: .standard))")
@@ -62,6 +65,23 @@ public final class SyncController: SyncPanelBackend {
     static let tokenKey = KeychainKeys.syncDeviceToken
     static let interval: Duration = .seconds(10)
 
+    /// `Application Support/TodayFlow/Attachments`, where both apps keep files
+    /// (the Mac's `AppEnvironment.defaultAttachmentsDirectory()`).
+    public nonisolated static func defaultFilesDirectory() -> URL {
+        (FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory)
+            .appendingPathComponent("TodayFlow", isDirectory: true)
+            .appendingPathComponent("Attachments", isDirectory: true)
+    }
+
+    #if os(macOS)
+    static let deviceKind = "Mac"
+    static var deviceName: String { Host.current().localizedName ?? "Mac" }
+    #else
+    static let deviceKind = "iPhone"
+    static var deviceName: String { UIDevice.current.name }
+    #endif
+
     @ObservationIgnored private let queue: DatabaseQueue
     @ObservationIgnored private let databaseURL: URL?
     @ObservationIgnored private let settings: any SettingRepository
@@ -78,7 +98,7 @@ public final class SyncController: SyncPanelBackend {
         databaseURL: URL?,
         settings: any SettingRepository,
         keychain: any KeychainStore,
-        filesDirectory: URL = AppEnvironment.defaultAttachmentsDirectory(),
+        filesDirectory: URL = SyncController.defaultFilesDirectory(),
         session: URLSession = .shared
     ) {
         self.filesDirectory = filesDirectory
@@ -94,9 +114,14 @@ public final class SyncController: SyncPanelBackend {
     public func start() async {
         config = await loadConfig()
         await refresh()
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+        #if os(macOS)
+        let center = NSWorkspace.shared.notificationCenter
+        let wake = NSWorkspace.didWakeNotification
+        #else
+        let center = NotificationCenter.default
+        let wake = UIApplication.willEnterForegroundNotification
+        #endif
+        wakeObserver = center.addObserver(forName: wake, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in await self?.runRound() }
         }
         if config?.enabled == true { startLoop() }
@@ -141,7 +166,7 @@ public final class SyncController: SyncPanelBackend {
     public func pair(server: String, code: String) async -> String? {
         do {
             let url = try SyncClient.serverURL(from: server)
-            let deviceName = Host.current().localizedName ?? "Mac"
+            let deviceName = Self.deviceName
             let paired = try await SyncClient(baseURL: url, token: nil, session: session)
                 .pair(code: code.trimmingCharacters(in: .whitespacesAndNewlines), deviceName: deviceName)
             // Before anything leaves or arrives: a copy of this Mac's data.

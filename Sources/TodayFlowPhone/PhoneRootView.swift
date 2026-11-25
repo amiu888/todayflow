@@ -17,6 +17,8 @@ public struct PhoneRootView: View {
     @State private var calendarModel: CalendarViewModel
     @State private var search: QuickFindModel
     @State private var addDay: Date?
+    @State private var sync: SyncController?
+    @State private var notificationSettings = PhoneNotificationSettings()
     @Environment(\.scenePhase) private var scenePhase
 
     public init(environment: PhoneEnvironment) {
@@ -41,6 +43,14 @@ public struct PhoneRootView: View {
             contactRepository: environment.contacts,
             calendar: environment.workCalendar
         ))
+        _sync = State(initialValue: environment.databaseQueue.map {
+            SyncController(
+                queue: $0,
+                databaseURL: environment.databaseURL,
+                settings: environment.settings,
+                keychain: environment.keychain
+            )
+        })
     }
 
     public var body: some View {
@@ -85,11 +95,14 @@ public struct PhoneRootView: View {
             PhoneQuickAddView(environment: environment, initialDay: addDay)
         }
         .sheet(isPresented: $showingSettings) {
-            NavigationStack { PhonePlaceholder(title: "Settings") }
+            NavigationStack {
+                PhoneSettingsView(environment: environment, sync: sync, notifications: notificationSettings)
+            }
         }
         .task {
             await environment.loadSettings()
             await PhoneSampleData.seedIfRequested(environment)
+            await sync?.start()
             #if DEBUG
             // Screenshots and checks: `-openTask <uuid>` opens a task, `-tab calendar|search` picks a tab.
             let defaults = UserDefaults.standard
@@ -99,7 +112,17 @@ public struct PhoneRootView: View {
             switch defaults.string(forKey: "tab") {
             case "calendar": selection = .calendar
             case "search": selection = .search
+            case "settings": showingSettings = true
             default: break
+            }
+            // End-to-end sync checks: `-pairServer <url> -pairCode <code>` pairs and turns sync on.
+            if let server = defaults.string(forKey: "pairServer"), let code = defaults.string(forKey: "pairCode"),
+               let sync, !sync.snapshot.isPaired {
+                if let error = await sync.pair(server: server, code: code) {
+                    print("TodayFlow debug pairing failed: \(error)")
+                } else {
+                    await sync.setEnabled(true)
+                }
             }
             #endif
             await today.observe()
@@ -111,6 +134,7 @@ public struct PhoneRootView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
+            // SyncController runs its own round when the app comes forward.
             if phase == .active { reloadAll() }
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in

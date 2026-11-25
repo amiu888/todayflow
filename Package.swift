@@ -97,7 +97,12 @@ let package = Package(
         ),
         .target(
             name: "TodayFlowFeatures",
-            dependencies: ["TodayFlowCore", "TodayFlowDesign", "TodayFlowRecognition"],
+            dependencies: [
+                "TodayFlowCore", "TodayFlowDesign", "TodayFlowRecognition",
+                // SyncController (shared by the Mac and iPhone apps).
+                "TodayFlowSync", "TodayFlowPersistence",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
             resources: [.process("Resources")],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
