@@ -528,6 +528,16 @@ public final class ObsidianSyncController {
                 return nil
             }
             return client
+        case .server:
+            guard let proxy = await ObsidianServerProxy.load(settings: settings, keychain: keychain) else {
+                lastError = ObsidianRemoteError.serverNotPaired.localizedDescription
+                return nil
+            }
+            guard let client = ObsidianRemoteClient(settings: config, apiKey: key, proxy: proxy) else {
+                lastError = "The remote Obsidian address is invalid."
+                return nil
+            }
+            return client
         }
     }
 }

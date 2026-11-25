@@ -48,6 +48,17 @@ TodayFlow accepts the plugin’s self-signed HTTPS certificate for this connecti
 
 **Remote opening:** with remote mode, **Open sync note** and the **Obsidian** button in a task/project call the plugin’s `/open/` endpoint, so the remote Obsidian opens the note. A local Obsidian install is not needed.
 
+### Through your TodayFlow server (away from home)
+
+If this Mac cannot reach the Obsidian Mac directly, for example when you are away from home, TodayFlow can go through your TodayFlow sync server instead. The server must be able to reach Obsidian (same home network), and this Mac must be able to reach the server (for example over Tailscale).
+
+1. Pair this Mac with the server in **Settings → Sync**.
+2. In **Settings → Obsidian → Remote**, set **Transport** to **TodayFlow server**.
+3. Enter Obsidian's address **as the server sees it** (for example the Obsidian Mac's LAN address and `27124`) and the plugin's API key.
+4. Click **Test connection**, then **Save**.
+
+The server only relays requests: it does not store your notes or the API key. REST and MCP keep working as before; switch back at any time.
+
 If no server appears:
 
 - The plugin’s binding host is still `127.0.0.1` instead of `0.0.0.0`.
@@ -116,6 +127,7 @@ The archive is a copy: TodayFlow rewrites a note whenever its data changes, so e
 ## Reconfigure or turn it off
 
 - Open **Settings → Obsidian** at any time to switch between **This Mac** and **Remote**, choose a different vault — for example HermesBrain or NBCBrain — change the note folder, or edit the vault name used in local links.
+- **Transport** can be REST, MCP or TodayFlow server; changing it does not change the vault or the notes.
 - One connection is active at a time. Switching stops writing the old note and starts the new one; the old note is left in place.
 - Turn **Sync with Obsidian** off to stop reading and writing the vault. The existing note stays in the vault; TodayFlow does not delete it.
 - If the vault path disappears, TodayFlow keeps running normally. Press **Sync now** in Settings to see the specific error.

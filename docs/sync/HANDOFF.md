@@ -12,7 +12,7 @@ and, for notes, `docs/sync/*.local.md` (ignored by git).
 | Item | State |
 |---|---|
 | Design | `docs/sync/PLAN.md`; media choices in `MEDIA-OPTIONS.md`. |
-| Server | `Server/`: Hummingbird 2 + Postgres 17. Multiple users, pairing codes and device tokens stored as hashes, admin web page (users, devices, backups, Back up now), streaming file store (≤ 1 GB per file, stored once per user), unused files released after 30 days. Schema v3. 34 tests against Postgres. |
+| Server | `Server/`: Hummingbird 2 + Postgres 17. Multiple users, pairing codes and device tokens stored as hashes, admin web page (users, devices, backups, Back up now), streaming file store (≤ 1 GB per file, stored once per user), unused files released after 30 days. Schema v3. Obsidian Local REST API proxy (`/v1/obsidian/…`, nothing stored). 43 tests against Postgres. |
 | Deployment | Installed on a TrueNAS SCALE 25.04 NAS as a custom app with `Server/deploy.sh`. |
 | App | 1.9.26. Schema v9 (change tracking: `sync_change`/`sync_flag`/`sync_state`, 30 triggers on 10 tables) and v10 (attachment `blob_sha256`/`blob_size`, `sync_blob_skip`). `SyncStore` (Persistence), `SyncClient`/`SyncRunner` (Sync), `SyncController` (Mac), Settings ▸ Sync, header badges for server and Obsidian sync. |
 

@@ -253,5 +253,26 @@ struct ObsidianSyncTests {
         #expect(await service.syncNow() == nil)
         #expect(archiveFiles(vault).contains(file))
     }
+
+    @Test func serverTransportWithoutPairingSaysSo() async throws {
+        let settings = InMemorySettingRepository()
+        let keychain = InMemoryKeychainStore()
+        try await keychain.write("plugin-key", for: KeychainKeys.obsidianAPIKey)
+        let config = ObsidianSettings(
+            enabled: true, mode: .remote,
+            remoteHost: "192.168.1.50", remotePort: 27124,
+            remoteTransport: .server
+        )
+        try await settings.set(String(decoding: try JSONEncoder().encode(config), as: UTF8.self), for: SettingKeys.obsidian)
+        let fixedNow = now
+        let service = ObsidianSyncController(
+            workItems: InMemoryWorkItemRepository(),
+            settings: settings,
+            keychain: keychain,
+            calendar: WorkCalendar(calendar: utc),
+            clock: { fixedNow }
+        )
+        #expect(await service.syncNow() == "Pair with a TodayFlow server in Settings ▸ Sync first.")
+    }
 }
 #endif

@@ -24,6 +24,8 @@ public enum KeychainKeys {
     public static let aiAPIKey = "ai_api_key"
     /// The Obsidian Local REST API key for remote mode.
     public static let obsidianAPIKey = "obsidian_api_key"
+    /// The device token from pairing with a TodayFlow server (Settings ▸ Sync).
+    public static let syncDeviceToken = "sync_device_token"
 }
 
 /// In-memory `KeychainStore` for previews and tests.

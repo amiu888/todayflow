@@ -88,6 +88,8 @@ public final class SettingsViewModel {
     /// True while `load()`/`resetToDefaults()` are applying stored values —
     /// suppresses the provider didSet side effect for programmatic writes.
     @ObservationIgnored private var isApplying = false
+    /// The paired TodayFlow server, for the "TodayFlow server" transport.
+    @ObservationIgnored private var obsidianServerProxy: ObsidianServerProxy?
 
     public init(
         repository: any SettingRepository,
@@ -148,6 +150,7 @@ public final class SettingsViewModel {
             _ = try? await keychain.write(storedKey, for: KeychainKeys.aiAPIKey)
         }
         obsidianAPIKey = await keychain.read(KeychainKeys.obsidianAPIKey) ?? ""
+        obsidianServerProxy = await ObsidianServerProxy.load(settings: repository, keychain: keychain)
     }
 
     /// Persists both groups. The API key goes to the Keychain first (an
@@ -261,6 +264,14 @@ public final class SettingsViewModel {
     /// Verifies the current remote host/port and API key without saving.
     public func testObsidianConnection() async {
         obsidianConnectionStatus = nil
+        if obsidianSettings.remoteTransport == .server {
+            // Pairing may have happened after Settings opened.
+            obsidianServerProxy = await ObsidianServerProxy.load(settings: repository, keychain: keychain)
+            guard obsidianServerProxy != nil else {
+                obsidianConnectionStatus = ObsidianRemoteError.serverNotPaired.localizedDescription
+                return
+            }
+        }
         guard let transport = makeRemoteTransport() else {
             obsidianConnectionStatus = "Enter a remote host and port first."
             return
@@ -289,6 +300,13 @@ public final class SettingsViewModel {
             return ObsidianMCPClient(
                 settings: obsidianSettings,
                 apiKey: obsidianAPIKey
+            )
+        case .server:
+            guard let obsidianServerProxy else { return nil }
+            return ObsidianRemoteClient(
+                settings: obsidianSettings,
+                apiKey: obsidianAPIKey,
+                proxy: obsidianServerProxy
             )
         }
     }

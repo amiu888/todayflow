@@ -58,8 +58,8 @@ public final class SyncController: SyncPanelBackend {
         var lastSyncAt: Date?
     }
 
-    static let settingKey = "sync"
-    static let tokenKey = "sync_device_token"
+    static let settingKey = SettingKeys.sync
+    static let tokenKey = KeychainKeys.syncDeviceToken
     static let interval: Duration = .seconds(10)
 
     @ObservationIgnored private let queue: DatabaseQueue

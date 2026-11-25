@@ -328,7 +328,9 @@ public struct SettingsView: View {
                                         Text(transport.label).tag(transport)
                                     }
                                 }
-                                Text("REST is the plugin's direct vault API. MCP uses its MCP endpoint; both need the same API key.")
+                                Text(model.obsidianSettings.remoteTransport == .server
+                                     ? "Goes through your TodayFlow server (Settings ▸ Sync), so it works away from home. Enter Obsidian's address as the server sees it."
+                                     : "REST is the plugin's direct vault API. MCP uses its MCP endpoint; both need the same API key.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)

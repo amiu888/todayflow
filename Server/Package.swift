@@ -13,6 +13,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.27.0"),
         .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", from: "2.6.0"),
+        .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.21.0"),
     ],
     targets: [
         .target(
@@ -22,6 +23,7 @@ let package = Package(
                 .product(name: "PostgresNIO", package: "postgres-nio"),
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
+                .product(name: "AsyncHTTPClient", package: "async-http-client"),
             ],
             path: "Sources/TodayFlowServerKit"
         ),

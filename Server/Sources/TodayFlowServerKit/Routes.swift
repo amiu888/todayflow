@@ -41,6 +41,9 @@ public struct ServerConfig: Sendable {
     public var maxClockSkew: TimeInterval = 10 * 60
     /// Where attachment files live; nil turns the blob routes off.
     public var blobs: BlobStore?
+    /// Forwards devices to their Obsidian Local REST API; nil turns the
+    /// /v1/obsidian routes off.
+    public var obsidian: ObsidianProxy?
     public var pairingLimiter = PairingLimiter()
     /// Delay after a wrong pairing code.
     public var wrongCodeDelay: Duration = .seconds(1)
@@ -62,6 +65,7 @@ public struct ServerConfig: Sendable {
 ///     PUT  /v1/blobs/{sha256}  upload an attachment file
 ///     HEAD /v1/blobs/{sha256}  200 when this user has it, 404 when not
 ///     GET  /v1/blobs/{sha256}  download it
+///     *    /v1/obsidian/…      Obsidian Local REST API proxy (see `ObsidianProxy`)
 ///
 /// Everything under /v1 except /pair needs `Authorization: Bearer <token>`.
 /// The token decides the user; nothing in a request can name another user.
@@ -208,6 +212,8 @@ public func buildRouter(store: Store, config: ServerConfig) -> Router<BasicReque
             )
         }
     }
+
+    config.obsidian?.register(on: router, caller: caller)
 
     return router
 }

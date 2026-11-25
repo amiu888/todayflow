@@ -152,6 +152,22 @@ All `/v1` routes except `/v1/pair` need `Authorization: Bearer <token>`.
 | `PUT /v1/blobs/{sha256}` | Upload a file (max 1 GB); 201 new, 200 already stored, 400 if bytes do not match the hash |
 | `HEAD /v1/blobs/{sha256}` | 200 stored, 404 not |
 | `GET /v1/blobs/{sha256}` | Download |
+| `GET /v1/obsidian/status` | Obsidian proxy: the plugin's status (see below) |
+| `GET`/`PUT`/`DELETE /v1/obsidian/vault/{path}` | Obsidian proxy: read, list (path ending `/`), write, delete a note |
+| `POST /v1/obsidian/open/{path}` | Obsidian proxy: show a note in Obsidian |
+
+### Obsidian proxy
+
+A paired Mac can reach the Obsidian **Local REST API** plugin through this
+server, for an Obsidian the Mac cannot reach itself (for example away from
+home, when the server is reachable over Tailscale). The Mac names the plugin on
+each request with `X-Obsidian-Target: https://<host>:27124` (the address as
+the *server* sees it) and `X-Obsidian-Authorization: Bearer <plugin key>`.
+Nothing is stored on the server. Only `/`, `/vault/…` and `/open/…` are
+forwarded, and only with a valid device token. The plugin's self-signed
+certificate is accepted. A key Obsidian rejects comes back as 403 (401 always
+means the device token); an unreachable plugin is 502. In the app: Settings ▸
+Obsidian ▸ Remote ▸ Transport **TodayFlow server**.
 
 Conflicts: the change with the later `changedAt` wins for the whole row.
 
@@ -162,6 +178,7 @@ Conflicts: the change with the later `changedAt` wins for the whole row.
 | `POSTGRES_PASSWORD` | required | database password |
 | `TODAYFLOW_ADMIN_PASSWORD` | unset = admin page off | admin page password, ≥ 12 chars |
 | `ADMIN_PORT` | `8788` | admin page port |
+| `TODAYFLOW_OBSIDIAN_PROXY` | on | `off` turns the `/v1/obsidian` proxy off |
 | `TODAYFLOW_BACKUP_DIR` / `TODAYFLOW_CONTROL_DIR` | unset | dumps folder (read) and "back up now" folder (shared with the backup service) |
 | `TODAYFLOW_ADMIN_SECURE_COOKIE` | `0` | `1` when the admin page is served over HTTPS |
 | `DATA_DIR` | `./data` | where data, files and backups live |

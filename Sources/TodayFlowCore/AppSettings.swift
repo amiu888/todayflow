@@ -27,6 +27,8 @@ public enum SettingKeys {
     /// JSON `ObsidianArchiveManifest`: the archive files last written to the
     /// vault (per device; settings are not synced).
     public static let obsidianArchive = "obsidian_archive"
+    /// JSON pairing with a TodayFlow server; its `server` field is the URL.
+    public static let sync = "sync"
 }
 
 /// The user's business hours (driver.md line 49: the WorkCalendar settings

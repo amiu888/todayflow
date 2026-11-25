@@ -9,6 +9,10 @@ public enum ObsidianRemoteError: LocalizedError, Equatable {
     case unreachable(String)
     case server(Int)
     case tool(String)
+    /// The TodayFlow server refused this Mac's sync token.
+    case serverSignIn
+    /// No TodayFlow server is paired.
+    case serverNotPaired
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +26,10 @@ public enum ObsidianRemoteError: LocalizedError, Equatable {
             "Obsidian returned HTTP \(status)."
         case .tool(let message):
             message
+        case .serverSignIn:
+            "The TodayFlow server no longer accepts this Mac. Pair again in Settings ▸ Sync."
+        case .serverNotPaired:
+            "Pair with a TodayFlow server in Settings ▸ Sync first."
         }
     }
 }
@@ -44,8 +52,10 @@ public protocol ObsidianRemoteTransport: Sendable {
 public final class ObsidianRemoteClient: ObsidianRemoteTransport, @unchecked Sendable {
     private let baseURL: URL
     private let apiKey: String
-    private let trust: ObsidianTrustDelegate
+    private let trust: ObsidianTrustDelegate?
     private let session: URLSession
+    /// Set when requests go through a TodayFlow server's Obsidian proxy.
+    private let proxy: (server: ObsidianServerProxy, target: String)?
 
     public init?(settings: ObsidianSettings, apiKey: String) {
         guard settings.mode == .remote,
@@ -60,11 +70,35 @@ public final class ObsidianRemoteClient: ObsidianRemoteTransport, @unchecked Sen
         configuration.timeoutIntervalForResource = 15
         configuration.waitsForConnectivity = false
         self.trust = trust
+        self.proxy = nil
         self.session = URLSession(
             configuration: configuration,
             delegate: trust,
             delegateQueue: nil
         )
+    }
+
+    /// Reaches the plugin through the paired TodayFlow server. The remote
+    /// host and port are Obsidian's address as the server sees it. The
+    /// server's own certificate is checked normally.
+    public init?(
+        settings: ObsidianSettings,
+        apiKey: String,
+        proxy: ObsidianServerProxy,
+        configuration: URLSessionConfiguration = .ephemeral
+    ) {
+        guard settings.mode == .remote,
+              let target = settings.remoteBaseURL
+        else { return nil }
+        self.baseURL = proxy.serverURL.appendingPathComponent("v1/obsidian")
+        self.apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.proxy = (proxy, target.absoluteString)
+        self.trust = nil
+        // One hop more than talking to Obsidian directly.
+        configuration.timeoutIntervalForRequest = 20
+        configuration.timeoutIntervalForResource = 30
+        configuration.waitsForConnectivity = false
+        self.session = URLSession(configuration: configuration)
     }
 
     deinit {
@@ -74,6 +108,9 @@ public final class ObsidianRemoteClient: ObsidianRemoteTransport, @unchecked Sen
     /// Verifies both connectivity and the API key.
     public func verify() async throws {
         let (data, response) = try await send(method: "GET", path: "/vault/")
+        if proxy != nil, response.statusCode == 404 {
+            throw ObsidianRemoteError.tool("The TodayFlow server is too old for the Obsidian proxy. Update the server.")
+        }
         guard response.statusCode == 200 else {
             if response.statusCode == 401 || response.statusCode == 403 {
                 throw ObsidianRemoteError.unauthorized
@@ -173,7 +210,13 @@ public final class ObsidianRemoteClient: ObsidianRemoteTransport, @unchecked Sen
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.httpBody = body
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        if let proxy {
+            request.setValue("Bearer \(proxy.server.token)", forHTTPHeaderField: "Authorization")
+            request.setValue(proxy.target, forHTTPHeaderField: "X-Obsidian-Target")
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "X-Obsidian-Authorization")
+        } else {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
         if let contentType {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
@@ -191,7 +234,20 @@ public final class ObsidianRemoteClient: ObsidianRemoteTransport, @unchecked Sen
         guard let http = response as? HTTPURLResponse else {
             throw ObsidianRemoteError.unreachable("No HTTP response.")
         }
+        if proxy != nil {
+            // 401 is the server's sync token; Obsidian's key comes back as 403.
+            if http.statusCode == 401 { throw ObsidianRemoteError.serverSignIn }
+            if http.statusCode == 502 || http.statusCode == 400 {
+                throw ObsidianRemoteError.unreachable(Self.serverMessage(data) ?? "HTTP \(http.statusCode)")
+            }
+        }
         return (data, http)
+    }
+
+    /// The `error.message` of a TodayFlow server error body.
+    static func serverMessage(_ data: Data) -> String? {
+        struct Body: Decodable { struct Inner: Decodable { let message: String }; let error: Inner }
+        return (try? JSONDecoder().decode(Body.self, from: data))?.error.message
     }
 
     func url(for path: String) -> URL? {
@@ -427,5 +483,32 @@ private extension Array {
         return stride(from: 0, to: count, by: size).map {
             Array(self[$0..<Swift.min($0 + size, count)])
         }
+    }
+}
+
+/// The paired TodayFlow server, used as a relay to Obsidian.
+public struct ObsidianServerProxy: Sendable, Hashable {
+    public var serverURL: URL
+    public var token: String
+
+    public init(serverURL: URL, token: String) {
+        self.serverURL = serverURL
+        self.token = token
+    }
+
+    /// The pairing saved by Settings ▸ Sync, or nil when not paired.
+    public static func load(
+        settings: any SettingRepository,
+        keychain: any KeychainStore
+    ) async -> ObsidianServerProxy? {
+        struct Pairing: Decodable { let server: String }
+        guard let raw = await settings.value(for: SettingKeys.sync),
+              let data = raw.data(using: .utf8),
+              let pairing = try? JSONDecoder().decode(Pairing.self, from: data),
+              let url = URL(string: pairing.server),
+              let token = await keychain.read(KeychainKeys.syncDeviceToken),
+              !token.isEmpty
+        else { return nil }
+        return ObsidianServerProxy(serverURL: url, token: token)
     }
 }

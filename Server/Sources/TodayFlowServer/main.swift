@@ -143,8 +143,15 @@ struct BlobCleanup: Service {
     }
 }
 
+var serverConfig = ServerConfig(blobs: blobs)
+// Lets paired devices reach their Obsidian Local REST API through this
+// server. TODAYFLOW_OBSIDIAN_PROXY=off turns it off.
+if env["TODAYFLOW_OBSIDIAN_PROXY"]?.lowercased() != "off" {
+    serverConfig.obsidian = ObsidianProxy(client: ObsidianProxy.makeHTTPClient())
+}
+
 let app = Application(
-    router: buildRouter(store: store, config: ServerConfig(blobs: blobs)),
+    router: buildRouter(store: store, config: serverConfig),
     configuration: .init(
         address: .hostname(env["HOST"] ?? "0.0.0.0", port: env["PORT"].flatMap { Int($0) } ?? 8787),
         serverName: "TodayFlowServer"

@@ -15,11 +15,15 @@ public struct ObsidianSettings: Codable, Hashable, Sendable {
     public enum Transport: String, Codable, CaseIterable, Sendable {
         case rest
         case mcp
+        /// REST through the paired TodayFlow server (Settings ▸ Sync), for
+        /// an Obsidian this Mac cannot reach but the server can.
+        case server
 
         public var label: String {
             switch self {
             case .rest: "REST"
             case .mcp: "MCP"
+            case .server: "TodayFlow server"
             }
         }
     }
