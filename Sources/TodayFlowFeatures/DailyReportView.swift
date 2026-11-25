@@ -94,7 +94,7 @@ public struct DailyReportView: View {
                     .help("Use Markdown headings and bullets (for Teams, Slack, Obsidian)")
                 Spacer(minLength: 0)
             }
-            .toggleStyle(.checkbox)
+            .checkboxToggleStyle()
             .font(.callout)
             HStack(spacing: 8) {
                 Text("From")

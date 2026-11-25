@@ -255,7 +255,7 @@ public struct MiniCalendarView: View {
                         )
                 }
                 .menuIndicator(.hidden)
-                .menuStyle(.borderlessButton)
+                .borderlessMenuStyle()
                 .fixedSize()
                 .help(pinnedCorner.map { "Pinned \($0.label.lowercased())" } ?? "Pin to a corner")
             }

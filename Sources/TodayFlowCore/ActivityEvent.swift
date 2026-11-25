@@ -76,7 +76,12 @@ public struct ActivityEvent: Identifiable, Hashable, Sendable, Codable {
 /// exists so a shared/cloud account can populate it later without a migration.
 public enum ActivityActor {
     public static var current: String {
+        #if os(macOS)
         let name = ProcessInfo.processInfo.userName
+        #else
+        // iOS has no user account name; the device is single-user.
+        let name = ""
+        #endif
         return name.isEmpty ? "local" : name
     }
 }

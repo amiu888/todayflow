@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only: trays are a Mac workbench feature (not in iPhone v1).
 import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
@@ -318,3 +320,4 @@ public struct TrayDetailView: View {
         }
     }
 }
+#endif

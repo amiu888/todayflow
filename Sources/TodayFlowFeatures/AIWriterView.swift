@@ -37,7 +37,7 @@ public struct AIWriterView: View {
         .background(DesignTokens.Palette.background)
         .tint(DesignTokens.Palette.accent)
         .onAppear { chatFocused = true }
-        .onExitCommand { model.cancel() }
+        .onEscape { model.cancel() }
         .accessibilityIdentifier("ai-writer")
     }
 
@@ -272,8 +272,7 @@ public struct AIWriterView: View {
     private var footer: some View {
         HStack(spacing: 10) {
             Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(model.draft, forType: .string)
+                PlatformClipboard.copy(model.draft)
             } label: {
                 Label("Copy", systemImage: "doc.on.doc")
             }

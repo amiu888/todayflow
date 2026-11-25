@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 import SwiftUI
 import Foundation
 import TodayFlowCore
@@ -1791,3 +1793,4 @@ private struct DetailPreviewHost: View {
 #Preview {
     DetailPreviewHost()
 }
+#endif

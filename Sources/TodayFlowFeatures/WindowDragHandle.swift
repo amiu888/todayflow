@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 #if canImport(AppKit)
 import AppKit
 import SwiftUI
@@ -38,5 +40,19 @@ public struct WindowDragGrabber: View {
             .background(WindowDragHandle())
             .accessibilityHidden(true)
     }
+}
+#endif
+#else
+import SwiftUI
+
+/// iPhone and iPad have no movable windows: these draw nothing.
+public struct WindowDragHandle: View {
+    public init() {}
+    public var body: some View { EmptyView() }
+}
+
+public struct WindowDragGrabber: View {
+    public init() {}
+    public var body: some View { EmptyView() }
 }
 #endif

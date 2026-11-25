@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 import AppKit
 import SwiftUI
 
@@ -21,3 +23,11 @@ private struct ResizableWindowEnabler: NSViewRepresentable {
         }
     }
 }
+#else
+import SwiftUI
+
+extension View {
+    /// Windows on iPhone and iPad are sized by the system.
+    func resizableWindow() -> some View { self }
+}
+#endif

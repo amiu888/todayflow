@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 import SwiftUI
 import Foundation
 import UniformTypeIdentifiers
@@ -665,4 +667,5 @@ private extension Color {
         )
     }
 }
+#endif
 #endif

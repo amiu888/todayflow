@@ -2,7 +2,9 @@ import Foundation
 import Observation
 import TodayFlowCore
 #if canImport(AppKit)
+#if canImport(AppKit)
 import AppKit
+#endif
 #endif
 
 /// One focused work session on a task (Structured/Sunsama/Llama Life style).
@@ -80,7 +82,9 @@ public final class FocusViewModel {
                     self.isRunning = false
                     self.isFinished = true
                     #if canImport(AppKit)
+                    #if canImport(AppKit)
                     NSSound.beep()
+                    #endif
                     #endif
                     return
                 }

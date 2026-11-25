@@ -1,6 +1,8 @@
 import Foundation
 #if canImport(AppKit)
+#if canImport(AppKit)
 import AppKit
+#endif
 import UniformTypeIdentifiers
 
 /// The pasteboard/drop types the Today panel accepts (driver.md FR-01/FR-06).

@@ -464,7 +464,7 @@ public struct AllTasksView: View {
                     Spacer()
                     if model.hasFilters {
                         Button("Clear filters") { model.clearFilters() }
-                            .buttonStyle(.link)
+                            .linkButtonStyle()
                             .font(.caption)
                     }
                 }

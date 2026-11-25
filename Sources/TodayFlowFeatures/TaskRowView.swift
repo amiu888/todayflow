@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 import SwiftUI
 import UniformTypeIdentifiers
 import TodayFlowCore
@@ -733,3 +735,4 @@ public struct TaskRowView: View {
         return parts.joined(separator: ", ")
     }
 }
+#endif

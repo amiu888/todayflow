@@ -122,7 +122,7 @@ struct TaskTagsEditor<Trailing: View>: View {
             .background(Capsule().fill(DesignTokens.Palette.surface))
             .overlay(Capsule().stroke(DesignTokens.Palette.accent.opacity(0.8), lineWidth: 1))
             .onSubmit { finishEditing(tag, save: true) }
-            .onExitCommand { finishEditing(tag, save: false) }
+            .onEscape { finishEditing(tag, save: false) }
             .onChange(of: focus) { _, new in
                 // Clicking elsewhere keeps the change, like any text field.
                 if new != .edit, editingTag == tag { finishEditing(tag, save: true) }

@@ -196,6 +196,7 @@ public struct TutorialVideoView: View {
     }
 }
 
+#if os(macOS)
 /// AppKit's player instead of SwiftUI's `VideoPlayer`. On macOS 27 the
 /// `_AVKit_SwiftUI` wrapper crashes while initializing its generic class
 /// metadata; `AVPlayerView` is the stable AppKit surface and behaves the same.
@@ -217,3 +218,22 @@ private struct PlayerSurface: NSViewRepresentable {
         }
     }
 }
+#else
+/// iPhone and iPad: the system player controller.
+private struct PlayerSurface: UIViewControllerRepresentable {
+    let player: AVPlayer
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.allowsPictureInPicturePlayback = true
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        if controller.player !== player {
+            controller.player = player
+        }
+    }
+}
+#endif

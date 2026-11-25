@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only: hosts the Mac capture sheet; the iPhone has its own quick add.
 import SwiftUI
 import TodayFlowCore
 import TodayFlowDesign
@@ -90,3 +92,4 @@ public struct CaptureSheetHost: View {
         }
     }
 }
+#endif

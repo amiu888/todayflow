@@ -5,7 +5,7 @@ import TodayFlowCore
 
 /// Title and description for a drop from Apple Intelligence (macOS 26+).
 /// On-device, so the dropped text can be read without sending it anywhere.
-@available(macOS 26.0, *)
+@available(macOS 26.0, iOS 26.0, *)
 public struct AppleTaskSuggester: TaskSuggesting {
     public init() {}
 

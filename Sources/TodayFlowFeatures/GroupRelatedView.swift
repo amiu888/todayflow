@@ -31,7 +31,7 @@ public struct GroupRelatedView: View {
         .frame(minWidth: 480, idealWidth: 560, maxWidth: .infinity, minHeight: 420, idealHeight: 560, maxHeight: .infinity)
         .background(DesignTokens.Palette.background)
         .tint(DesignTokens.Palette.accent)
-        .onExitCommand { model.onCancel?() }
+        .onEscape { model.onCancel?() }
         .accessibilityIdentifier("group-related")
     }
 

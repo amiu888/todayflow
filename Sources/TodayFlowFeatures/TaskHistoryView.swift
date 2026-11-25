@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 import Foundation
 import Observation
 import SwiftUI
@@ -374,3 +376,4 @@ public struct TaskHistoryView: View {
         )
     }
 }
+#endif

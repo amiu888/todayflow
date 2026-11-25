@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 import SwiftUI
 import Foundation
 import TodayFlowCore
@@ -7,16 +9,6 @@ import AppKit
 #endif
 
 /// One entry of the sheet's parent (project) picker.
-public struct CaptureParentOption: Identifiable, Hashable, Sendable {
-    public let id: UUIDv7
-    public let title: String
-
-    public init(id: UUIDv7, title: String) {
-        self.id = id
-        self.title = title
-    }
-}
-
 /// The quick-add "New task" sheet (driver.md §7 step 4): renders an editable
 /// `CaptureDraft` and reports user intent through the binding and callbacks.
 /// Pure presentation — no business logic, data access, or AI.
@@ -971,3 +963,4 @@ public struct CaptureSheetView: View {
         DesignTokens.Palette.hairline
     }
 }
+#endif

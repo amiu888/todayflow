@@ -1,5 +1,3 @@
-#if canImport(AppKit)
-import AppKit
 import Foundation
 import UniformTypeIdentifiers
 import TodayFlowCore
@@ -70,4 +68,3 @@ public struct ContactDragPayload: Sendable, Hashable {
         return payloads
     }
 }
-#endif

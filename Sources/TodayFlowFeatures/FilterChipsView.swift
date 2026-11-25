@@ -224,7 +224,7 @@ public struct FilterChipsView: View {
                 .frame(width: 26, height: 26)
         }
         .menuIndicator(.hidden)
-        .menuStyle(.borderlessButton)
+        .borderlessMenuStyle()
         .fixedSize()
         .help("Sort: \(sort.label)")
         .accessibilityLabel("Sort: \(sort.label)")
@@ -272,7 +272,7 @@ public struct FilterChipsView: View {
                 .frame(width: 26, height: 26)
         }
         .menuIndicator(.hidden)
-        .menuStyle(.borderlessButton)
+        .borderlessMenuStyle()
         .fixedSize()
         .help(selected.map { "Project: \($0)" } ?? "Filter by project")
         .accessibilityLabel(selected.map { "Project: \($0)" } ?? "Filter by project")
@@ -307,7 +307,7 @@ public struct FilterChipsView: View {
                     .frame(width: 26, height: 26)
             }
             .menuIndicator(.hidden)
-            .menuStyle(.borderlessButton)
+            .borderlessMenuStyle()
             .fixedSize()
             .help(tagFilter.map { "Tag: #\($0)" } ?? "Filter by tag")
             .accessibilityLabel(tagFilter.map { "Tag: #\($0)" } ?? "Filter by tag")

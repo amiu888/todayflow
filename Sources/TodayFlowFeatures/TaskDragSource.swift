@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 #if canImport(AppKit)
 import AppKit
 import SwiftUI
@@ -244,4 +246,5 @@ public struct TaskDragSource: NSViewRepresentable {
         }
     }
 }
+#endif
 #endif

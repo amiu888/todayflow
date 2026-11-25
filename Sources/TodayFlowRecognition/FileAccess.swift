@@ -45,9 +45,18 @@ public struct FileManagerFileAccess: FileAccess {
         try data.write(to: url)
     }
 
+    /// Security-scoped bookmarks exist only on macOS; iOS uses plain ones.
+    #if os(macOS)
+    private static let bookmarkScope: URL.BookmarkCreationOptions = [.withSecurityScope]
+    private static let resolveScope: URL.BookmarkResolutionOptions = [.withSecurityScope]
+    #else
+    private static let bookmarkScope: URL.BookmarkCreationOptions = []
+    private static let resolveScope: URL.BookmarkResolutionOptions = []
+    #endif
+
     public func securityScopedBookmark(for url: URL) -> Data? {
         try? url.bookmarkData(
-            options: [.withSecurityScope],
+            options: Self.bookmarkScope,
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
@@ -57,7 +66,7 @@ public struct FileManagerFileAccess: FileAccess {
         var isStale = false
         return try? URL(
             resolvingBookmarkData: data,
-            options: [.withSecurityScope],
+            options: Self.resolveScope,
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         )

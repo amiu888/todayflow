@@ -523,7 +523,7 @@ public struct WorkflowEditorView: View {
                             Text(trigger.label).tag(trigger)
                         }
                     }
-                    .pickerStyle(.radioGroup)
+                    .radioGroupPickerStyle()
 
                     Toggle("Workflow is on", isOn: Binding(
                         get: { rule.isEnabled },

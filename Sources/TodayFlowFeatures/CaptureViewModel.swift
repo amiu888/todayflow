@@ -707,3 +707,14 @@ public final class CaptureViewModel {
         }
     }
 }
+
+/// A project (or other parent) the new task can be filed under.
+public struct CaptureParentOption: Identifiable, Hashable, Sendable {
+    public let id: UUIDv7
+    public let title: String
+
+    public init(id: UUIDv7, title: String) {
+        self.id = id
+        self.title = title
+    }
+}

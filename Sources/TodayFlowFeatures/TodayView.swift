@@ -1,3 +1,5 @@
+#if os(macOS)
+// Mac-only screen; the iPhone app has its own (TodayFlowPhone).
 import SwiftUI
 import Foundation
 import TodayFlowCore
@@ -2115,3 +2117,4 @@ public struct TodayView: View {
     )
     .frame(width: DesignTokens.Window.panel.width, height: DesignTokens.Window.panel.height)
 }
+#endif

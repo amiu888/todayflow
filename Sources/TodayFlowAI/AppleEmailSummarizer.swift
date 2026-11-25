@@ -4,7 +4,7 @@ import FoundationModels
 import TodayFlowCore
 
 /// On-device Apple Intelligence summarizer (macOS 26+). No network, no API key.
-@available(macOS 26.0, *)
+@available(macOS 26.0, iOS 26.0, *)
 public struct AppleEmailSummarizer: EmailSummarizer {
     public init() {}
 

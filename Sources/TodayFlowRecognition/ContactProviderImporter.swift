@@ -1,5 +1,3 @@
-#if canImport(AppKit)
-import AppKit
 import Foundation
 import UniformTypeIdentifiers
 import TodayFlowCore
@@ -138,4 +136,3 @@ public enum ContactProviderImporter {
         }
     }
 }
-#endif

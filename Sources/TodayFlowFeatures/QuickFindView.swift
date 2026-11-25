@@ -43,7 +43,7 @@ public struct QuickFindView: View {
                 .stroke(DesignTokens.Palette.hairline)
         )
         .onAppear { fieldFocused = true }
-        .onExitCommand { model.onClose?() }
+        .onEscape { model.onClose?() }
         .accessibilityIdentifier("quick-find")
     }
 
