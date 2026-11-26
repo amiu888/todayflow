@@ -57,6 +57,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.todayflow.ios
         PRODUCT_NAME: TodayFlow
+        TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
   TodayFlowShare:
@@ -93,6 +94,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.todayflow.ios.share
         PRODUCT_NAME: TodayFlowShare
+        TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
         APPLICATION_EXTENSION_API_ONLY: YES
   TodayFlowPhoneTests:
