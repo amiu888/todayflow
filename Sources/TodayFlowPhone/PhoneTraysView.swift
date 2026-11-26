@@ -63,6 +63,101 @@ struct PhoneTrayStrip: View {
     }
 }
 
+/// The Trays tab: every tray with its count and first tasks. Pull down to
+/// sync now; tap a tray to open it.
+struct PhoneTraysTab: View {
+    @Bindable var model: TodayViewModel
+    let environment: PhoneEnvironment
+    var sync: SyncController?
+
+    @State private var naming = false
+    @State private var newName = ""
+
+    var body: some View {
+        List {
+            ForEach(model.trays.sorted { $0.sortOrder < $1.sortOrder }) { tray in
+                let items = model.trayItems(trayId: tray.id)
+                NavigationLink(value: PhoneTrayRoute(id: tray.id)) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: DesignTokens.TrayPalette.iconName)
+                            .font(.title3)
+                            .foregroundStyle(color(tray))
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(tray.name).font(.headline).lineLimit(1)
+                                Spacer()
+                                Text("\(items.count)")
+                                    .font(.subheadline.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            if items.isEmpty {
+                                Text("Empty").font(.subheadline).foregroundStyle(.tertiary)
+                            } else {
+                                ForEach(items.prefix(3)) { item in
+                                    Text(item.title)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .strikethrough(item.status.isTerminal)
+                                        .lineLimit(1)
+                                }
+                                if items.count > 3 {
+                                    Text("and \(items.count - 3) more").font(.caption).foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .accessibilityLabel("\(tray.name) tray, \(items.count) tasks")
+            }
+            Section {
+            } footer: {
+                Text(footer)
+            }
+        }
+        .navigationTitle("Trays")
+        .navigationDestination(for: PhoneTrayRoute.self) { route in
+            PhoneTrayDetailView(model: model, trayId: route.id, environment: environment)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("New Tray", systemImage: "plus") {
+                    newName = ""
+                    naming = true
+                }
+            }
+        }
+        .refreshable {
+            await sync?.syncNow()
+            await model.reloadTrays()
+            await model.load()
+        }
+        .task {
+            await model.reloadTrays()
+            await model.load()
+        }
+        .alert("New Tray", isPresented: $naming) {
+            TextField("Name", text: $newName)
+            Button("Cancel", role: .cancel) {}
+            Button("Add") { Task { await model.addTray(name: newName) } }
+        } message: {
+            Text("Trays hold the tasks you're working on. They appear on your Mac too.")
+        }
+    }
+
+    private var footer: String {
+        if sync?.snapshot.isPaired == true {
+            return "Trays sync with your Mac. Pull down to check for changes. Add a task from Today: touch and hold it, then choose Add to Tray."
+        }
+        return "Pair with your server in Settings ▸ Sync to see your Mac's trays here."
+    }
+
+    private func color(_ tray: WorkTray) -> Color {
+        Color(hex: tray.colorHex ?? DesignTokens.TrayPalette.colorHex(at: tray.sortOrder))
+    }
+}
+
 /// One tray's tasks: open, reorder, remove; rename, recolor or delete the tray.
 struct PhoneTrayDetailView: View {
     @Bindable var model: TodayViewModel

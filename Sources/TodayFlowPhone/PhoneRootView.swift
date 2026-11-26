@@ -4,9 +4,9 @@ import TodayFlowCore
 import TodayFlowDesign
 import TodayFlowFeatures
 
-/// The three tabs of the iPhone app (docs/ios/DESIGN.md §3).
+/// The tabs of the iPhone app (docs/ios/DESIGN.md §3), plus Trays.
 public struct PhoneRootView: View {
-    public enum Tab: Hashable { case today, calendar, search }
+    public enum Tab: Hashable { case today, calendar, trays, search }
 
     private let environment: PhoneEnvironment
     @State private var selection: Tab = .today
@@ -83,6 +83,11 @@ public struct PhoneRootView: View {
                     }
                 }
             }
+            SwiftUI.Tab("Trays", systemImage: DesignTokens.TrayPalette.iconName, value: Tab.trays) {
+                NavigationStack {
+                    PhoneTraysTab(model: today, environment: environment, sync: sync)
+                }
+            }
             SwiftUI.Tab("Search", systemImage: "magnifyingglass", value: Tab.search, role: .search) {
                 NavigationStack {
                     PhoneSearchView(model: search)
@@ -118,7 +123,7 @@ public struct PhoneRootView: View {
                 await notifications.refresh()
             }
             #if DEBUG
-            // Screenshots and checks: `-openTask <uuid>` opens a task, `-tab calendar|search` picks a tab.
+            // Screenshots and checks: `-openTask <uuid>` opens a task, `-tab calendar|trays|search` picks a tab.
             let defaults = UserDefaults.standard
             if let raw = defaults.string(forKey: "openTask"), let uuid = UUID(uuidString: raw) {
                 todayPath = [UUIDv7(uuid)]
@@ -126,6 +131,7 @@ public struct PhoneRootView: View {
             switch defaults.string(forKey: "tab") {
             case "calendar": selection = .calendar
             case "search": selection = .search
+            case "trays": selection = .trays
             case "settings": showingSettings = true
             default: break
             }

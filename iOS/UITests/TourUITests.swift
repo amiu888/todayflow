@@ -14,6 +14,7 @@ final class TourUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-seedSample", "-noNotificationPrompt", "YES"]
         if name.contains("Sync") { app.launchArguments += ["-tab", "settings"] }
+        if name.contains("TraysTab") { app.launchArguments += ["-tab", "trays"] }
         if let tab = ProcessInfo.processInfo.environment["TOUR_TAB"] {
             app.launchArguments += ["-tab", tab]
         }
@@ -195,6 +196,24 @@ final class TourUITests: XCTestCase {
         app.alerts.buttons["Add"].tap()
         pause(2.0)
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Errands tray'")).firstMatch.exists)
+    }
+
+    /// 8 · The Trays tab: every tray and its tasks; make a new one and open it.
+    func test8TraysTab() {
+        XCTAssertTrue(app.navigationBars["Trays"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Working tray tray'")).firstMatch.exists)
+        pause(1.0)
+        let add = app.buttons["New Tray"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 3))
+        add.tap()
+        app.typeText("Waiting on others")
+        app.alerts.buttons["Add"].tap()
+        pause(1.5)
+        let tray = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Waiting on others tray'")).firstMatch
+        XCTAssertTrue(tray.waitForExistence(timeout: 3))
+        tray.tap()
+        XCTAssertTrue(app.navigationBars["Waiting on others"].waitForExistence(timeout: 3))
+        pause(1.5)
     }
 
     // MARK: - Helpers
