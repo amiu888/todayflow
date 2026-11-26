@@ -109,8 +109,14 @@ public struct PhoneRootView: View {
                 selection = .today
                 todayPath = [id]
             }
-            await notifications.requestAuthorization()
-            await notifications.refresh()
+            // The permission prompt waits for an answer; the list must not wait with it.
+            Task {
+                // Screenshots and recordings: `-noNotificationPrompt YES` skips the system prompt.
+                // (Only a launch argument can set it; there is no setting for it.)
+                if UserDefaults.standard.bool(forKey: "noNotificationPrompt") { return }
+                await notifications.requestAuthorization()
+                await notifications.refresh()
+            }
             #if DEBUG
             // Screenshots and checks: `-openTask <uuid>` opens a task, `-tab calendar|search` picks a tab.
             let defaults = UserDefaults.standard

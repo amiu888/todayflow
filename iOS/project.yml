@@ -16,7 +16,7 @@ settings:
     CODE_SIGN_STYLE: Automatic
     TARGETED_DEVICE_FAMILY: "1"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "2"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 packages:
   TodayFlow:
@@ -112,6 +112,19 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/TodayFlow.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TodayFlow
         BUNDLE_LOADER: $(TEST_HOST)
+  TodayFlowPhoneUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: TodayFlowPhoneApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.todayflow.ios.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: TodayFlowPhoneApp
+        TARGETED_DEVICE_FAMILY: "1"
 schemes:
   TodayFlowPhone:
     build:
@@ -121,6 +134,7 @@ schemes:
       config: Debug
       targets:
         - TodayFlowPhoneTests
+        - TodayFlowPhoneUITests
     run:
       config: Debug
     archive:
