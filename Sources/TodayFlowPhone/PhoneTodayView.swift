@@ -109,7 +109,10 @@ struct PhoneTodayView: View {
                 Button("New Task", systemImage: "plus", action: onAdd)
             }
         }
-        .refreshable { await model.load() }
+        .refreshable {
+            await model.reloadTrays()
+            await model.load()
+        }
         .overlay(alignment: .bottom) { undoBar }
         .animation(.snappy, value: showsUndoBar)
         .task(id: model.completionUndo) {

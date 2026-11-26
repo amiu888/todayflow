@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import TodayFlowCore
 
 /// One column value on the wire. Rows travel as plain JSON objects.
 public enum SyncValue: Codable, Sendable, Equatable {
@@ -148,6 +149,7 @@ public final class SyncStore: Sendable {
     /// from another Mac.
     public func markAllPending() async throws {
         try await queue.write { db in
+            try Self.startJoin(db)
             for table in SyncTables.all {
                 let columns = try Set(db.columns(in: table.name).map(\.name))
                 // Never later than now: a row stamped in the future (an
@@ -159,8 +161,8 @@ public final class SyncStore: Sendable {
                     ?? now
                 if let only = table.onlyRows {
                     // Shared settings (trays) join the account's existing
-                    // copy: dated at the epoch, the server's version wins, so
-                    // a new device's empty default never replaces real trays.
+                    // copy: dated at the epoch, the server's version is
+                    // pulled, and `finishJoin` merges this device's back in.
                     let list = only.sorted().map { "'\($0)'" }.joined(separator: ", ")
                     try db.execute(sql: """
                         INSERT OR REPLACE INTO sync_change (entity, row_id, changed_at)
@@ -198,9 +200,15 @@ public final class SyncStore: Sendable {
             var applied: [SyncChange] = []
             try db.inTransaction {
                 try db.execute(sql: "UPDATE sync_flag SET applying = 1")
-                for change in changes where try Self.apply(change, db) {
-                    applied.append(change)
+                var skipped = Set<String>()
+                for change in changes {
+                    if try Self.apply(change, db) {
+                        applied.append(change)
+                    } else if !Self.isKnown(change.entity, change.id) {
+                        skipped.insert(Self.skipName(change.entity, change.id))
+                    }
                 }
+                if !skipped.isEmpty { try Self.rememberSkipped(skipped, db) }
                 if let cursor {
                     try db.execute(
                         sql: "INSERT OR REPLACE INTO sync_state (key, value) VALUES ('cursor', ?)",
@@ -227,6 +235,114 @@ public final class SyncStore: Sendable {
         try await queue.write { db in
             try db.execute(sql: "DELETE FROM sync_state WHERE key = 'cursor'")
         }
+    }
+
+    // MARK: - Joining the account's trays
+
+    /// Keeps this device's own trays and rules aside before the first pull,
+    /// for `finishJoin`.
+    static func startJoin(_ db: Database) throws {
+        try db.execute(sql: "DELETE FROM sync_state WHERE key LIKE 'join:%'")
+        try db.execute(sql: "INSERT OR REPLACE INTO sync_state (key, value) VALUES ('join', '1')")
+        for key in SyncedSettings.keys {
+            if let value = try String.fetchOne(db, sql: "SELECT value_json FROM setting WHERE key = ?", arguments: [key]) {
+                try db.execute(
+                    sql: "INSERT OR REPLACE INTO sync_state (key, value) VALUES (?, ?)",
+                    arguments: ["join:\(key)", value]
+                )
+            }
+        }
+    }
+
+    /// After the first full pull: merges this device's trays and rules into
+    /// the account's (`SyncedSettingsMerge`). A merged value is recorded as
+    /// a new change, so it reaches the other devices. Returns whether the
+    /// trays or rules changed here.
+    @discardableResult
+    public func finishJoin() async throws -> Bool {
+        try await queue.write { db in
+            guard try String.fetchOne(db, sql: "SELECT value FROM sync_state WHERE key = 'join'") != nil else { return false }
+            func saved(_ key: String) throws -> String? {
+                try String.fetchOne(db, sql: "SELECT value FROM sync_state WHERE key = ?", arguments: ["join:\(key)"])
+            }
+            func current(_ key: String) throws -> String? {
+                try String.fetchOne(db, sql: "SELECT value_json FROM setting WHERE key = ?", arguments: [key])
+            }
+            func store(_ value: String, _ key: String) throws {
+                // Recording is on: the triggers date it now, so it wins.
+                try db.execute(sql: "UPDATE setting SET value_json = ? WHERE key = ?", arguments: [value, key])
+                if db.changesCount == 0 {
+                    try db.execute(sql: "INSERT INTO setting (key, value_json) VALUES (?, ?)", arguments: [key, value])
+                }
+            }
+            var changed = false
+            var trayIds: [String: String] = [:]
+            if let local = try saved(SettingKeys.workTrays) {
+                let result = SyncedSettingsMerge.trays(local: local, account: try current(SettingKeys.workTrays))
+                trayIds = result.trayIds
+                if let value = result.value { try store(value, SettingKeys.workTrays); changed = true }
+            }
+            if let local = try saved(SettingKeys.workflowRules),
+               let value = SyncedSettingsMerge.rules(local: local, account: try current(SettingKeys.workflowRules), trayIds: trayIds) {
+                try store(value, SettingKeys.workflowRules)
+                changed = true
+            }
+            try db.execute(sql: "DELETE FROM sync_state WHERE key = 'join' OR key LIKE 'join:%'")
+            return changed
+        }
+    }
+
+    // MARK: - Changes this version skipped
+
+    static func isKnown(_ entity: String, _ id: String) -> Bool {
+        SyncTables.named(entity)?.syncs(rowId: id) ?? false
+    }
+
+    /// `setting` rows are named with their key: a later version may sync more
+    /// of them.
+    static func skipName(_ entity: String, _ id: String) -> String {
+        SyncTables.named(entity)?.onlyRows != nil ? "\(entity):\(id)" : entity
+    }
+
+    private static func rememberSkipped(_ names: Set<String>, _ db: Database) throws {
+        let saved = try String.fetchOne(db, sql: "SELECT value FROM sync_state WHERE key = 'skipped'")
+        let all = Set((saved ?? "").split(separator: "\n").map(String.init)).union(names)
+        try db.execute(
+            sql: "INSERT OR REPLACE INTO sync_state (key, value) VALUES ('skipped', ?)",
+            arguments: [all.sorted().joined(separator: "\n")]
+        )
+    }
+
+    /// Changes pulled by an older version that didn't know their kind were
+    /// passed over. Once this version knows one of them, pull everything
+    /// again (newest still wins, so nothing local is lost) and merge trays as
+    /// on pairing. Returns whether it rewound.
+    @discardableResult
+    public func rewindForSkippedChanges(isKnown: @Sendable (String) -> Bool = SyncStore.knowsSkipped) async throws -> Bool {
+        try await queue.write { db in
+            guard let saved = try String.fetchOne(db, sql: "SELECT value FROM sync_state WHERE key = 'skipped'") else { return false }
+            let names = saved.split(separator: "\n").map(String.init)
+            let nowKnown = names.filter(isKnown)
+            guard !nowKnown.isEmpty else { return false }
+            let rest = names.filter { !nowKnown.contains($0) }
+            if rest.isEmpty {
+                try db.execute(sql: "DELETE FROM sync_state WHERE key = 'skipped'")
+            } else {
+                try db.execute(
+                    sql: "UPDATE sync_state SET value = ? WHERE key = 'skipped'",
+                    arguments: [rest.joined(separator: "\n")]
+                )
+            }
+            try db.execute(sql: "DELETE FROM sync_state WHERE key = 'cursor'")
+            try Self.startJoin(db)
+            return true
+        }
+    }
+
+    public static func knowsSkipped(_ name: String) -> Bool {
+        let parts = name.split(separator: ":", maxSplits: 1).map(String.init)
+        guard let table = SyncTables.named(parts[0]) else { return false }
+        return parts.count == 1 ? table.onlyRows == nil : table.syncs(rowId: parts[1])
     }
 
     // MARK: - Rows

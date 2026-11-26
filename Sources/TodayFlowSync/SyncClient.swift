@@ -383,6 +383,8 @@ public struct SyncRunner: Sendable {
 
     public func run() async throws -> Report {
         var report = Report()
+        // Changes an older version passed over are pulled again once known.
+        try await store.rewindForSkippedChanges()
         // Pull first so a stale local edit never overwrites a newer remote one.
         var cursor = try await store.cursor()
         while true {
@@ -392,6 +394,11 @@ public struct SyncRunner: Sendable {
             report.note(applied, .received)
             cursor = page.next
             if !page.more { break }
+        }
+        // A device that just paired adds its own trays to the account's.
+        if try await store.finishJoin() {
+            report.received += 1
+            report.events.append(SyncEvent(kind: .received, text: "trays merged with this device's"))
         }
         if let filesDirectory {
             report.filesRemoved = (try? await removeUnusedDownloads(in: filesDirectory)) ?? 0

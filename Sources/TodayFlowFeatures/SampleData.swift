@@ -18,7 +18,9 @@ public enum SampleData {
         let today = cal.startOfDay(for: .now)
         // Today's tasks fall in the hours after "now", so screenshots look like
         // a normal working day whenever they are taken.
-        let nextHour = cal.dateInterval(of: .hour, for: .now)!.end
+        // Late in the evening they start earlier, so all of them stay today.
+        let endOfToday = cal.date(byAdding: .day, value: 1, to: today)!
+        let nextHour = min(cal.dateInterval(of: .hour, for: .now)!.end, endOfToday.addingTimeInterval(-5 * 3600))
         func at(_ dayOffset: Int, _ hour: Int) -> Date {
             if dayOffset == 0 { return nextHour.addingTimeInterval(Double(hour) * 3600) }
             return cal.date(byAdding: .day, value: dayOffset, to: today)!.addingTimeInterval(Double(hour) * 3600)

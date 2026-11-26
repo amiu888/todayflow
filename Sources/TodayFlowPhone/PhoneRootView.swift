@@ -153,6 +153,7 @@ public struct PhoneRootView: View {
             if phase == .active {
                 Task {
                     await PhoneInboxImporter.importPending(environment)
+                    await today.reloadTrays()
                     reloadAll()
                 }
             }
@@ -160,6 +161,10 @@ public struct PhoneRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
             reloadAll()
             notifications.scheduleRefresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.remoteTraysChanged)) { _ in
+            // Trays are read once at launch; synced trays replace them here.
+            Task { await today.reloadTrays() }
         }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.remindersChanged)) { _ in
             notifications.scheduleRefresh()

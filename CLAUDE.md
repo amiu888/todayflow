@@ -52,8 +52,12 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
   `SecurityKeychainStore` in TodayFlowPersistence so both apps share them. iOS tests: 9, plus
   `iOS/UITests/TourUITests` (scripted flows that also record the website's tutorial clips).
 - Trays sync (schema v11): the `work_trays` and `workflow_rules` rows of `setting` sync
-  (`SyncedSettings`); on pairing they are dated 1970 so the account's trays win, and the
-  default "Working tray" is not saved until the user changes trays. iPhone: tray strip on
+  (`SyncedSettings`). Pairing keeps the device's own trays aside (`sync_state` `join:*`), pulls
+  the account's, then `SyncStore.finishJoin` merges them (`SyncedSettingsMerge`: by id or name,
+  a task stays in one tray, rules follow their trays); after that the list is newest-wins. The
+  default "Working tray" is not saved until the user changes trays. Changes an older version
+  skipped are listed in `sync_state` `skipped`; `rewindForSkippedChanges` pulls everything
+  again once they are known. The iPhone reloads trays on `remoteTraysChanged`. iPhone: tray strip on
   Today, tray detail, Add to Tray in the long-press menu (`PhoneTraysView.swift`).
 - `-seedSample` (Mac and iPhone, `SampleData`) fills an empty database for screenshots.
 
