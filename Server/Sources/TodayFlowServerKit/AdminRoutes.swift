@@ -14,6 +14,9 @@ public struct AdminConfig: Sendable {
     public var backups: BackupCatalog?
     /// The dumps folder as the NAS shell sees it, for the restore command.
     public var hostBackupDirectory: String?
+    /// The sync address devices should use (TODAYFLOW_PUBLIC_URL), shown on
+    /// the overview and next to every pairing code.
+    public var publicURL: String?
     public var blobs: BlobStore?
     public var startedAt = Date()
     public var now: @Sendable () -> Date = { Date() }
@@ -213,7 +216,11 @@ public func buildAdminRouter(store: Store, config: AdminConfig) -> Router<BasicR
         let recent = active.sorted { ($0.lastSeenAt ?? "") > ($1.lastSeenAt ?? "") }.prefix(5).map {
             "<tr><td>\(h($0.name))</td><td>\(h($0.user))</td><td>\(friendly($0.lastSeenAt))</td></tr>"
         }.joined()
-        var body = "<h1>Overview</h1><div class=\"tiles\">\(tiles)</div>"
+        var body = "<h1>Overview</h1>"
+        if let url = config.publicURL {
+            body += "<p class=\"hint\">Sync address for TodayFlow ▸ Settings ▸ Sync: <strong class=\"address\">\(h(url))</strong></p>"
+        }
+        body += "<div class=\"tiles\">\(tiles)</div>"
         if users.isEmpty {
             body += "<p class=\"empty\">No users yet. <a href=\"/users\">Add the first user</a> to get a pairing code.</p>"
         }
@@ -259,6 +266,7 @@ public func buildAdminRouter(store: Store, config: AdminConfig) -> Router<BasicR
             <h1>\(isNew ? "User added" : "New pairing code")</h1>
             <p>Pairing code for <strong>\(h(user))</strong>:</p>
             <p class="code">\(h(code))</p>
+            \(config.publicURL.map { "<p>Server address: <strong class=\"address\">\(h($0))</strong></p>" } ?? "")
             <p class="hint">Type it once in TodayFlow ▸ Settings ▸ Sync on each of \(h(user))'s devices.
             It is shown only now. \(isNew ? "" : "The old code no longer works; devices already paired keep working.")</p>
             <p><a href="/users">Back to users</a></p>

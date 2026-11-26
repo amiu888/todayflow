@@ -86,6 +86,8 @@ compose = {
                 "TODAYFLOW_CONTROL_DIR": "/control",
                 # Shown in the admin page's restore instructions.
                 "TODAYFLOW_HOST_BACKUP_DIR": BACKUPS,
+                # The sync address devices use, shown on the admin page.
+                "TODAYFLOW_PUBLIC_URL": config.get("TODAYFLOW_PUBLIC_URL") or config.get("TODAYFLOW_URL", ""),
             },
             "volumes": [
                 f"{APP}/TodayFlowServer:/app/TodayFlowServer:ro",

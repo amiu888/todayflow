@@ -170,6 +170,16 @@ extension SyncTests {
         }
     }
 
+    @Test func admin_showsThePublicSyncAddress() async throws {
+        try await withAdmin(configure: { $0.publicURL = "https://sync.example.com" }) { client, _, _ in
+            let signed = try await signIn(client)
+            let overview = try await get(client, "/", cookie: signed.cookie)
+            #expect(overview.contains("https://sync.example.com"))
+            let added = try await post(client, "/users/add", signed, ["name": "Alex"])
+            #expect(added.body.contains("Server address: <strong class=\"address\">https://sync.example.com</strong>"))
+        }
+    }
+
     @Test func admin_deleteNeedsTheNameTyped() async throws {
         try await withAdmin { client, store, _ in
             let signed = try await signIn(client)

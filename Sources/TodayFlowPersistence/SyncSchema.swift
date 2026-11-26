@@ -1,4 +1,5 @@
 import Foundation
+import TodayFlowCore
 
 /// A table that syncs with the TodayFlow server.
 public struct SyncTable: Sendable, Equatable {
@@ -9,11 +10,20 @@ public struct SyncTable: Sendable, Equatable {
     /// Columns that only make sense on this Mac (file bookmarks, local copies).
     /// They are never sent and never overwritten by a remote change.
     public let localOnly: Set<String>
+    /// When set, only rows with one of these keys sync (the `setting` table
+    /// shares only the trays; everything else stays on the device).
+    public let onlyRows: Set<String>?
 
-    public init(_ name: String, key: [String] = ["id"], localOnly: Set<String> = []) {
+    public init(_ name: String, key: [String] = ["id"], localOnly: Set<String> = [], onlyRows: Set<String>? = nil) {
         self.name = name
         self.key = key
         self.localOnly = localOnly
+        self.onlyRows = onlyRows
+    }
+
+    /// Whether the row with this id syncs.
+    public func syncs(rowId: String) -> Bool {
+        onlyRows.map { $0.contains(rowId) } ?? true
     }
 
     /// SQL for the row id, from `NEW` or `OLD` in a trigger.
@@ -22,8 +32,15 @@ public struct SyncTable: Sendable, Equatable {
     }
 }
 
-/// The synced tables, parents before children. Settings, the activity search
-/// index and the old `change_outbox` stay on this Mac.
+/// Settings shared by all of a user's devices: the working trays and their
+/// rules. Everything else in `setting` (sync pairing, AI, work hours, window
+/// choices) belongs to one device.
+public enum SyncedSettings {
+    public static let keys: Set<String> = [SettingKeys.workTrays, SettingKeys.workflowRules]
+}
+
+/// The synced tables, parents before children. Other settings, the activity
+/// search index and the old `change_outbox` stay on this device.
 public enum SyncTables {
     public static let all: [SyncTable] = [
         SyncTable("work_item"),
@@ -36,6 +53,7 @@ public enum SyncTables {
         SyncTable("activity"),
         SyncTable("contact_group_member", key: ["contact_id", "group_id"]),
         SyncTable("task_contact", key: ["task_id", "contact_id"]),
+        SyncTable("setting", key: ["key"], onlyRows: SyncedSettings.keys),
     ]
 
     public static func named(_ name: String) -> SyncTable? {
@@ -92,6 +110,36 @@ extension TodayFlowMigrations {
         }
         return sql
     }
+
+    /// v11: the working trays and tray rules sync (two rows of `setting`).
+    /// A device that is already paired queues its current trays once, so they
+    /// reach the user's other devices; an unpaired device waits for pairing,
+    /// where the server's copy wins (see `SyncStore.markAllPending`).
+    ///
+    /// Frozen like v9: the keys are spelled out.
+    static let schemaV11: String = {
+        let keys = "('work_trays', 'workflow_rules')"
+        var sql = ""
+        for (suffix, event, row) in [("ai", "INSERT", "NEW"), ("au", "UPDATE", "NEW"), ("ad", "DELETE", "OLD")] {
+            sql += """
+                CREATE TRIGGER sync_setting_\(suffix) AFTER \(event) ON setting
+                WHEN (SELECT applying FROM sync_flag) = 0 AND \(row).key IN \(keys)
+                BEGIN
+                  DELETE FROM sync_change WHERE entity = 'setting' AND row_id = \(row).key;
+                  INSERT INTO sync_change (entity, row_id, changed_at)
+                  VALUES ('setting', \(row).key, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+                END;
+
+                """
+        }
+        sql += """
+            INSERT OR IGNORE INTO sync_change (entity, row_id, changed_at)
+            SELECT 'setting', key, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM setting
+            WHERE key IN \(keys)
+              AND EXISTS (SELECT 1 FROM sync_state WHERE key = 'cursor');
+            """
+        return sql
+    }()
 
     /// v10: attachment files travel too. `blob_sha256`/`blob_size` sync with
     /// the row and name the file on the server; `sync_blob_skip` remembers

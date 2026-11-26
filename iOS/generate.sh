@@ -7,4 +7,7 @@ if [[ -f signing.env ]]; then
   set -a; source signing.env; set +a
 fi
 export DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-}"
+# Per-person build settings live in Local.xcconfig (ignored). "//" starts a
+# comment in xcconfig files, so the URL's slashes are split with $().
+print -r -- "TODAYFLOW_DEFAULT_SERVER = $(print -r -- "${TODAYFLOW_DEFAULT_SERVER:-}" | sed 's#//#/$()/#g')" > Local.xcconfig
 xcodegen generate --spec project.yml

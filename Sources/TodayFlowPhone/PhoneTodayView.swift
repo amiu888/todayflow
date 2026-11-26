@@ -18,6 +18,7 @@ struct PhoneTodayView: View {
     @State private var priorityTarget: UUIDv7?
     @State private var deleteTarget: UUIDv7?
     @State private var showsUndoBar = false
+    @State private var openTray: PhoneTrayRoute?
 
     var body: some View {
         List {
@@ -26,6 +27,16 @@ struct PhoneTodayView: View {
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
+            }
+
+            if model.isViewingToday {
+                Section {
+                    PhoneTrayStrip(model: model) { openTray = PhoneTrayRoute(id: $0) }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowBackground(Color.clear)
+                } header: {
+                    Text("Trays")
+                }
             }
 
             rowSection("Overdue", rows: model.visibleOverdueRows, tint: .red)
@@ -73,6 +84,9 @@ struct PhoneTodayView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(model.isViewingToday ? "Today" : dayTitle)
+        .navigationDestination(item: $openTray) { route in
+            PhoneTrayDetailView(model: model, trayId: route.id, environment: environment)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Menu("More", systemImage: "ellipsis.circle") {
@@ -177,6 +191,7 @@ struct PhoneTodayView: View {
                 }
             }
         }
+        PhoneTrayMenu(model: model, itemId: id)
         Divider()
         Button("Delete", systemImage: "trash", role: .destructive) { deleteTarget = id }
     }
@@ -445,5 +460,10 @@ struct PriorityPill: View {
             .foregroundStyle(color)
             .accessibilityLabel(priority.label)
     }
+}
+/// Opens a tray from the strip (tray ids are UUIDs like task ids, so they
+/// get their own type for navigation).
+struct PhoneTrayRoute: Hashable, Identifiable {
+    let id: UUIDv7
 }
 #endif

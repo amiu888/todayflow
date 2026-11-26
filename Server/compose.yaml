@@ -38,6 +38,7 @@ services:
       TODAYFLOW_ADMIN_PASSWORD: ${TODAYFLOW_ADMIN_PASSWORD:?set TODAYFLOW_ADMIN_PASSWORD in .env}
       TODAYFLOW_BACKUP_DIR: /backups
       TODAYFLOW_CONTROL_DIR: /control
+      TODAYFLOW_PUBLIC_URL: ${TODAYFLOW_PUBLIC_URL:-}
     volumes:
       - ${DATA_DIR:-./data}/blobs:/data/blobs
       - ${DATA_DIR:-./data}/backups:/backups:ro

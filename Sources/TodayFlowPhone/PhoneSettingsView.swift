@@ -115,6 +115,12 @@ struct PhoneSyncSection: View {
         .task {
             await sync.refresh()
             if server.isEmpty { server = state.serverAddress }
+            // Builds made for one person's own server pre-fill its address.
+            if server.isEmpty,
+               let fallback = Bundle.main.object(forInfoDictionaryKey: "TodayFlowDefaultServer") as? String,
+               !fallback.isEmpty {
+                server = fallback
+            }
         }
     }
 

@@ -85,6 +85,9 @@ public enum TodayFlowEvents {
     public static let captureSaved = Notification.Name("TodayFlow.captureSaved")
     /// Tray membership, names, or order changed (the Today list persists trays).
     public static let traysChanged = Notification.Name("TodayFlow.traysChanged")
+    /// Sync brought trays (or tray rules) from another device; views that
+    /// keep trays in memory read them again.
+    public static let remoteTraysChanged = Notification.Name("TodayFlow.remoteTraysChanged")
     /// A synced file is downloading (`userInfo["id"]`: attachment id,
     /// `userInfo["downloading"]`: Bool).
     public static let attachmentDownload = Notification.Name("TodayFlow.attachmentDownload")

@@ -180,6 +180,7 @@ Conflicts: the change with the later `changedAt` wins for the whole row.
 | `ADMIN_PORT` | `8788` | admin page port |
 | `TODAYFLOW_OBSIDIAN_PROXY` | on | `off` turns the `/v1/obsidian` proxy off |
 | `TODAYFLOW_BACKUP_DIR` / `TODAYFLOW_CONTROL_DIR` | unset | dumps folder (read) and "back up now" folder (shared with the backup service) |
+| `TODAYFLOW_PUBLIC_URL` | unset | the sync address devices use (Tailscale or Cloudflare Tunnel); shown on the admin page next to pairing codes |
 | `TODAYFLOW_ADMIN_SECURE_COOKIE` | `0` | `1` when the admin page is served over HTTPS |
 | `DATA_DIR` | `./data` | where data, files and backups live |
 | `PORT` | `8787` | port on the host |

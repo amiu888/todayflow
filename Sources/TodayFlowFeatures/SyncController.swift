@@ -343,6 +343,7 @@ public final class SyncController: SyncPanelBackend {
             TodayFlowEvents.itemsChanged,
             TodayFlowEvents.attachmentsChanged,
             TodayFlowEvents.remindersChanged,
+            TodayFlowEvents.remoteTraysChanged,
         ] {
             NotificationCenter.default.post(name: name, object: nil)
         }

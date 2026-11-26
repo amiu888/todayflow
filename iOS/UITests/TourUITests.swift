@@ -163,6 +163,40 @@ final class TourUITests: XCTestCase {
         pause(3.0)
     }
 
+    /// 7 · Trays: put tasks in play, open the tray, make a new one.
+    func test7Trays() {
+        let roadmap = row("Review Q4 roadmap")
+        XCTAssertTrue(roadmap.waitForExistence(timeout: 5))
+        roadmap.press(forDuration: 1.0)
+        pause(1.0)
+        app.buttons["Add to Tray"].firstMatch.tap()
+        pause(0.8)
+        app.buttons["Working tray"].firstMatch.tap()
+        pause(1.5)
+        let budget = row("Budget draft")
+        budget.press(forDuration: 1.0)
+        pause(0.8)
+        app.buttons["Add to Tray"].firstMatch.tap()
+        pause(0.6)
+        app.buttons["Working tray"].firstMatch.tap()
+        pause(1.5)
+        let chip = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Working tray tray'")).firstMatch
+        XCTAssertTrue(chip.waitForExistence(timeout: 3))
+        XCTAssertTrue(chip.label.contains("2 tasks"), "chip: \(chip.label)")
+        chip.tap()
+        pause(2.0)
+        XCTAssertTrue(app.staticTexts["Review Q4 roadmap"].exists)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        pause(1.0)
+        app.buttons["New tray"].firstMatch.tap()
+        pause(0.8)
+        app.typeText("Errands")
+        pause(0.6)
+        app.alerts.buttons["Add"].tap()
+        pause(2.0)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Errands tray'")).firstMatch.exists)
+    }
+
     // MARK: - Helpers
 
     private func tomorrowLabel() -> String {

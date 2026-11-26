@@ -41,8 +41,10 @@ struct MigrationsTests {
             "attachment_ad", "attachment_ai", "attachment_au",
             "work_item_ad", "work_item_ai", "work_item_au",
         ])
-        // v9: insert, update and delete tracking on each of the 10 synced tables.
-        #expect(triggers.filter { $0.hasPrefix("sync_") }.count == 30)
+        // v9: insert, update and delete tracking on each of the 10 synced tables;
+        // v11: the same three for the shared tray settings.
+        #expect(triggers.filter { $0.hasPrefix("sync_") }.count == 33)
+        #expect(triggers.contains("sync_setting_au"))
         #expect(tables.contains("sync_change"))
     }
 

@@ -839,6 +839,12 @@ public final class TodayViewModel {
         }
     }
 
+    /// Reads the trays again (after sync brought another device's changes).
+    public func reloadTrays() async {
+        await loadTrays()
+        traysLoaded = true
+    }
+
     private func loadTrays() async {
         guard let settingRepository else { return }
         if let raw = await settingRepository.value(for: SettingKeys.workTrays),
@@ -849,7 +855,9 @@ public final class TodayViewModel {
             trays = decoded.sorted { $0.sortOrder < $1.sortOrder }
         } else {
             // A first-run tray gives the user somewhere to drop the task they
-            // are working on without a setup step.
+            // are working on without a setup step. It is saved only when the
+            // user changes trays: saved now, it would be newer than the trays
+            // a just-paired device is about to receive, and replace them.
             trays = [
                 WorkTray(
                     name: "Working tray",
@@ -857,7 +865,6 @@ public final class TodayViewModel {
                     colorHex: DesignTokens.TrayPalette.colorHex(at: 0)
                 )
             ]
-            await persistTrays()
         }
     }
 

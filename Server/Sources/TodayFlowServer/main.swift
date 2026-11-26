@@ -186,6 +186,7 @@ if let password = env["TODAYFLOW_ADMIN_PASSWORD"] {
     var adminConfig = AdminConfig(password: password, backups: backups, blobs: blobs)
     adminConfig.secureCookie = env["TODAYFLOW_ADMIN_SECURE_COOKIE"] == "1"
     adminConfig.hostBackupDirectory = env["TODAYFLOW_HOST_BACKUP_DIR"]
+    adminConfig.publicURL = env["TODAYFLOW_PUBLIC_URL"].flatMap { $0.isEmpty ? nil : $0 }
     let adminPort = env["ADMIN_PORT"].flatMap { Int($0) } ?? 8788
     let admin = Application(
         router: buildAdminRouter(store: store, config: adminConfig),

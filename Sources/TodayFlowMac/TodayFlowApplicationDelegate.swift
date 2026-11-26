@@ -126,6 +126,8 @@ public final class TodayFlowApplicationDelegate: NSObject, NSApplicationDelegate
             Task {
                 await environment.loadSettings()
                 await environment.backupDatabaseIfNeeded()
+                // `-seedSample` fills an empty database for screenshots and tutorials.
+                await SampleData.seedIfRequested(workItems: environment.workItems, calendar: environment.workCalendar)
                 summary.updateCalendar(environment.workCalendar)
 
                 let notifications = NotificationController(

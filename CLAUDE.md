@@ -49,7 +49,13 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - iPhone app (docs/ios/DESIGN.md, iOS/README.md): `Sources/TodayFlowPhone` (every file `#if os(iOS)`),
   `iOS/project.yml` (XcodeGen; team id in ignored `iOS/signing.env`), share extension writes
   `ShareInbox` items to the app group; `SyncController` now lives in TodayFlowFeatures and
-  `SecurityKeychainStore` in TodayFlowPersistence so both apps share them. iOS tests: 8.
+  `SecurityKeychainStore` in TodayFlowPersistence so both apps share them. iOS tests: 9, plus
+  `iOS/UITests/TourUITests` (scripted flows that also record the website's tutorial clips).
+- Trays sync (schema v11): the `work_trays` and `workflow_rules` rows of `setting` sync
+  (`SyncedSettings`); on pairing they are dated 1970 so the account's trays win, and the
+  default "Working tray" is not saved until the user changes trays. iPhone: tray strip on
+  Today, tray detail, Add to Tray in the long-press menu (`PhoneTraysView.swift`).
+- `-seedSample` (Mac and iPhone, `SampleData`) fills an empty database for screenshots.
 
 `./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`
 (hardened runtime). `scripts/package-dmg.sh` notarizes and staples the DMG when

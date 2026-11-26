@@ -30,3 +30,4 @@ docs/**/*.local.md
 
 # iPhone signing team (template: iOS/signing.env.example)
 iOS/signing.env
+iOS/Local.xcconfig

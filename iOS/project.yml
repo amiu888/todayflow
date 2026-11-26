@@ -15,8 +15,8 @@ settings:
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
     CODE_SIGN_STYLE: Automatic
     TARGETED_DEVICE_FAMILY: "1"
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "4"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 packages:
   TodayFlow:
@@ -25,6 +25,9 @@ targets:
   TodayFlowPhoneApp:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Local.xcconfig
+      Release: Local.xcconfig
     sources:
       - path: TodayFlowPhoneApp
     dependencies:
@@ -47,6 +50,9 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        # Pre-filled sync address: the TODAYFLOW_DEFAULT_SERVER build setting, written
+        # by generate.sh into Local.xcconfig (ignored) from signing.env.
+        TodayFlowDefaultServer: $(TODAYFLOW_DEFAULT_SERVER)
         CFBundleURLTypes:
           - CFBundleURLName: com.todayflow.ios
             CFBundleURLSchemes: [todayflow]

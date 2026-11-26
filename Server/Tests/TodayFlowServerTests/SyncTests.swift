@@ -244,6 +244,27 @@ struct SyncTests {
         }
     }
 
+    @Test func oneUser_manyDevices_eachSeesTheOthersChanges() async throws {
+        try await withServer { client, store in
+            let mac = try await device(client, store, user: "Alex", name: "Mac Studio")
+            // A second device of the same user pairs with a fresh code.
+            let code = try await store.resetPairingCode(user: "Alex")
+            let phone = try await pair(client, code: code, name: "iPhone")
+            let laptop = try await pair(client, code: code, name: "MacBook")
+
+            _ = try await push(client, token: mac.token, [task("T1", title: "From the Mac", at: "2026-11-19T10:00:00.000Z")])
+            _ = try await push(client, token: phone.token, [task("T2", title: "From the phone", at: "2026-11-19T10:01:00.000Z")])
+
+            let onLaptop = try await pull(client, token: laptop.token)
+            #expect(Set(onLaptop.changes.map(\.id)) == ["T1", "T2"])
+            let onMac = try await pull(client, token: mac.token)
+            #expect(onMac.changes.map(\.id) == ["T2"])
+            let onPhone = try await pull(client, token: phone.token)
+            #expect(onPhone.changes.map(\.id) == ["T1"])
+            #expect(try await store.devices().filter { $0.user == "Alex" && !$0.revoked }.count == 3)
+        }
+    }
+
     @Test func newerEditWins_andOlderEditIsStaleWithTheWinnerReturned() async throws {
         try await withServer { client, store in
             let a = try await device(client, store, user: "Alex", name: "Mac A")

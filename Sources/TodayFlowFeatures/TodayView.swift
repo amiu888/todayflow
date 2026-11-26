@@ -302,6 +302,9 @@ public struct TodayView: View {
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.itemsChanged)) { _ in
             reload()
         }
+        .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.remoteTraysChanged)) { _ in
+            Task { await model.reloadTrays() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: TodayFlowEvents.captureSaved)) { note in
             handleCaptureSaved(note)
         }

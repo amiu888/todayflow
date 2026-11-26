@@ -157,6 +157,18 @@ public final class SyncStore: Sendable {
                 let time = ["updated_at", "created_at", "occurred_at"].first(where: columns.contains)
                     .map { "MIN(COALESCE(\($0), \(now)), \(now))" }
                     ?? now
+                if let only = table.onlyRows {
+                    // Shared settings (trays) join the account's existing
+                    // copy: dated at the epoch, the server's version wins, so
+                    // a new device's empty default never replaces real trays.
+                    let list = only.sorted().map { "'\($0)'" }.joined(separator: ", ")
+                    try db.execute(sql: """
+                        INSERT OR REPLACE INTO sync_change (entity, row_id, changed_at)
+                        SELECT '\(table.name)', "\(table.key[0])", '1970-01-01T00:00:00.000Z'
+                        FROM "\(table.name)" WHERE "\(table.key[0])" IN (\(list))
+                        """)
+                    continue
+                }
                 try db.execute(sql: """
                     INSERT OR IGNORE INTO sync_change (entity, row_id, changed_at)
                     SELECT '\(table.name)', \(table.key.map { "\"\($0)\"" }.joined(separator: " || '|' || ")), \(time)
@@ -241,6 +253,7 @@ public final class SyncStore: Sendable {
 
     private static func apply(_ change: SyncChange, _ db: Database) throws -> Bool {
         guard let table = SyncTables.named(change.entity),
+              table.syncs(rowId: change.id),
               let keys = keyValues(table, id: change.id)
         else { return false }
 
