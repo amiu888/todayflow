@@ -4,7 +4,7 @@ import Security
 import TodayFlowCore
 
 /// An error from the Keychain, carrying the underlying `OSStatus`.
-public struct KeychainError: Error, CustomStringConvertible {
+public struct KeychainError: LocalizedError, CustomStringConvertible {
     public enum Operation: String, Sendable {
         case add
         case update
@@ -16,6 +16,11 @@ public struct KeychainError: Error, CustomStringConvertible {
 
     public var description: String {
         "Keychain \(operation.rawValue) failed with status \(status)"
+    }
+
+    public var errorDescription: String? {
+        let reason = SecCopyErrorMessageString(status, nil) as String? ?? "status \(status)"
+        return "Couldn't save to the Keychain (\(operation.rawValue)): \(reason)"
     }
 }
 
@@ -49,7 +54,9 @@ public final class SecurityKeychainStore: KeychainStore {
             return
         case errSecDuplicateItem:
             let update: [String: AnyObject] = [kSecValueData as String: data as NSData]
-            let status = SecItemUpdate(query(for: key) as CFDictionary, update as CFDictionary)
+            // SecItemUpdate takes the item's identity only: iOS rejects a
+            // query that also asks for data back (errSecParam).
+            let status = SecItemUpdate(identity(for: key) as CFDictionary, update as CFDictionary)
             guard status == errSecSuccess else {
                 throw KeychainError(operation: .update, status: status)
             }
@@ -59,7 +66,7 @@ public final class SecurityKeychainStore: KeychainStore {
     }
 
     public func delete(_ key: String) async throws {
-        let status = SecItemDelete(query(for: key) as CFDictionary)
+        let status = SecItemDelete(identity(for: key) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError(operation: .delete, status: status)
         }
@@ -67,14 +74,21 @@ public final class SecurityKeychainStore: KeychainStore {
 
     // MARK: Query
 
-    private func query(for key: String) -> [String: AnyObject] {
+    /// Which item: used by update and delete.
+    private func identity(for key: String) -> [String: AnyObject] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service as NSString,
             kSecAttrAccount as String: key as NSString,
-            kSecReturnData as String: kCFBooleanTrue,
-            kSecMatchLimit as String: kSecMatchLimitOne,
         ]
+    }
+
+    /// Which item, returning its data: used by read.
+    private func query(for key: String) -> [String: AnyObject] {
+        var query = identity(for: key)
+        query[kSecReturnData as String] = kCFBooleanTrue
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        return query
     }
 
     private func attributes(for key: String, data: Data) -> [String: AnyObject] {

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import TodayFlowCore
+import TodayFlowPersistence
 @testable import TodayFlowPhone
 
 @MainActor
@@ -116,5 +117,18 @@ struct PhoneTests {
         let id = UUIDv7(timestampMilliseconds: 1_700_000_000_000)
         #expect(PhoneLinks.taskId(from: PhoneLinks.url(for: id)) == id)
         #expect(PhoneLinks.taskId(from: URL(string: "https://example.com/task/x")!) == nil)
+    }
+
+    // MARK: Keychain
+
+    /// Pairing a second time overwrites the stored token. iOS rejects an
+    /// update whose query also asks for data back, which broke re-pairing.
+    @Test func keychainOverwritesAndDeletes() async throws {
+        let store = SecurityKeychainStore(service: "TodayFlow.tests.\(UUID().uuidString)")
+        try await store.write("first", for: "token")
+        try await store.write("second", for: "token")
+        #expect(await store.read("token") == "second")
+        try await store.delete("token")
+        #expect(await store.read("token") == nil)
     }
 }

@@ -148,15 +148,11 @@ final class TourUITests: XCTestCase {
         let menu = safari.buttons["MoreMenuButton"].firstMatch
         if menu.waitForExistence(timeout: 5) { menu.tap() }
         pause(1.2)
-        let share = safari.buttons["Share"].firstMatch
+        let share = safari.descendants(matching: .any).matching(NSPredicate(format: "label == 'Share'")).firstMatch
         if share.waitForExistence(timeout: 5) { share.tap() }
         pause(2.0)
-        let target = safari.buttons["TodayFlow"].firstMatch
-        if !target.waitForExistence(timeout: 4) {
-            for b in safari.buttons.allElementsBoundByIndex { print("SHARE-BTN id=\(b.identifier) label=\(b.label)") }
-            for c in safari.cells.allElementsBoundByIndex { print("SHARE-CELL id=\(c.identifier) label=\(c.label)") }
-        }
-        if target.waitForExistence(timeout: 2) {
+        let target = safari.cells.matching(identifier: "shareCell").matching(NSPredicate(format: "label == 'TodayFlow'")).firstMatch
+        if target.waitForExistence(timeout: 6) {
             target.tap()
             pause(2.5)
             let add = safari.buttons["Add"].firstMatch
