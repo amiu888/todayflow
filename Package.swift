@@ -191,6 +191,7 @@ let package = Package(
             name: "TodayFlowPhone",
             dependencies: [
                 "TodayFlowCore",
+                "TodayFlowAI",
                 "TodayFlowPersistence",
                 "TodayFlowSync",
                 "TodayFlowRecognition",

@@ -9,7 +9,7 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
 - Core (entities, use cases, ports), Persistence (GRDB, outbox, FTS), Recognition
   (eleven recognizers + pipeline), Design, Features, Mac composition root,
   TodayFlowAI (OpenAI-compatible client + four AI features), TodayFlowSync (server sync: `SyncClient`, `SyncRunner`).
-- `swift build` is warning-free; `swift test` passes **969 tests**; the XCUITest suite has 22 cases.
+- `swift build` is warning-free; `swift test` passes **1,004 tests**; the XCUITest suite has 22 cases.
 - Daily database backups (keep 7) and JSON/CSV export are implemented (NFR-09).
 - Schema v2 adds an append-only `activity` audit table; GRDB repositories record
   who/when/source-app/location for creates, edits, status, links, drops, reminders.
@@ -59,6 +59,15 @@ Increments 1–8 from `driver.md` §11 are complete and committed:
   skipped are listed in `sync_state` `skipped`; `rewindForSkippedChanges` pulls everything
   again once they are known. The iPhone reloads trays on `remoteTraysChanged`. iPhone: tray strip on
   Today, tray detail, Add to Tray in the long-press menu (`PhoneTraysView.swift`).
+- Screenshot → task and AI to-dos (iPhone): New Task has a system Paste button (screenshot, link,
+  text; `PhonePasteLoader`). `ScreenText` (Features, Vision) reads images on the device;
+  `PhoneSmartCapture` gives the words to the title rules and Apple Intelligence (`AppleTaskSuggester`)
+  for Paste and Share, and finds to-dos (`ChecklistSuggestions`: `AppleChecklistSuggester`, else the
+  rules in Core `TodoExtractor`), shown ticked and saved as the checklist. The task's Checklist has
+  "Find To-dos" (description, summary and screenshots) and an "n of m" count. `SmartTitle.fromAI`
+  drops ticket numbers an AI made up. Sync: a file over Cloudflare's 100 MB is set aside instead of
+  stopping the round; Settings ▸ Sync ▸ Change… switches address without pairing again.
+- `scripts/testflight.sh` tests, archives and uploads the iPhone app (Claude runs it).
 - `-seedSample` (Mac and iPhone, `SampleData`) fills an empty database for screenshots.
 
 `./scripts/build-app.sh` wraps the executable in a Developer ID-signed `.app`

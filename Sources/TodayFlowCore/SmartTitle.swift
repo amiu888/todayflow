@@ -107,6 +107,28 @@ public enum SmartTitle {
         return "\(reference.id): \(trimmed)"
     }
 
+    /// An AI's title with the drop's real reference in front. A leading
+    /// "CHG001: " or "ABC-12 - " that nothing in the drop contains was made
+    /// up by the model, so it goes.
+    public static func fromAI(_ title: String, objects: [RecognizedObject]) -> String {
+        var text = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"^\[?([A-Za-z]{2,8}[- ]?\d{2,}|#\d{3,})\]?\s*[:\-–]\s*(.+)$"#
+        if let regex = try? NSRegularExpression(pattern: pattern),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+           let prefixRange = Range(match.range(at: 1), in: text),
+           let restRange = Range(match.range(at: 2), in: text) {
+            let prefix = String(text[prefixRange])
+            let source = objects.flatMap { object in
+                [object.displayName, object.suggestedTitle ?? "", object.previewText ?? "", object.reference ?? ""]
+                    + Array(object.metadata.values)
+            }.joined(separator: "\n")
+            if source.range(of: prefix, options: .caseInsensitive) == nil {
+                text = String(text[restRange])
+            }
+        }
+        return withReference(text, reference(for: objects))
+    }
+
     /// The title a drop gets without AI.
     public static func inferredTitle(for objects: [RecognizedObject]) -> String? {
         guard let base = objects.lazy

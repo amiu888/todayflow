@@ -136,3 +136,11 @@ extension AIAssistant {
         try await suggestTask(from: objects)
     }
 }
+
+/// Anything that can read the to-dos out of a message, an email or the text
+/// of a screenshot: Apple Intelligence on the device, or the plain rules in
+/// `TodoExtractor` when it isn't there.
+public protocol ChecklistSuggesting: Sendable {
+    /// At most a handful of short to-dos, in the order they appear.
+    func suggestTodos(title: String, text: String) async throws -> [String]
+}

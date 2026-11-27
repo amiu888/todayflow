@@ -65,4 +65,26 @@ struct SmartTitleTests {
         #expect(await store.all().filter { $0.kindKey == "email" }.count == TitleExampleStore.perKind)
         #expect(await store.examples(for: "url").count == 1)
     }
+
+    // MARK: - AI titles
+
+    @Test func aTicketNumberTheModelMadeUp_isDropped() {
+        let chat = RecognizedObject(type: .image, displayName: "Screenshot", previewText: "Maria: Please renew the parking permit")
+        #expect(SmartTitle.fromAI("CHG001: Renew parking permit", objects: [chat]) == "Renew parking permit")
+        #expect(SmartTitle.fromAI("ABC-12 - Renew parking permit", objects: [chat]) == "Renew parking permit")
+        #expect(SmartTitle.fromAI("[TKT99] Renew parking permit", objects: [chat]) == "[TKT99] Renew parking permit")
+    }
+
+    @Test func aRealTicketNumber_staysInFront() {
+        let change = RecognizedObject(type: .email, displayName: "CHG0012345 approval", previewText: "Please approve CHG0012345")
+        #expect(SmartTitle.fromAI("Approve firewall change", objects: [change]) == "CHG0012345: Approve firewall change")
+        #expect(SmartTitle.fromAI("CHG0012345: Approve firewall change", objects: [change]) == "CHG0012345: Approve firewall change")
+        let jira = RecognizedObject(type: .url, displayName: "Fix login", metadata: ["jiraKey": "WEB-42"])
+        #expect(SmartTitle.fromAI("WEB-42: Fix login", objects: [jira]).hasPrefix("WEB-42"))
+    }
+
+    @Test func titlesThatOnlyLookLikeNumbers_areKept() {
+        let note = RecognizedObject(type: .text, displayName: "note", previewText: "Book flights")
+        #expect(SmartTitle.fromAI("Book flights for 2 people", objects: [note]) == "Book flights for 2 people")
+    }
 }

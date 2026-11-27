@@ -1002,6 +1002,30 @@ public final class DetailViewModel {
         }
     }
 
+    /// Adds several items at once (picked from suggested to-dos), after the
+    /// existing ones and skipping any already on the list.
+    public func addActions(_ texts: [String]) async {
+        guard let item, let actionRepository, !isSaving else { return }
+        let new = TodoExtractor.clean(texts, existing: actions.map(\.text))
+        guard !new.isEmpty else { return }
+        isSaving = true
+        defer { isSaving = false }
+        lastError = nil
+        var order = (actions.map(\.sortOrder).max() ?? -1) + 1
+        do {
+            for text in new {
+                try await actionRepository.save(ActionItem(
+                    itemId: item.id, text: text, sortOrder: order, createdAt: clock(), deviceId: deviceId
+                ))
+                order += 1
+            }
+            actions = await actionRepository.actions(for: item.id)
+            lastSavedAt = clock()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     public func toggleAction(_ action: ActionItem) async {
         guard let item, let actionRepository, !isSaving else { return }
         isSaving = true

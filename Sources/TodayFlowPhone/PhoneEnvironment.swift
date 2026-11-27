@@ -62,6 +62,15 @@ public final class PhoneEnvironment {
     /// Production wiring: `Application Support/TodayFlow/todayflow.sqlite`.
     public static func makeProduction() throws -> PhoneEnvironment {
         let url = applicationSupportDirectory().appendingPathComponent("todayflow.sqlite")
+        #if DEBUG
+        // UI tests start from an empty database (then -seedSample fills it),
+        // so one test's tasks and trays never change the next one's.
+        if ProcessInfo.processInfo.arguments.contains("-resetData") {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(atPath: url.path + suffix)
+            }
+        }
+        #endif
         let queue = try TodayFlowDatabase.make(at: url)
         return PhoneEnvironment(
             workItems: GRDBWorkItemRepository(queue: queue),

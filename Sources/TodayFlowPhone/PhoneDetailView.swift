@@ -18,6 +18,9 @@ struct PhoneDetailView: View {
     @State private var showingReminder = false
     @State private var confirmDelete = false
     @State private var previewURL: URL?
+    @State private var suggestions: [PickedTodo] = []
+    @State private var showingSuggestions = false
+    @State private var isSuggesting = false
     @FocusState private var noteFocused: Bool
     private let attachmentsDirectory: URL
 
@@ -187,7 +190,7 @@ struct PhoneDetailView: View {
     @ViewBuilder
     private var checklistSection: some View {
         if !model.actions.isEmpty || model.item?.kind == .task {
-            Section("Checklist") {
+            Section {
                 ForEach(model.actions) { action in
                     Button {
                         Task { await model.toggleAction(action) }
@@ -213,8 +216,86 @@ struct PhoneDetailView: View {
                         newAction = ""
                         Task { await model.addAction(text) }
                     }
+                Button {
+                    Task { await suggestTodos() }
+                } label: {
+                    HStack {
+                        Label(PhoneSmartCapture.hasAppleIntelligence ? "Find To-dos with Apple Intelligence" : "Find To-dos",
+                              systemImage: "sparkles")
+                        if isSuggesting { Spacer(); ProgressView() }
+                    }
+                }
+                .disabled(isSuggesting)
+            } header: {
+                HStack {
+                    Text("Checklist")
+                    Spacer()
+                    if !model.actions.isEmpty {
+                        Text("\(model.actions.filter(\.isDone).count) of \(model.actions.count)")
+                            .monospacedDigit()
+                    }
+                }
+            }
+            .sheet(isPresented: $showingSuggestions) { suggestionSheet }
+        }
+    }
+
+    /// Reads the task's description, summary and screenshots for to-dos.
+    private func suggestTodos() async {
+        guard let item = model.item else { return }
+        isSuggesting = true
+        defer { isSuggesting = false }
+        let text = await ChecklistSuggestions.sourceText(
+            for: item, attachments: model.attachments, attachmentsDirectory: attachmentsDirectory
+        )
+        let found = await ChecklistSuggestions.suggest(
+            title: item.title, text: text,
+            existing: model.actions.map(\.text),
+            using: PhoneSmartCapture.checklistSuggester
+        )
+        suggestions = found.map { PickedTodo(text: $0) }
+        showingSuggestions = true
+    }
+
+    private var suggestionSheet: some View {
+        NavigationStack {
+            Group {
+                if suggestions.isEmpty {
+                    ContentUnavailableView(
+                        "No to-dos found",
+                        systemImage: "checklist",
+                        description: Text("Nothing in this task's notes, summary or screenshots asks for something to be done.")
+                    )
+                } else {
+                    List {
+                        Section {
+                            ForEach($suggestions) { $todo in
+                                Toggle(isOn: $todo.picked) { Text(todo.text) }
+                                    .toggleStyle(PhoneCheckToggleStyle())
+                            }
+                        } footer: {
+                            Text(PhoneSmartCapture.hasAppleIntelligence
+                                 ? "Found by Apple Intelligence on this iPhone. Tick the ones to add."
+                                 : "Found in the task's text. Tick the ones to add.")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("To-dos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showingSuggestions = false } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        let picked = suggestions.filter(\.picked).map(\.text)
+                        showingSuggestions = false
+                        Task { await model.addActions(picked) }
+                    }
+                    .disabled(!suggestions.contains(where: \.picked))
+                }
             }
         }
+        .presentationDetents([.medium, .large])
     }
 
     @ViewBuilder

@@ -60,7 +60,7 @@ public struct OpenAICompatibleAssistant: AIAssistant, AIModelCatalog, EmailSumma
 
         let dto: TaskSuggestionDTO = try decode(TaskSuggestionDTO.self, from: data)
         // The number stays in front even when the model drops it.
-        let title = SmartTitle.withReference(dto.title, reference)
+        let title = SmartTitle.fromAI(dto.title, objects: objects)
         guard !title.isEmpty else {
             throw AIError.malformedResponse("The suggestion had no title.")
         }

@@ -40,7 +40,8 @@ enum PhoneInboxImporter {
 
     static func importItem(_ item: ShareInboxItem, inbox: ShareInbox, environment: PhoneEnvironment) async -> UUIDv7? {
         let dropped = droppedObjects(for: item, inbox: inbox)
-        let recognized = dropped.map { environment.pipeline.recognize($0) }
+        // Screenshots are read on the device; Apple Intelligence names the task.
+        let reading = await PhoneSmartCapture.read(dropped, pipeline: environment.pipeline)
         let capture = CaptureViewModel(
             repository: environment.workItems,
             attachmentRepository: environment.attachments,
@@ -48,7 +49,7 @@ enum PhoneInboxImporter {
             materializer: environment.materializer,
             calendar: environment.workCalendar
         )
-        capture.prepare(dropped: dropped, recognized: recognized)
+        await PhoneSmartCapture.prepare(capture, dropped: dropped, reading: reading)
         if !item.title.isEmpty { capture.draft.title = item.title }
         if capture.draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             capture.draft.title = "Shared item"

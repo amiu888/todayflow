@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// Scripted walkthroughs for the website's tutorial videos and screenshots.
@@ -12,7 +13,7 @@ final class TourUITests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-seedSample", "-noNotificationPrompt", "YES"]
+        app.launchArguments = ["-resetData", "-seedSample", "-noNotificationPrompt", "YES"]
         if name.contains("Sync") { app.launchArguments += ["-tab", "settings"] }
         if name.contains("TraysTab") { app.launchArguments += ["-tab", "trays"] }
         if let tab = ProcessInfo.processInfo.environment["TOUR_TAB"] {
@@ -216,7 +217,61 @@ final class TourUITests: XCTestCase {
         pause(1.5)
     }
 
+    /// 9 · Paste a chat screenshot: it's read on the iPhone, titled, and its
+    /// to-dos become the new task's checklist.
+    func test9PasteScreenshot() {
+        UIPasteboard.general.image = Self.chatScreenshot([
+            "Maria: Can you book the dentist",
+            "Please renew the parking permit",
+        ])
+        app.buttons["New Task"].firstMatch.tap()
+        let paste = app.buttons["Paste"].firstMatch
+        XCTAssertTrue(paste.waitForExistence(timeout: 5))
+        pause(0.8)
+        paste.tap()
+        // Allow Paste, if iOS asks.
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Allow Paste"]
+        if allow.waitForExistence(timeout: 2) { allow.tap() }
+
+        XCTAssertTrue(app.staticTexts["To-dos found"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] 'dentist'")).firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] 'parking permit'")).firstMatch.exists)
+        let title = app.textFields.firstMatch.value as? String ?? ""
+        XCTAssertFalse(title.isEmpty, "the screenshot names the task")
+        XCTAssertFalse(title.hasPrefix("CHG"), "no made-up ticket number: \(title)")
+        pause(1.5)
+        app.buttons["Add"].firstMatch.tap()
+        pause(1.0)
+
+        // The new task carries the screenshot and the checklist.
+        let created = app.staticTexts.matching(NSPredicate(format: "label == %@", title)).firstMatch
+        for _ in 0..<6 where !created.isHittable { app.swipeUp() }
+        XCTAssertTrue(created.exists, "the new task is on Today")
+        if created.exists {
+            created.tap()
+            XCTAssertTrue(app.staticTexts["Checklist"].waitForExistence(timeout: 5)
+                          || app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Checklist'")).firstMatch.exists)
+            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS[c] 'dentist'")).firstMatch.waitForExistence(timeout: 5))
+            app.swipeUp()
+            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Find To-dos'")).firstMatch.waitForExistence(timeout: 3))
+            pause(2.0)
+        }
+    }
+
     // MARK: - Helpers
+
+    private static func chatScreenshot(_ lines: [String]) -> UIImage {
+        let size = CGSize(width: 1000, height: 110 * lines.count + 60)
+        return UIGraphicsImageRenderer(size: size).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            for (index, line) in lines.enumerated() {
+                (line as NSString).draw(at: CGPoint(x: 30, y: 30 + index * 110), withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 48), .foregroundColor: UIColor.black,
+                ])
+            }
+        }
+    }
 
     private func tomorrowLabel() -> String {
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now)!

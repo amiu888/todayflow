@@ -1,7 +1,11 @@
 import Foundation
 import Testing
 import TodayFlowCore
+import TodayFlowFeatures
 import TodayFlowPersistence
+import TodayFlowRecognition
+import UIKit
+import UniformTypeIdentifiers
 @testable import TodayFlowPhone
 
 @MainActor
@@ -103,6 +107,80 @@ struct PhoneTests {
         let files = await env.attachments.attachments(for: board.id)
         #expect(files.count == 1)
         #expect(files.first?.localCopyPath.map { FileManager.default.fileExists(atPath: $0) } == true)
+    }
+
+    // MARK: Screenshots, paste and to-dos
+
+    /// A chat-like screenshot: black text on white.
+    private func screenshot(_ lines: [String]) -> Data {
+        let size = CGSize(width: 900, height: 110 * lines.count + 60)
+        return UIGraphicsImageRenderer(size: size).pngData { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            for (index, line) in lines.enumerated() {
+                (line as NSString).draw(at: CGPoint(x: 30, y: 30 + index * 110), withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 48), .foregroundColor: UIColor.black,
+                ])
+            }
+        }
+    }
+
+    @Test func aSharedScreenshot_isRead_namedAndSearchableByItsWords() async throws {
+        let env = environment()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("phone-shot-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let shot = root.appendingPathComponent("IMG_0042.png")
+        try screenshot(["Can you send the invoice", "by Friday please"]).write(to: shot)
+        let inbox = ShareInbox(directory: root.appendingPathComponent("Inbox"))
+        _ = try inbox.add(ShareInboxItem(), copying: [shot])
+
+        let ids = await PhoneInboxImporter.importPending(env, inbox: inbox)
+        let id = try #require(ids.first)
+        let item = try #require(await env.workItems.item(id))
+        #expect(item.title != "Shared item")
+        #expect(item.descriptionMd.lowercased().contains("invoice"))
+        #expect(await env.attachments.attachments(for: item.id).count == 1)
+    }
+
+    @MainActor
+    @Test func pasteLoader_readsScreenshotsLinksAndText() async throws {
+        let png = screenshot(["Hello"])
+        let image = try #require(await PhonePasteLoader.object(from: NSItemProvider(item: png as NSData, typeIdentifier: UTType.png.identifier)))
+        #expect(image.imageData == png)
+
+        let link = try #require(await PhonePasteLoader.object(from: NSItemProvider(object: URL(string: "https://example.com/a")! as NSURL)))
+        #expect(link.url?.absoluteString == "https://example.com/a")
+
+        let typedLink = try #require(await PhonePasteLoader.object(from: NSItemProvider(object: "https://example.com/b" as NSString)))
+        #expect(typedLink.url?.host() == "example.com")
+
+        let text = try #require(await PhonePasteLoader.object(from: NSItemProvider(object: "Please pay the rent" as NSString)))
+        #expect(text.text == "Please pay the rent")
+    }
+
+    @MainActor
+    @Test func aPastedChatScreenshot_becomesATaskWithItsTodos() async throws {
+        let env = environment()
+        let pasted = [DroppedObject(imageData: screenshot(["Can you book the dentist", "Please renew the parking permit"]),
+                                    sourceApp: "Clipboard", uti: .png)]
+        let reading = await PhoneSmartCapture.read(pasted, pipeline: env.pipeline)
+        #expect(reading.hasScreenText)
+        let capture = CaptureViewModel(
+            repository: env.workItems, attachmentRepository: env.attachments, contactRepository: env.contacts,
+            materializer: env.materializer, calendar: env.workCalendar
+        )
+        await PhoneSmartCapture.prepare(capture, dropped: pasted, reading: reading)
+        #expect(!capture.draft.title.isEmpty)
+        let todos = await PhoneSmartCapture.todos(title: capture.draft.title, reading: reading)
+        #expect(todos.contains { $0.lowercased().contains("dentist") })
+        #expect(todos.contains { $0.lowercased().contains("parking permit") })
+
+        await capture.save()
+        let item = try #require(capture.savedItem)
+        await PhoneSmartCapture.addChecklist(todos, to: item.id, repository: env.actions)
+        #expect(await env.actions.actions(for: item.id).map(\.text) == todos)
+        #expect(await env.attachments.attachments(for: item.id).count == 1)
     }
 
     // MARK: Quick add and links
