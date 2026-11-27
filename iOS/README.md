@@ -29,5 +29,8 @@ address; away from home the phone needs the server's Tailscale address.
 
 ## TestFlight
 
-Product ▸ Archive in Xcode, then Distribute App ▸ TestFlight. Raise
-`CURRENT_PROJECT_VERSION` in `project.yml` for every upload.
+`scripts/testflight.sh` does it all: raises `CURRENT_PROJECT_VERSION` in
+`project.yml`, runs the tests, archives, and uploads with the Apple account
+signed in to Xcode (team from `iOS/signing.env`). `--no-bump` uploads the
+current build number. The upload log is `build/testflight-upload.log`.
+By hand: Product ▸ Archive in Xcode, then Distribute App ▸ TestFlight.
