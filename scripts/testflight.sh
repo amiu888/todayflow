@@ -14,6 +14,17 @@ cd "${0:A:h}/.."
 set -a; source iOS/signing.env; set +a
 [[ -n "${DEVELOPMENT_TEAM:-}" ]] || { print -u2 "DEVELOPMENT_TEAM is empty in iOS/signing.env"; exit 1; }
 
+# Optional: an App Store Connect API key works even when the Mac is locked
+# (the Xcode sign-in doesn't). In iOS/signing.env:
+#   ASC_KEY_ID=…  ASC_ISSUER_ID=…  (key file ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8)
+auth=()
+if [[ -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]]; then
+  key="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
+  [[ -f "$key" ]] || { print -u2 "Missing API key file $key"; exit 1; }
+  auth=(-authenticationKeyPath "$key" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+  print "Signing in with App Store Connect API key $ASC_KEY_ID"
+fi
+
 build=$(sed -n 's/.*CURRENT_PROJECT_VERSION: "\([0-9]*\)".*/\1/p' iOS/project.yml | head -1)
 if [[ "${1:-}" != "--no-bump" ]]; then
   build=$((build + 1))
@@ -33,7 +44,7 @@ archive=build/TodayFlowPhone.xcarchive
 rm -rf "$archive"
 xcodebuild archive -project iOS/TodayFlowPhone.xcodeproj -scheme TodayFlowPhone \
   -destination 'generic/platform=iOS' -archivePath "$archive" \
-  -allowProvisioningUpdates -quiet
+  -allowProvisioningUpdates "${auth[@]}" -quiet
 built=$(/usr/libexec/PlistBuddy -c "Print :ApplicationProperties:CFBundleVersion" "$archive/Info.plist")
 [[ "$built" == "$build" ]] || { print -u2 "Archive has build $built, expected $build."; exit 1; }
 
@@ -53,9 +64,12 @@ PLIST
 rm -rf build/ios-export
 log=build/testflight-upload.log
 if ! xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$plist" \
-     -exportPath build/ios-export -allowProvisioningUpdates >"$log" 2>&1 \
+     -exportPath build/ios-export -allowProvisioningUpdates "${auth[@]}" >"$log" 2>&1 \
    || ! grep -q "EXPORT SUCCEEDED" "$log"; then
   grep -iE "error|failed" "$log" | head -20 >&2
+  if grep -q "Failed to Use Accounts\|missing Xcode-Username" "$log"; then
+    print -u2 "Xcode's Apple ID can't be read while the Mac is locked. Unlock it, or add an API key (see the top of this script)."
+  fi
   print -u2 "Upload failed; full log in $log"
   exit 1
 fi
