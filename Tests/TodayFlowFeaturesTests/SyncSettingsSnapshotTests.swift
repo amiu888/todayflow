@@ -22,6 +22,7 @@ final class FakeSyncBackend: SyncPanelBackend {
         return nil
     }
     func unpair() async { snapshot = SyncSnapshot() }
+    func changeServer(to server: String) async -> String? { snapshot.serverAddress = server; return nil }
     func setEnabled(_ enabled: Bool) async { snapshot.isEnabled = enabled }
     func syncNow() async {}
     func refresh() async {}

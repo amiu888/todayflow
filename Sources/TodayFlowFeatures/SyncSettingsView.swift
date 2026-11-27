@@ -50,6 +50,10 @@ public protocol SyncPanelBackend: AnyObject, Observable {
     /// Pairs this Mac. Returns an error message, or nil on success.
     func pair(server: String, code: String) async -> String?
     func unpair() async
+    /// Points this pairing at another address of the same server (say, the
+    /// public one instead of the home network's), without pairing again.
+    /// Returns an error message, or nil on success.
+    func changeServer(to server: String) async -> String?
     func setEnabled(_ enabled: Bool) async
     func syncNow() async
     func refresh() async
@@ -63,6 +67,9 @@ struct SyncSettingsSection: View {
     @State private var pairError: String?
     @State private var isPairing = false
     @State private var confirmUnpair = false
+    @State private var editingAddress = false
+    @State private var newAddress = ""
+    @State private var addressError: String?
 
     var body: some View {
         let state = backend.snapshot
@@ -114,7 +121,23 @@ struct SyncSettingsSection: View {
     @ViewBuilder
     private func pairedSections(_ state: SyncSnapshot) -> some View {
         Section("Server") {
-            LabeledContent("Address", value: state.serverAddress)
+            LabeledContent("Address") {
+                HStack {
+                    Text(state.serverAddress).textSelection(.enabled)
+                    Button("Change…") {
+                        newAddress = state.serverAddress
+                        addressError = nil
+                        editingAddress = true
+                    }
+                    .help("Use another address for the same server, such as the public one when you're away from home. You stay paired.")
+                }
+            }
+            if let addressError {
+                Label(addressError, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             LabeledContent("User") {
                 if let name = state.userName {
                     Text(name)
@@ -188,6 +211,16 @@ struct SyncSettingsSection: View {
             Text("Also written to ~/Library/Logs/TodayFlow/app.log. The server is checked every 10 seconds; rounds where nothing changed aren't listed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+        .alert("Server Address", isPresented: $editingAddress) {
+            TextField("Server address", text: $newAddress)
+            Button("Cancel", role: .cancel) {}
+            Button("Change") {
+                let address = newAddress
+                Task { addressError = await backend.changeServer(to: address) }
+            }
+        } message: {
+            Text("Another address for the same server, for example its public https address. This Mac stays paired as the same user.")
         }
         .confirmationDialog(
             "Unpair this Mac from the server?",

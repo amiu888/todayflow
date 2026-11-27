@@ -188,6 +188,32 @@ public final class SyncController: SyncPanelBackend {
         }
     }
 
+    public func changeServer(to server: String) async -> String? {
+        guard var config else { return "This \(Self.deviceKind) isn't paired." }
+        guard let token = await keychain.read(Self.tokenKey) else {
+            return "This \(Self.deviceKind)'s sign-in for the server is missing. Unpair and pair again."
+        }
+        do {
+            let url = try SyncClient.serverURL(from: server)
+            // The same sign-in must work there: that proves it's the same server.
+            let status = try await SyncClient(baseURL: url, token: token, session: session).status()
+            if let was = config.userName, let now = status.userName, was != now {
+                return "That server knows this \(Self.deviceKind) as \(now), not \(was)."
+            }
+            config.server = url.absoluteString
+            if config.userName == nil { config.userName = status.userName }
+            try await save(config)
+            snapshot.lastError = nil
+            await refresh()
+            Task { await runRound() }
+            return nil
+        } catch SyncError.signedOut {
+            return "That server doesn't know this \(Self.deviceKind). Check the address; it must be the same server you paired with."
+        } catch {
+            return Self.message(for: error)
+        }
+    }
+
     public func unpair() async {
         stopLoop()
         try? await keychain.delete(Self.tokenKey)
