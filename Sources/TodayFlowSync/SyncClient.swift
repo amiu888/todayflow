@@ -35,6 +35,14 @@ public protocol SyncTransport: Sendable {
     func putBlob(file: URL, sha256: String) async throws
     /// Downloads to `destination`; false when the server doesn't have it (yet).
     func getBlob(_ sha256: String, to destination: URL) async throws -> Bool
+    /// True when the server answers at all. A round asks after an upload's
+    /// connection drops, to tell "this file is too big for the way in"
+    /// (a proxy such as Cloudflare closes it) from "the server is gone".
+    func isReachable() async -> Bool
+}
+
+public extension SyncTransport {
+    func isReachable() async -> Bool { true }
 }
 
 /// HTTP client for the TodayFlow Sync Server (`Server/README.md`).
@@ -134,6 +142,10 @@ public struct SyncClient: SyncTransport {
 
     public func status() async throws -> Status {
         try await send("v1/status", method: "GET", body: Optional<String>.none)
+    }
+
+    public func isReachable() async -> Bool {
+        (try? await status()) != nil
     }
 
     public func push(_ changes: [SyncChange]) async throws -> [PushResult] {
@@ -349,6 +361,9 @@ public struct SyncRunner: Sendable {
     var useOriginalPaths = true
     /// The server's per-file limit.
     public static let maxFileBytes = 1024 * 1_048_576
+    /// The most one upload can be when the server sits behind a proxy:
+    /// Cloudflare's tunnel refuses request bodies over 100 MB.
+    public var proxyFileBytes = 100 * 1_048_576
     /// Files up to this size download in every round; bigger ones when opened.
     public static let autoDownloadBytes = 10 * 1_048_576
     /// Downloaded copies younger than this are never cleaned up.
@@ -505,6 +520,7 @@ public struct SyncRunner: Sendable {
     /// Uploads files of attachments made on this Mac, straight from disk,
     /// then records their hash on the row (pushed right after).
     private func uploadFiles(report: inout Report) async throws {
+        let tooBig = "Larger than the connection to the server takes (100 MB through Cloudflare)"
         for file in try await store.attachmentsWithoutBlob() {
             guard let url = file.localFile else { continue }
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
@@ -520,6 +536,19 @@ public struct SyncRunner: Sendable {
                 try await store.setBlob(attachmentId: file.id, sha256: sha, size: size)
                 report.filesUploaded += 1
                 report.events.append(SyncEvent(kind: .fileUploaded, text: file.displayName))
+            } catch SyncError.server(let status, _) where status == 413 {
+                try await store.skipBlob(attachmentId: file.id, reason: tooBig, fileSize: size)
+            } catch SyncError.network(let message) {
+                // One upload's connection dropped. If the server still
+                // answers, it's this file (too big for the way in): set it
+                // aside or retry it, but let the tasks sync. Only a server
+                // that's gone stops the round.
+                guard await client.isReachable() else { throw SyncError.network(message) }
+                if size > proxyFileBytes {
+                    try await store.skipBlob(attachmentId: file.id, reason: tooBig, fileSize: size)
+                } else {
+                    report.fileErrors += 1
+                }
             } catch let error as SyncError where Self.stopsRound(error) {
                 throw error
             } catch let error as CocoaError where error.code == .fileReadNoPermission {

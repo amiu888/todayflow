@@ -31,6 +31,9 @@ public struct SyncSnapshot: Equatable, Sendable {
     public var lastSyncAt: Date?
     public var pendingCount = 0
     public var lastError: String?
+    /// Why the last Change… of the server address failed. Cleared by a
+    /// successful change, a new pairing, unpairing, or a round that syncs.
+    public var addressError: String?
     /// "Received 3, sent 2" from the last round.
     public var lastResult: String?
     /// Attachment files this Mac can't upload, as "name: reason".
@@ -69,7 +72,6 @@ struct SyncSettingsSection: View {
     @State private var confirmUnpair = false
     @State private var editingAddress = false
     @State private var newAddress = ""
-    @State private var addressError: String?
 
     var body: some View {
         let state = backend.snapshot
@@ -84,6 +86,7 @@ struct SyncSettingsSection: View {
             await backend.refresh()
             if server.isEmpty { server = state.serverAddress }
         }
+
     }
 
     private var pairSection: some View {
@@ -126,13 +129,12 @@ struct SyncSettingsSection: View {
                     Text(state.serverAddress).textSelection(.enabled)
                     Button("Change…") {
                         newAddress = state.serverAddress
-                        addressError = nil
                         editingAddress = true
                     }
                     .help("Use another address for the same server, such as the public one when you're away from home. You stay paired.")
                 }
             }
-            if let addressError {
+            if let addressError = state.addressError {
                 Label(addressError, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                     .font(.caption)
@@ -217,7 +219,7 @@ struct SyncSettingsSection: View {
             Button("Cancel", role: .cancel) {}
             Button("Change") {
                 let address = newAddress
-                Task { addressError = await backend.changeServer(to: address) }
+                Task { _ = await backend.changeServer(to: address) }
             }
         } message: {
             Text("Another address for the same server, for example its public https address. This Mac stays paired as the same user.")

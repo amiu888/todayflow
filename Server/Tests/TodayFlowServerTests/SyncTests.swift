@@ -206,6 +206,35 @@ struct SyncTests {
         }
     }
 
+    /// The work Mac: signed out on the admin page, then the user made a new
+    /// code and paired it again. It's a new device that gets everything,
+    /// its old token stays refused, and the iPhone keeps working throughout.
+    @Test func signedOutDevice_pairsAgainWithANewCode_andGetsEverything() async throws {
+        try await withServer { client, store in
+            let old = try await store.addUser(name: "Afonso").pairingCode
+            let mac = try await pair(client, code: old, name: "Work Mac")
+            let phone = try await pair(client, code: old, name: "iPhone")
+            _ = try await push(client, token: phone.token, [task("T1", title: "From the phone", at: "2026-11-19T10:00:00.000Z")])
+
+            #expect(try await store.revokeDevice(idOrName: mac.deviceId) == 1)
+            let new = try await store.resetPairingCode(user: "Afonso")
+            let again = try await pair(client, code: new.uppercased(), name: "Work Mac")
+            #expect(again.deviceId != mac.deviceId)
+            #expect(try await status(client, token: again.token).userName == "Afonso")
+            #expect(try await pull(client, token: again.token).changes.map(\.id) == ["T1"])
+
+            try await client.execute(
+                uri: "/v1/status", method: .get, headers: [.authorization: "Bearer \(mac.token)"]
+            ) { response in
+                #expect(response.status == .unauthorized)
+            }
+            #expect(try await status(client, token: phone.token).ok)
+            // The same device can pair twice in a row (an iPhone retrying).
+            let twice = try await pair(client, code: new, name: "iPhone")
+            #expect(try await status(client, token: twice.token).ok)
+        }
+    }
+
     @Test func duplicateUserName_isRefused() async throws {
         try await withServer { _, store in
             _ = try await store.addUser(name: "Alex")

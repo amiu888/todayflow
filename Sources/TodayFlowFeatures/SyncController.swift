@@ -154,6 +154,7 @@ public final class SyncController: SyncPanelBackend {
             next.lastSyncAt = config.lastSyncAt
         }
         next.isSyncing = snapshot.isSyncing
+        next.addressError = config == nil ? nil : snapshot.addressError
         next.log = snapshot.log
         next.lastCheckedAt = snapshot.lastCheckedAt
         next.lastError = snapshot.lastError
@@ -181,6 +182,7 @@ public final class SyncController: SyncPanelBackend {
             try await save(config)
             snapshot.lastError = nil
             snapshot.lastResult = nil
+            snapshot.addressError = nil
             await refresh()
             return nil
         } catch {
@@ -189,6 +191,12 @@ public final class SyncController: SyncPanelBackend {
     }
 
     public func changeServer(to server: String) async -> String? {
+        let error = await switchServer(to: server)
+        snapshot.addressError = error
+        return error
+    }
+
+    private func switchServer(to server: String) async -> String? {
         guard var config else { return "This \(Self.deviceKind) isn't paired." }
         guard let token = await keychain.read(Self.tokenKey) else {
             return "This \(Self.deviceKind)'s sign-in for the server is missing. Unpair and pair again."
@@ -221,6 +229,7 @@ public final class SyncController: SyncPanelBackend {
         config = nil
         snapshot.lastError = nil
         snapshot.lastResult = nil
+        snapshot.addressError = nil
         await refresh()
     }
 
@@ -297,6 +306,7 @@ public final class SyncController: SyncPanelBackend {
             config.lastSyncAt = .now
             try? await save(config)
             snapshot.lastError = nil
+            snapshot.addressError = nil
             let busy = report.received + report.sent + report.filesUploaded + report.filesDownloaded > 0
             if busy || snapshot.lastResult == nil {
                 var text = "Received \(report.received), sent \(report.sent)"
@@ -396,9 +406,17 @@ public final class SyncController: SyncPanelBackend {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let file = directory.appendingPathComponent("before-sync-\(formatter.string(from: .now)).sqlite")
+        let stamp = formatter.string(from: .now)
+        var file = directory.appendingPathComponent("before-sync-\(stamp).sqlite")
+        // Pairing twice within a second must not fail on the backup's name.
+        var copy = 2
+        while FileManager.default.fileExists(atPath: file.path) {
+            file = directory.appendingPathComponent("before-sync-\(stamp)-\(copy).sqlite")
+            copy += 1
+        }
+        let path = file.path
         try await queue.writeWithoutTransaction { db in
-            try db.execute(sql: "VACUUM INTO ?", arguments: [file.path])
+            try db.execute(sql: "VACUUM INTO ?", arguments: [path])
         }
     }
 
