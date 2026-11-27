@@ -208,7 +208,7 @@ public final class SyncController: SyncPanelBackend {
             Task { await runRound() }
             return nil
         } catch SyncError.signedOut {
-            return "That server doesn't know this \(Self.deviceKind). Check the address; it must be the same server you paired with."
+            return "The server turned down this \(Self.deviceKind)'s sign-in. Either the address is a different server, or this \(Self.deviceKind) was signed out on the server's admin page (Devices). If it was signed out, unpair and pair again with your code: nothing on this \(Self.deviceKind) is lost."
         } catch {
             return Self.message(for: error)
         }
